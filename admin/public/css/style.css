@@ -1,0 +1,242 @@
+/* TORQQ Admin Portal Core Theme stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    /* Color Tokens - Light Mode Default */
+    --color-primary: #16C15D;
+    --color-primary-rgb: 22, 193, 93;
+    --color-secondary: #0F172A;
+    --color-accent: #22C55E;
+    
+    --bg-app: #F8FAFC;
+    --bg-card: rgba(255, 255, 255, 0.7);
+    --bg-card-solid: #FFFFFF;
+    --bg-hover: rgba(15, 23, 42, 0.04);
+    
+    --text-main: #0F172A;
+    --text-light: #64748B;
+    --border-color: rgba(15, 23, 42, 0.08);
+    
+    --shadow-premium: 0 8px 32px 0 rgba(31, 38, 135, 0.05);
+    --shadow-inset: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02);
+    
+    --border-radius-sm: 8px;
+    --border-radius-md: 12px;
+    --border-radius-lg: 20px;
+    --border-radius-xl: 30px;
+    
+    --transition-smooth: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+[data-theme="dark"] {
+    /* Color Tokens - Dark Mode */
+    --bg-app: #090D16;
+    --bg-card: rgba(15, 23, 42, 0.5);
+    --bg-card-solid: #0F172A;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    
+    --text-main: #F8FAFC;
+    --text-light: #94A3B8;
+    --border-color: rgba(255, 255, 255, 0.08);
+    
+    --shadow-premium: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* Base Styles */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    overflow-x: hidden;
+    min-height: 100vh;
+    transition: var(--transition-smooth);
+}
+
+/* Layout Framework */
+.app-wrapper {
+    display: flex;
+    min-height: 100vh;
+}
+
+.main-content {
+    flex-grow: 1;
+    padding: 24px 32px;
+    margin-left: 280px; /* Width of sidebar */
+    transition: var(--transition-smooth);
+    min-width: 0; /* Prevents overflow issues */
+}
+
+/* Sidebar Styling */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    background: var(--bg-card-solid);
+    border-right: 1px solid var(--border-color);
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    transition: var(--transition-smooth);
+    overflow-y: auto;
+}
+
+/* Navbar Styling */
+.navbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 0;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border-color);
+    position: relative;
+}
+
+/* Glassmorphism Cards */
+.glass-card {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-lg);
+    box-shadow: var(--shadow-premium);
+    padding: 24px;
+    transition: var(--transition-smooth);
+}
+.glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.08);
+}
+
+/* Interactive Elements */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    white-space: nowrap;
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: #FFFFFF;
+}
+.btn-primary:hover {
+    background-color: var(--color-accent);
+    transform: translateY(-1px);
+}
+
+.btn-secondary {
+    background-color: var(--bg-hover);
+    color: var(--text-main);
+    border: 1px solid var(--border-color);
+}
+.btn-secondary:hover {
+    background-color: var(--border-color);
+}
+
+.btn-danger {
+    background-color: #EF4444;
+    color: #FFFFFF;
+}
+.btn-danger:hover {
+    background-color: #DC2626;
+    transform: translateY(-1px);
+}
+
+/* Badges */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.badge-success { background-color: rgba(22, 193, 93, 0.12); color: var(--color-primary); }
+.badge-info { background-color: rgba(59, 130, 246, 0.12); color: #3B82F6; }
+.badge-warning { background-color: rgba(245, 158, 11, 0.12); color: #F59E0B; }
+.badge-danger { background-color: rgba(239, 68, 68, 0.12); color: #EF4444; }
+
+/* Table Styles */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+th {
+    text-align: left;
+    padding: 16px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--border-color);
+}
+td {
+    padding: 16px 12px;
+    font-size: 13px;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border-color);
+}
+tr:hover td {
+    background-color: var(--bg-hover);
+}
+
+/* Form Styles */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+}
+.form-group label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+}
+.form-input {
+    width: 100%;
+    background-color: var(--bg-app);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
+    border-radius: var(--border-radius-sm);
+    padding: 12px 16px;
+    font-size: 13px;
+    transition: var(--transition-smooth);
+}
+.form-input:focus {
+    border-color: var(--color-primary);
+    background-color: var(--bg-card-solid);
+}
+
+/* Utility Layouts */
+.flex-between {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.trending-up { color: var(--color-primary); font-weight: 700; }
+.trending-down { color: #EF4444; font-weight: 700; }
