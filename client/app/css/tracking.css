@@ -1,0 +1,195 @@
+/* Tracking Page Styles */
+
+.tracking-body {
+    overflow: hidden; /* Prevent scrolling for immersive overlay */
+    background-color: var(--clr-light-bg);
+    margin: 0;
+    padding: 0;
+}
+
+/* Map Overlay */
+.tracking-map-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: calc(100vh - 250px);
+    z-index: 1;
+}
+
+.map-placeholder-bg {
+    width: 100%;
+    height: 100%;
+    background-color: #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image: radial-gradient(#CBD5E1 2px, transparent 2px);
+    background-size: 20px 20px;
+}
+
+.map-text {
+    font-size: 24px;
+    font-weight: 600;
+    color: #94A3B8;
+}
+
+.btn-back-overlay {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--clr-white);
+    box-shadow: var(--shadow-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-dark-navy);
+    z-index: 2;
+    transition: transform var(--transition-fast);
+}
+
+.btn-back-overlay:hover {
+    transform: scale(1.05);
+}
+
+/* Bottom Sheet */
+.tracking-bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+    background-color: var(--clr-white);
+    border-top-left-radius: var(--radius-xl);
+    border-top-right-radius: var(--radius-xl);
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    padding: 24px;
+    animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.sheet-handle {
+    width: 48px;
+    height: 6px;
+    background-color: #E2E8F0;
+    border-radius: 3px;
+    margin: 0 auto 24px;
+}
+
+.tracking-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.eta-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--clr-dark-navy);
+}
+
+.distance-text {
+    font-size: 14px;
+    color: var(--clr-text-light);
+    margin-top: 4px;
+}
+
+.vehicle-plate {
+    background-color: var(--bg-green-light);
+    color: var(--clr-primary-green);
+    font-weight: 600;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid #DCFCE7;
+}
+
+.driver-info-card {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    background-color: var(--clr-light-bg);
+    border-radius: var(--radius-lg);
+    margin-bottom: 24px;
+}
+
+.driver-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+}
+
+.driver-details {
+    flex: 1;
+}
+
+.driver-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--clr-dark-navy);
+}
+
+.driver-rating {
+    font-size: 14px;
+    color: var(--clr-text-light);
+    margin-top: 2px;
+}
+
+.driver-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.btn-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--clr-white);
+    background-color: var(--clr-primary-blue);
+    transition: transform var(--transition-fast);
+}
+
+.btn-icon:hover {
+    transform: scale(1.05);
+}
+
+.trip-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.btn-secondary {
+    padding: 14px;
+    background-color: var(--clr-light-bg);
+    color: var(--clr-dark-navy);
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    text-align: center;
+}
+
+.btn-danger {
+    padding: 14px;
+    background-color: #FEE2E2;
+    color: #DC2626;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    text-align: center;
+}

@@ -1,0 +1,79 @@
+/* TORQQ Admin Portal Micro Animations & Transitions */
+
+@keyframes pulse {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+.skeleton-pulse {
+    animation: pulse 1.5s infinite ease-in-out;
+    background-color: var(--border-color);
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.scale-in {
+    animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Pulsating alert banner for emergency SOS */
+@keyframes emergencyGlow {
+    0% { box-shadow: 0 0 4px #EF4444; background-color: rgba(239, 68, 68, 0.08); }
+    50% { box-shadow: 0 0 16px #EF4444; background-color: rgba(239, 68, 68, 0.25); }
+    100% { box-shadow: 0 0 4px #EF4444; background-color: rgba(239, 68, 68, 0.08); }
+}
+
+.sos-alert-banner {
+    animation: emergencyGlow 2s infinite ease-in-out;
+    border: 1px solid #EF4444;
+}
+
+/* Ripples */
+.ripple-btn {
+    position: relative;
+    overflow: hidden;
+}
+.ripple-btn::after {
+    content: "";
+    background: rgba(255, 255, 255, 0.3);
+    display: block;
+    position: absolute;
+    border-radius: 50%;
+    padding-top: 240%;
+    padding-left: 240%;
+    margin-top: -120%;
+    margin-left: -120%;
+    opacity: 0;
+    transition: all 0.8s;
+}
+.ripple-btn:active::after {
+    padding: 0;
+    margin: 0;
+    opacity: 1;
+    transition: 0s;
+}

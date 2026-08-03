@@ -1,0 +1,29 @@
+@import './css/style.css';
+@import './css/animations.css';
+@import './css/responsive.css';
+
+:root {
+  --font-poppins: 'Poppins', sans-serif;
+}
+
+* {
+  font-family: var(--font-poppins), sans-serif;
+}
+
+/* Fix sidebar hover and active states */
+.sidebar-item:hover {
+  background-color: var(--bg-hover) !important;
+  color: var(--color-primary) !important;
+}
+
+.sidebar-item.active {
+  background-color: var(--color-primary) !important;
+  color: #FFFFFF !important;
+}
+
+/* Mobile sidebar toggle */
+@media (max-width: 768px) {
+  .sidebar-toggle-btn {
+    display: flex !important;
+  }
+}
