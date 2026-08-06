@@ -8,7 +8,7 @@ import { apiFetch } from '@/lib/api/adminApi';
 import {
   LayoutDashboard, MapPin, Users, UserCheck, Route, CreditCard,
   PieChart, Settings, User, LogOut, Menu, Bell, Search, Sun, Moon, LayoutGrid,
-  Radio, Bus
+  Radio, Bus, Clock
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -88,6 +88,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       { icon: Route, label: 'Routes', href: '/routes' },
       { icon: CreditCard, label: 'Subscriptions', href: '/subscriptions' },
       { href: '/plans', icon: LayoutGrid, label: 'Plans' },
+      { href: '/pause-requests', icon: Clock, label: 'Pause Requests' },
     ]},
     { category: 'System', items: [
       { icon: PieChart, label: 'Analytics', href: '/analytics' },

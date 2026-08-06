@@ -133,4 +133,12 @@ export const adminApi = {
   getProfile: () => apiFetch('/admin/profile'),
   updateProfile: (data: any) =>
     apiFetch('/admin/profile', { method: 'PUT', body: JSON.stringify(data) }),
+
+  // Pause Requests
+  getPauseRequests: (status?: string) =>
+    apiFetch(`/admin/pause-requests${status ? `?status=${status}` : ''}`),
+  approvePauseRequest: (id: string) =>
+    apiFetch(`/admin/pause-requests/${id}/approve`, { method: 'POST' }),
+  rejectPauseRequest: (id: string) =>
+    apiFetch(`/admin/pause-requests/${id}/reject`, { method: 'POST' }),
 };

@@ -105,7 +105,9 @@ const getSubscription = asyncWrapper(async (req, res) => {
   const subscription = await Subscription.findOne({
     customerId: customer._id,
     status: { $ne: 'EXPIRED' },
-  });
+  })
+    .populate('planId')
+    .populate('routeId', 'name startLocation endLocation stops');
 
   return res.status(200).json(formatResponse('Subscription retrieved successfully.', subscription));
 });

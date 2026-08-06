@@ -32,10 +32,50 @@ const subscriptionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['ACTIVE', 'PAUSED', 'EXPIRED', 'CANCELLED'],
-      default: 'ACTIVE',
+      enum: ['ACTIVE', 'PAUSED', 'EXPIRED', 'CANCELLED', 'PENDING_PAYMENT'],
+      default: 'PENDING_PAYMENT',
       index: true,
     },
+
+    // --- Payment tracking ---
+    payment: {
+      orderId: { type: String },
+      paymentId: { type: String },
+      signature: { type: String },
+      amount: { type: Number },
+      status: {
+        type: String,
+        enum: ['pending', 'completed', 'failed', 'refunded'],
+        default: 'pending',
+      },
+      paidAt: { type: Date },
+    },
+
+    // --- Booking schedule (for Hybrid plans - customer picks days) ---
+    // Which weekdays (0-6) the customer has chosen for Hybrid plans
+    selectedWeekdays: [{
+      type: Number,
+      min: 0,
+      max: 6,
+    }],
+
+    // Track days used this week (reset weekly) for hybrid/alternate plans
+    bookingsThisWeek: {
+      type: Number,
+      default: 0,
+    },
+    weekResetDate: {
+      type: Date,
+    },
+
+    // Pickup/drop stop selection for managed routes
+    pickupStopIndex: {
+      type: Number,
+    },
+    dropStopIndex: {
+      type: Number,
+    },
+
     isDeleted: {
       type: Boolean,
       default: false,

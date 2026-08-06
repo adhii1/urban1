@@ -60,4 +60,17 @@ router.patch('/subscriptions/:id', validateRequest(adminValidation.updateSubscri
 router.post('/subscriptions/:id/pause', validateRequest(adminValidation.pauseSubscription), adminController.pauseSubscription);
 router.post('/subscriptions/:id/resume', validateRequest(adminValidation.resumeSubscription), adminController.resumeSubscription);
 
+// Settings
+router.get('/settings', adminController.getSettings);
+router.put('/settings', adminController.updateSettings);
+
+// Admin Profile
+router.get('/profile', adminController.getProfile);
+router.put('/profile', adminController.updateProfile);
+
+// Pause Requests
+router.get('/pause-requests', adminController.getPauseRequests);
+router.post('/pause-requests/:id/approve', adminController.approvePauseRequest);
+router.post('/pause-requests/:id/reject', adminController.rejectPauseRequest);
+
 module.exports = router;

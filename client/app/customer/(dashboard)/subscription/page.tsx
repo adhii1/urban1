@@ -40,8 +40,22 @@ export default function CustomerSubscriptionPage() {
 
   if (!subscription) {
     return (
-      <div style={{ textAlign: 'center', padding: '32px', color: '#64748B', fontSize: '12px' }}>
-        No active subscription found.
+      <div style={{ textAlign: 'center', padding: '32px' }}>
+        <div style={{
+          width: '64px', height: '64px', borderRadius: '50%', background: '#F0FDF4',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+        }}>
+          <CreditCard size={28} color="#16C15D" />
+        </div>
+        <p style={{ color: '#0F172A', fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>No Active Subscription</p>
+        <p style={{ color: '#64748B', fontSize: '12px', marginBottom: '20px' }}>Subscribe to a plan to start your daily commute</p>
+        <a href="/customer/plans" style={{
+          display: 'inline-flex', alignItems: 'center', gap: '8px',
+          padding: '12px 24px', background: '#16C15D', color: '#FFF',
+          borderRadius: '12px', fontWeight: 700, fontSize: '13px', textDecoration: 'none',
+        }}>
+          <CreditCard size={16} /> Browse Plans
+        </a>
       </div>
     );
   }

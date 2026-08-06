@@ -1,51 +1,50 @@
 /**
  * Payment Service
- * Handles payment processing with Razorpay/Stripe integration
- * 
- * SETUP:
- * 1. Get API keys from Razorpay (https://razorpay.com) or Stripe (https://stripe.com)
- * 2. Set RAZORPAY_KEY_ID and RAZORPAY_SECRET in .env file
- * 3. Or set STRIPE_SECRET_KEY for Stripe integration
- * 
- * CURRENT STATUS: Placeholder implementation
- * TODO: Integrate actual payment gateway
+ * Handles payment processing with Razorpay integration
  */
 
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 const config = require('../config/config');
 
 class PaymentService {
   constructor() {
-    this.provider = process.env.PAYMENT_PROVIDER || 'razorpay'; // 'razorpay' or 'stripe'
+    this.razorpay = null;
     this.initialized = false;
-    
-    // Initialize payment gateway
-    if (this.provider === 'razorpay' && config.razorpay?.keyId) {
-      this.initialized = true;
-      logger.info('Payment service initialized with Razorpay');
-    } else if (this.provider === 'stripe' && config.stripe?.secretKey) {
-      this.initialized = true;
-      logger.info('Payment service initialized with Stripe');
+
+    if (config.razorpay?.keyId && config.razorpay?.keySecret) {
+      try {
+        const Razorpay = require('razorpay');
+        this.razorpay = new Razorpay({
+          key_id: config.razorpay.keyId,
+          key_secret: config.razorpay.keySecret,
+        });
+        this.initialized = true;
+        logger.info('Payment service initialized with Razorpay');
+      } catch (err) {
+        logger.warn('Razorpay SDK not installed. Running in mock mode. Install with: npm install razorpay');
+        this.initialized = false;
+      }
     } else {
-      logger.warn('Payment service not configured. Set RAZORPAY_KEY_ID or STRIPE_SECRET_KEY');
+      logger.warn('Payment service not configured. Set RAZORPAY_KEY_ID and RAZORPAY_SECRET in .env');
     }
   }
 
   /**
    * Create a payment order
    * @param {Object} params - Payment parameters
-   * @param {number} params.amount - Amount in paise/cents
-   * @param {string} params.currency - Currency code (e.g., 'INR', 'USD')
+   * @param {number} params.amount - Amount in paise (smallest currency unit)
+   * @param {string} params.currency - Currency code (e.g., 'INR')
    * @param {string} params.receipt - Receipt ID
    * @param {Object} params.notes - Additional notes
    * @returns {Promise<Object>} Payment order details
    */
   async createOrder({ amount, currency = 'INR', receipt, notes = {} }) {
-    if (!this.initialized) {
-      // Mock response for testing
+    if (!this.initialized || !this.razorpay) {
+      // Mock response for development/testing
       return {
         success: true,
-        orderId: `order_mock_${Date.now()}`,
+        orderId: `order_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         amount,
         currency,
         receipt,
@@ -55,89 +54,55 @@ class PaymentService {
     }
 
     try {
-      if (this.provider === 'razorpay') {
-        // TODO: Integrate Razorpay SDK
-        // const Razorpay = require('razorpay');
-        // const razorpay = new Razorpay({
-        //   key_id: config.razorpay.keyId,
-        //   key_secret: config.razorpay.keySecret,
-        // });
-        // const order = await razorpay.orders.create({
-        //   amount,
-        //   currency,
-        //   receipt,
-        //   notes,
-        // });
-        // return { success: true, orderId: order.id, amount, currency };
+      const order = await this.razorpay.orders.create({
+        amount,
+        currency,
+        receipt,
+        notes,
+      });
 
-        return {
-          success: true,
-          orderId: `order_razorpay_${Date.now()}`,
-          amount,
-          currency,
-          status: 'created',
-        };
-      } else if (this.provider === 'stripe') {
-        // TODO: Integrate Stripe SDK
-        // const stripe = require('stripe')(config.stripe.secretKey);
-        // const paymentIntent = await stripe.paymentIntents.create({
-        //   amount,
-        //   currency: currency.toLowerCase(),
-        //   metadata: { receipt, ...notes },
-        // });
-        // return { success: true, paymentIntentId: paymentIntent.id, amount, currency };
-
-        return {
-          success: true,
-          paymentIntentId: `pi_stripe_${Date.now()}`,
-          amount,
-          currency,
-          status: 'created',
-        };
-      }
+      return {
+        success: true,
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        receipt: order.receipt,
+        status: order.status,
+      };
     } catch (error) {
-      logger.error('Failed to create payment order', { error: error.message });
-      throw new Error('Payment order creation failed');
+      logger.error('Failed to create Razorpay order', { error: error.message });
+      throw new Error('Payment order creation failed: ' + error.message);
     }
   }
 
   /**
-   * Verify payment signature
-   * @param {Object} params - Verification parameters
-   * @param {string} params.orderId - Order ID
-   * @param {string} params.paymentId - Payment ID
-   * @param {string} params.signature - Payment signature
-   * @returns {Promise<boolean>} Verification result
+   * Verify payment signature (Razorpay HMAC SHA256 verification)
+   * @param {Object} params
+   * @param {string} params.orderId - Razorpay Order ID
+   * @param {string} params.paymentId - Razorpay Payment ID
+   * @param {string} params.signature - Razorpay Signature
+   * @returns {Promise<Object>} Verification result
    */
   async verifyPayment({ orderId, paymentId, signature }) {
     if (!this.initialized) {
-      // Mock verification for testing
+      // Mock verification: always succeeds in dev mode
       return { success: true, verified: true, mock: true };
     }
 
     try {
-      if (this.provider === 'razorpay') {
-        // TODO: Integrate Razorpay verification
-        // const crypto = require('crypto');
-        // const expectedSignature = crypto
-        //   .createHmac('sha256', config.razorpay.keySecret)
-        //   .update(orderId + '|' + paymentId)
-        //   .digest('hex');
-        // return { success: true, verified: expectedSignature === signature };
+      const body = orderId + '|' + paymentId;
+      const expectedSignature = crypto
+        .createHmac('sha256', config.razorpay.keySecret)
+        .update(body)
+        .digest('hex');
 
-        return { success: true, verified: true };
-      } else if (this.provider === 'stripe') {
-        // TODO: Integrate Stripe verification
-        // const stripe = require('stripe')(config.stripe.secretKey);
-        // const event = stripe.webhooks.constructEvent(
-        //   requestBody,
-        //   signature,
-        //   config.stripe.webhookSecret
-        // );
-        // return { success: true, verified: true };
+      const verified = expectedSignature === signature;
 
-        return { success: true, verified: true };
+      if (!verified) {
+        logger.warn('Razorpay payment signature mismatch', { orderId, paymentId });
       }
+
+      return { success: true, verified };
     } catch (error) {
       logger.error('Payment verification failed', { error: error.message });
       return { success: false, verified: false, error: error.message };
@@ -146,14 +111,13 @@ class PaymentService {
 
   /**
    * Process refund
-   * @param {Object} params - Refund parameters
-   * @param {string} params.paymentId - Payment ID
-   * @param {number} params.amount - Refund amount (optional, defaults to full refund)
+   * @param {Object} params
+   * @param {string} params.paymentId - Payment ID to refund
+   * @param {number} params.amount - Refund amount in paise (optional, full refund if omitted)
    * @returns {Promise<Object>} Refund details
    */
   async processRefund({ paymentId, amount }) {
-    if (!this.initialized) {
-      // Mock refund for testing
+    if (!this.initialized || !this.razorpay) {
       return {
         success: true,
         refundId: `refund_mock_${Date.now()}`,
@@ -165,54 +129,31 @@ class PaymentService {
     }
 
     try {
-      if (this.provider === 'razorpay') {
-        // TODO: Integrate Razorpay refund
-        // const Razorpay = require('razorpay');
-        // const razorpay = new Razorpay({
-        //   key_id: config.razorpay.keyId,
-        //   key_secret: config.razorpay.keySecret,
-        // });
-        // const refund = await razorpay.payments.refund(paymentId, { amount });
-        // return { success: true, refundId: refund.id, amount };
+      const refundOptions = {};
+      if (amount) refundOptions.amount = amount;
 
-        return {
-          success: true,
-          refundId: `refund_razorpay_${Date.now()}`,
-          paymentId,
-          amount,
-          status: 'processed',
-        };
-      } else if (this.provider === 'stripe') {
-        // TODO: Integrate Stripe refund
-        // const stripe = require('stripe')(config.stripe.secretKey);
-        // const refund = await stripe.refunds.create({
-        //   payment_intent: paymentId,
-        //   amount,
-        // });
-        // return { success: true, refundId: refund.id, amount };
+      const refund = await this.razorpay.payments.refund(paymentId, refundOptions);
 
-        return {
-          success: true,
-          refundId: `refund_stripe_${Date.now()}`,
-          paymentId,
-          amount,
-          status: 'processed',
-        };
-      }
+      return {
+        success: true,
+        refundId: refund.id,
+        paymentId: refund.payment_id,
+        amount: refund.amount,
+        status: refund.status,
+      };
     } catch (error) {
-      logger.error('Refund processing failed', { error: error.message });
-      throw new Error('Refund processing failed');
+      logger.error('Refund processing failed', { error: error.message, paymentId });
+      throw new Error('Refund processing failed: ' + error.message);
     }
   }
 
   /**
    * Get payment status
-   * @param {string} paymentId - Payment ID
+   * @param {string} paymentId - Razorpay Payment ID
    * @returns {Promise<Object>} Payment status
    */
   async getPaymentStatus(paymentId) {
-    if (!this.initialized) {
-      // Mock status for testing
+    if (!this.initialized || !this.razorpay) {
       return {
         success: true,
         paymentId,
@@ -224,18 +165,29 @@ class PaymentService {
     }
 
     try {
-      // TODO: Implement actual payment status check
+      const payment = await this.razorpay.payments.fetch(paymentId);
+
       return {
         success: true,
-        paymentId,
-        status: 'captured',
-        amount: 0,
-        currency: 'INR',
+        paymentId: payment.id,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        method: payment.method,
+        email: payment.email,
+        contact: payment.contact,
       };
     } catch (error) {
-      logger.error('Failed to get payment status', { error: error.message });
-      throw new Error('Failed to get payment status');
+      logger.error('Failed to get payment status', { error: error.message, paymentId });
+      throw new Error('Failed to get payment status: ' + error.message);
     }
+  }
+
+  /**
+   * Get Razorpay key ID for frontend
+   */
+  getKeyId() {
+    return config.razorpay?.keyId || '';
   }
 }
 

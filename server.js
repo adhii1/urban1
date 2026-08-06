@@ -8,6 +8,7 @@ const { initSockets, getIO } = require('./config/socket');
 const rideExpiry = require('./services/rideExpiryService');
 const ridePairing = require('./services/ridePairingService');
 const bundleEngine = require('./services/BundleMatchingEngine');
+const subscriptionExpiry = require('./services/subscriptionExpiryService');
 const logger = require('./utils/logger');
 
 const server = http.createServer(app);
@@ -26,6 +27,7 @@ const startServer = async () => {
     ridePairing.startPeriodicRefresh(logger);
     rideExpiry.start();
     bundleEngine.startRecoveryJob();
+    subscriptionExpiry.start();
   });
 };
 
@@ -38,6 +40,7 @@ const shutdownGracefully = async (signal) => {
   rideExpiry.stop();
   ridePairing.stopPeriodicRefresh();
   bundleEngine.stopRecoveryJob();
+  subscriptionExpiry.stop();
 
   // Close Socket.IO so connected clients see a clean disconnect.
   try {

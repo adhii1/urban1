@@ -187,3 +187,152 @@ export function usePauseSubscription() {
     },
   });
 }
+
+// --- Plan Browse & Subscription Purchase ---
+
+export interface PlanDetail {
+  _id: string;
+  name: string;
+  serviceType: string;
+  tier: string;
+  description: string;
+  durationDays: number;
+  price: number;
+  pauseDaysAllowed: number;
+  features: string[];
+  bookingRules?: {
+    maxPassengersPerBooking?: number;
+    minAdvanceBookingMinutes?: number;
+    allowedDaysPerWeek?: number;
+    allowedWeekdays?: number[];
+    isAlternateDay?: boolean;
+    isSharedRide?: boolean;
+    useManagedStops?: boolean;
+  };
+}
+
+export interface RouteDetail {
+  _id: string;
+  name: string;
+  startLocation: string;
+  endLocation: string;
+  stops: Array<{
+    stopName: string;
+    sequenceOrder: number;
+    location?: { coordinates?: number[] };
+  }>;
+}
+
+export interface BookingEligibility {
+  eligible: boolean;
+  reason?: string;
+  plan?: {
+    name: string;
+    tier: string;
+    isSharedRide: boolean;
+    useManagedStops: boolean;
+    maxPassengersPerBooking: number;
+    minAdvanceBookingMinutes: number;
+  };
+  subscription?: {
+    pickupStopIndex?: number;
+    dropStopIndex?: number;
+    bookingsThisWeek?: number;
+  };
+  selectedWeekdays?: number[];
+}
+
+export function useBrowsePlans(serviceType?: string) {
+  const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
+  const params = serviceType ? `?serviceType=${encodeURIComponent(serviceType)}` : '';
+  return useQuery({
+    queryKey: ['plans', serviceType],
+    queryFn: () => api.get<PlanDetail[]>(`/customer/plans${params}`),
+    enabled: isLoggedIn,
+    staleTime: 5 * 60 * 1000,
+    select: (d) => d.data,
+  });
+}
+
+export function useRoutesForPlan(planId: string) {
+  const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
+  return useQuery({
+    queryKey: ['plan-routes', planId],
+    queryFn: () => api.get<RouteDetail[]>(`/customer/plans/${planId}/routes`),
+    enabled: isLoggedIn && !!planId,
+    staleTime: 5 * 60 * 1000,
+    select: (d) => d.data,
+  });
+}
+
+export function useBookingEligibility() {
+  const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
+  return useQuery({
+    queryKey: ['booking-eligibility'],
+    queryFn: () => api.get<BookingEligibility>('/customer/subscriptions/booking-eligibility'),
+    enabled: isLoggedIn,
+    staleTime: 60 * 1000,
+    select: (d) => d.data,
+  });
+}
+
+export function usePurchaseSubscription() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: {
+      planId: string;
+      routeId: string;
+      startDate: string;
+      selectedWeekdays?: number[];
+      pickupStopIndex?: number;
+      dropStopIndex?: number;
+    }) => api.post('/customer/subscriptions/purchase', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customer.subscription() });
+    },
+    onError: (err: Error) => {
+      showToast(err.message || 'Failed to initiate purchase', 'error');
+    },
+  });
+}
+
+export function useVerifySubscriptionPayment() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  return useMutation({
+    mutationFn: (data: {
+      subscriptionId: string;
+      orderId: string;
+      paymentId: string;
+      signature: string;
+    }) => api.post('/customer/subscriptions/verify-payment', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customer.subscription() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customer.profile() });
+      showToast('Subscription activated successfully!', 'success');
+    },
+    onError: (err: Error) => {
+      showToast(err.message || 'Payment verification failed', 'error');
+    },
+  });
+}
+
+export function useCancelSubscription() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  return useMutation({
+    mutationFn: () => api.post('/customer/subscriptions/cancel', {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.customer.subscription() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.customer.profile() });
+      showToast('Subscription cancelled', 'success');
+    },
+    onError: (err: Error) => {
+      showToast(err.message || 'Failed to cancel subscription', 'error');
+    },
+  });
+}

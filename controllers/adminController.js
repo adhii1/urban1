@@ -6,6 +6,8 @@ const Route = require('../models/Route');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const PauseRequest = require('../models/PauseRequest');
+const Admin = require('../models/Admin');
+const Settings = require('../models/Settings');
 const { hashPassword } = require('../utils/passwordHelper');
 const { buildTripManifest } = require('../utils/geoHelper');
 const formatResponse = require('../utils/responseFormatter');
@@ -419,9 +421,63 @@ const getPlans = asyncWrapper(async (req, res) => {
 });
 
 const createPlan = asyncWrapper(async (req, res) => {
-  const { name, serviceType, tier, description, durationDays, price, pauseDaysAllowed, features } = req.body;
+  const { name, serviceType, tier, description, durationDays, price, pauseDaysAllowed, features, bookingRules } = req.body;
+
+  // Auto-populate booking rules based on tier if not explicitly provided
+  let rules = bookingRules || {};
+  if (!bookingRules || Object.keys(bookingRules).length === 0) {
+    switch (tier) {
+      case 'Flexy':
+        rules = {
+          maxPassengersPerBooking: 1,
+          minAdvanceBookingMinutes: 120, // 2 hours
+          allowedDaysPerWeek: 7,
+          allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+          isAlternateDay: false,
+          isSharedRide: false,
+          useManagedStops: false,
+        };
+        break;
+      case 'Hybrid':
+        rules = {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 3,
+          allowedWeekdays: [], // Customer picks at subscription time
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        };
+        break;
+      case 'Weekday':
+        rules = {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 5,
+          allowedWeekdays: [1, 2, 3, 4, 5], // Mon-Fri
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        };
+        break;
+      case 'Standard':
+      default:
+        rules = {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 7,
+          allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        };
+        break;
+    }
+  }
+
   const plan = await Plan.create({
     name, serviceType, tier, description, durationDays, price, pauseDaysAllowed, features,
+    bookingRules: rules,
   });
   return res.status(201).json(formatResponse('Plan created successfully.', plan));
 });
@@ -626,4 +682,160 @@ module.exports = {
   updateSubscription,
   pauseSubscription,
   resumeSubscription,
+};
+
+// --- Settings ---
+const getSettings = asyncWrapper(async (req, res) => {
+  const settings = await Settings.getSettings();
+  return res.status(200).json(formatResponse('Settings retrieved.', settings));
+});
+
+const updateSettings = asyncWrapper(async (req, res) => {
+  const allowedFields = [
+    'platformName', 'maxSeatsPerCab', 'autoMatchRadius',
+    'sosAutoDispatch', 'maintenanceMode', 'otpExpiryMinutes',
+    'commissionRate', 'minFare',
+  ];
+
+  const updates = {};
+  for (const field of allowedFields) {
+    if (req.body[field] !== undefined) {
+      updates[field] = req.body[field];
+    }
+  }
+
+  const settings = await Settings.findOneAndUpdate(
+    { key: 'platform_settings' },
+    { $set: updates },
+    { new: true, upsert: true, runValidators: true }
+  );
+
+  return res.status(200).json(formatResponse('Settings updated.', settings));
+});
+
+// --- Admin Profile ---
+const getProfile = asyncWrapper(async (req, res) => {
+  const admin = await Admin.findOne({ userId: req.user.id });
+  if (!admin) throw new NotFoundError('Admin profile');
+
+  const user = await User.findById(req.user.id).select('phone email');
+
+  return res.status(200).json(formatResponse('Profile retrieved.', {
+    name: admin.name,
+    phone: user?.phone || '',
+    email: user?.email || '',
+    role: admin.role,
+    permissions: admin.permissions,
+  }));
+});
+
+const updateProfile = asyncWrapper(async (req, res) => {
+  const admin = await Admin.findOne({ userId: req.user.id });
+  if (!admin) throw new NotFoundError('Admin profile');
+
+  const { name, email } = req.body;
+
+  if (name !== undefined) admin.name = name;
+  await admin.save();
+
+  // Update email on User model if provided
+  if (email !== undefined) {
+    await User.findByIdAndUpdate(req.user.id, { email });
+  }
+
+  return res.status(200).json(formatResponse('Profile updated.', {
+    name: admin.name,
+    email: email || '',
+    role: admin.role,
+  }));
+});
+
+// --- Pause Request Approvals ---
+const getPauseRequests = asyncWrapper(async (req, res) => {
+  const { status } = req.query;
+  const filter = { isDeleted: false };
+  if (status) filter.status = status;
+
+  const requests = await PauseRequest.find(filter)
+    .populate('customerId', 'name')
+    .populate('subscriptionId', 'planId routeId startDate endDate status')
+    .sort({ createdAt: -1 });
+
+  return res.status(200).json(formatResponse('Pause requests listed.', requests));
+});
+
+const approvePauseRequest = asyncWrapper(async (req, res) => {
+  const pauseRequest = await PauseRequest.findById(req.params.id);
+  if (!pauseRequest) throw new NotFoundError('Pause request');
+  if (pauseRequest.status !== 'PENDING') throw new ValidationError('Only pending requests can be approved.');
+
+  pauseRequest.status = 'APPROVED';
+  pauseRequest.approvedBy = req.user.id;
+  await pauseRequest.save();
+
+  // Pause the subscription and decrement remaining days
+  const subscription = await Subscription.findById(pauseRequest.subscriptionId);
+  if (subscription && subscription.status === 'ACTIVE') {
+    subscription.status = 'PAUSED';
+    if (subscription.remainingPauseDays > 0) {
+      subscription.remainingPauseDays -= 1;
+    }
+    await subscription.save();
+  }
+
+  return res.status(200).json(formatResponse('Pause request approved.', pauseRequest));
+});
+
+const rejectPauseRequest = asyncWrapper(async (req, res) => {
+  const pauseRequest = await PauseRequest.findById(req.params.id);
+  if (!pauseRequest) throw new NotFoundError('Pause request');
+  if (pauseRequest.status !== 'PENDING') throw new ValidationError('Only pending requests can be rejected.');
+
+  pauseRequest.status = 'REJECTED';
+  pauseRequest.approvedBy = req.user.id;
+  await pauseRequest.save();
+
+  return res.status(200).json(formatResponse('Pause request rejected.', pauseRequest));
+});
+
+module.exports = {
+  getAnalytics,
+  getDashboard,
+  getDrivers,
+  getDriverById,
+  createDriver,
+  updateDriver,
+  deleteDriver,
+  getCustomers,
+  getCustomerById,
+  createCustomer,
+  updateCustomer,
+  deleteCustomer,
+  banCustomer,
+  getTrips,
+  getTripById,
+  createTrip,
+  updateTrip,
+  deleteTrip,
+  reassignTrip,
+  getRoutes,
+  createRoute,
+  updateRoute,
+  deleteRoute,
+  getPlans,
+  createPlan,
+  updatePlan,
+  deletePlan,
+  getSubscriptions,
+  createSubscription,
+  updateSubscription,
+  pauseSubscription,
+  resumeSubscription,
+  getSettings,
+  updateSettings,
+  getProfile,
+  updateProfile,
+  getPauseRequests,
+  approvePauseRequest,
+  rejectPauseRequest,
 };

@@ -282,3 +282,33 @@ export function useUpdateProfile() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
   });
 }
+
+
+// --- Pause Requests ---
+export function usePauseRequests(status?: string) {
+  const isAuthed = !!useAuthState();
+  return useQuery({
+    queryKey: ['pause-requests', status],
+    queryFn: () => adminApi.getPauseRequests(status),
+    enabled: isAuthed,
+  });
+}
+
+export function useApprovePauseRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.approvePauseRequest(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pause-requests'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions'] });
+    },
+  });
+}
+
+export function useRejectPauseRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.rejectPauseRequest(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pause-requests'] }),
+  });
+}
