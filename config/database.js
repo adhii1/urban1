@@ -138,46 +138,83 @@ const seedDatabase = async (env) => {
         durationDays: 30,
         price: 2499,
         pauseDaysAllowed: 5,
-        features: ['Flexible booking', 'Cancel before 1-2 hrs', 'All locations within 5km', 'Pickup + Dropoff'],
+        features: ['Flexible booking', 'Cancel before 1-2 hrs', 'All locations within 5km', 'Pickup + Dropoff', 'Single person ride'],
+        bookingRules: {
+          maxPassengersPerBooking: 1,
+          minAdvanceBookingMinutes: 120,
+          allowedDaysPerWeek: 7,
+          allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+          isAlternateDay: false,
+          isSharedRide: false,
+          useManagedStops: false,
+        },
       },
       {
         name: 'Hybrid',
         serviceType: 'Home-to-Office',
         tier: 'Hybrid',
-        description: 'Alternate day service (Mon/Wed/Fri or Tue/Thu/Sat). Pickup/dropoff from home.',
+        description: '3 days/week service. Pick your commute days. Shared shuttle with managed stops.',
         durationDays: 30,
         price: 1799,
         pauseDaysAllowed: 3,
-        features: ['Alternate days', 'Home pickup + dropoff', 'Fixed schedule'],
+        features: ['3 days per week', 'Pick your days', 'Shared shuttle', 'Managed bus stops'],
+        bookingRules: {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 3,
+          allowedWeekdays: [],
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        },
       },
       {
         name: 'Weekday',
         serviceType: 'Home-to-Office',
         tier: 'Weekday',
-        description: 'Monday to Friday service. 5 days/week. Home pickup and dropoff.',
+        description: 'Monday to Friday service. 5 days/week. Shared shuttle with managed stops.',
         durationDays: 30,
         price: 1999,
         pauseDaysAllowed: 4,
-        features: ['5 days/week', 'Mon-Fri', 'Home pickup + dropoff'],
+        features: ['5 days/week', 'Mon-Fri', 'Shared shuttle', 'Managed bus stops'],
+        bookingRules: {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 5,
+          allowedWeekdays: [1, 2, 3, 4, 5],
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        },
       },
       {
         name: 'Stop-to-Stop',
         serviceType: 'Stop-to-Stop',
         tier: 'Standard',
-        description: 'Pickup and dropoff from designated bus stops only.',
+        description: 'Pickup and dropoff from designated bus stops only. All 7 days.',
         durationDays: 30,
         price: 1299,
         pauseDaysAllowed: 2,
-        features: ['Bus stop pickup', 'Bus stop dropoff', 'Fixed routes', 'Affordable'],
+        features: ['Bus stop pickup', 'Bus stop dropoff', 'Fixed routes', 'Affordable', '7 days/week'],
+        bookingRules: {
+          maxPassengersPerBooking: 6,
+          minAdvanceBookingMinutes: 0,
+          allowedDaysPerWeek: 7,
+          allowedWeekdays: [0, 1, 2, 3, 4, 5, 6],
+          isAlternateDay: false,
+          isSharedRide: true,
+          useManagedStops: true,
+        },
       },
     ];
 
     for (const planData of plansData) {
-      const exists = await Plan.findOne({ name: planData.name });
-      if (!exists) {
-        await Plan.create(planData);
-        logger.info(`Seeded plan: ${planData.name}`);
-      }
+      await Plan.findOneAndUpdate(
+        { name: planData.name },
+        { $set: planData },
+        { upsert: true, new: true }
+      );
+      logger.info(`Seeded plan: ${planData.name}`);
     }
 
     if (!isTest) {
