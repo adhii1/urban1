@@ -87,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     var API_BASE_URL = 'http://localhost:4000/api/v1';
+    var FETCH_OPTS = { credentials: 'include' };
 
     // --- Step 1: Mobile Form Submit ---
     mobileForm.addEventListener('submit', (e) => {
@@ -104,7 +105,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Sending OTP to +91 ${currentMobile}...`);
         
         fetch(`${API_BASE_URL}/auth/send-otp`, {
-            method: 'POST',
+            method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: currentMobile, purpose: 'LOGIN' })
         })
@@ -155,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btnResendOTP').addEventListener('click', () => {
         console.log('Resending OTP...');
         fetch(`${API_BASE_URL}/auth/send-otp`, {
-            method: 'POST',
+            method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: currentMobile, purpose: 'LOGIN' })
         })
@@ -185,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pendingName = sessionStorage.getItem('pendingName') || '';
 
         fetch(`${API_BASE_URL}/auth/verify-otp`, {
-            method: 'POST',
+            method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 phone: currentMobile,

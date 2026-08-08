@@ -12,10 +12,10 @@ function getAuthHeaders() {
 
 const EARNING_API = {
     getEarnings: () => {
-        console.log("🔌 [API] Calling GET /api/v1/drivers/earnings");
-        return fetch(`${API_BASE_URL}/drivers/earnings`, {
+        console.log("🔌 [API] Calling GET /api/v1/driver/earnings");
+        return fetch(`${API_BASE_URL}/driver/earnings`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {
@@ -40,10 +40,10 @@ const EARNING_API = {
     },
 
     requestWithdrawal: (amount) => {
-        console.log(`🔌 [API] Calling POST /api/v1/drivers/wallet/withdraw for: ₹${amount}`);
-        return fetch(`${API_BASE_URL}/drivers/wallet/withdraw`, {
+        console.log(`🔌 [API] Calling POST /api/v1/driver/wallet/withdraw for: ₹${amount}`);
+        return fetch(`${API_BASE_URL}/driver/wallet/withdraw`, {
             method: 'POST',
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders(), credentials: "include",
             body: JSON.stringify({ amount })
         })
         .then(res => {

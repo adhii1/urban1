@@ -21,7 +21,8 @@ const CUSTOMER_API = (() => {
 
         const config = {
             ...options,
-            headers
+            headers,
+            credentials: 'include'
         };
 
         try {
@@ -57,20 +58,15 @@ const CUSTOMER_API = (() => {
     // Refresh JWT session tokens
     async function refreshSessionToken() {
         try {
-            const refreshToken = localStorage.getItem('refreshToken');
             const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refreshToken })
+                credentials: 'include'
             });
 
             if (res.ok) {
                 const payload = await res.json();
-                if (payload.success && payload.data) {
-                    localStorage.setItem('accessToken', payload.data.accessToken);
-                    if (payload.data.refreshToken) {
-                        localStorage.setItem('refreshToken', payload.data.refreshToken);
-                    }
+                if (payload.success) {
                     return true;
                 }
             }
@@ -150,34 +146,30 @@ const CUSTOMER_API = (() => {
             method: 'DELETE'
         }),
 
-        // Weekday Subscriptions ("Monday-Friday Pass" / weekday pooled commute)
-        createWeekdaySubscription: (data) => request('/customer/weekday-subscriptions', {
+        // Subscriptions (Plans & Passes)
+        getPlans: () => request('/customer/plans'),
+        getSubscription: () => request('/customer/subscription'),
+        purchaseSubscription: (data) => request('/customer/subscriptions/purchase', {
             method: 'POST',
             body: JSON.stringify(data)
         }),
-        getActiveWeekdaySubscriptions: () => request('/customer/weekday-subscriptions'),
-        getWeekdaySubscription: (id) => request(`/customer/weekday-subscriptions/${id}`),
-        updateWeekdaySubscription: (id, data) => request(`/customer/weekday-subscriptions/${id}`, {
-            method: 'PUT',
-            body: JSON.stringify(data)
-        }),
-        pauseWeekdaySubscription: (id, data = {}) => request(`/customer/weekday-subscriptions/${id}/pause`, {
+        verifySubscriptionPayment: (data) => request('/customer/subscriptions/verify-payment', {
             method: 'POST',
             body: JSON.stringify(data)
         }),
-        resumeWeekdaySubscription: (id) => request(`/customer/weekday-subscriptions/${id}/resume`, {
-            method: 'POST'
+        cancelSubscription: () => request('/customer/subscriptions/cancel', {
+            method: 'POST',
+            body: JSON.stringify({})
         }),
-        cancelWeekdaySubscription: (id, data = {}) => request(`/customer/weekday-subscriptions/${id}`, {
-            method: 'DELETE',
-            body: JSON.stringify(data)
+        getBookingEligibility: () => request('/customer/subscriptions/booking-eligibility'),
+        requestPause: (date) => request('/customer/pause-request', {
+            method: 'POST',
+            body: JSON.stringify({ date })
         }),
-        getUpcomingWeekdaySubscriptionRides: () => request('/customer/weekday-subscriptions/upcoming'),
-        getWeekdaySubscriptionRideHistory: () => request('/customer/weekday-subscriptions/history'),
 
         // Trips
-        getTrips: () => request('/trips'),
-        getTripDetails: (id) => request(`/trips/${id}`),
+        getTrips: () => request('/customer/trips'),
+        getTripDetails: (id) => request(`/customer/trips/${id}`),
 
         // Live Tracking
         getTracking: (tripId) => request(`/tracking/${tripId}`),

@@ -15,7 +15,7 @@ const NOTIFICATION_API = {
         console.log("🔌 [API] Calling GET /api/v1/drivers/notifications");
         return fetch(`${API_BASE_URL}/drivers/notifications`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {
@@ -39,7 +39,7 @@ const NOTIFICATION_API = {
         console.log(`🔌 [API] Calling PUT /api/v1/drivers/notifications/${id}/read`);
         return fetch(`${API_BASE_URL}/drivers/notifications/${id}/read`, {
             method: 'PUT',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {
@@ -62,7 +62,7 @@ const NOTIFICATION_API = {
         console.log(`🔌 [API] Calling DELETE /api/v1/drivers/notifications/${id}`);
         return fetch(`${API_BASE_URL}/drivers/notifications/${id}`, {
             method: 'DELETE',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {
@@ -85,7 +85,7 @@ const NOTIFICATION_API = {
         console.log("🔌 [API] Calling POST /api/v1/drivers/notifications/read-all");
         return fetch(`${API_BASE_URL}/drivers/notifications/read-all`, {
             method: 'POST',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {

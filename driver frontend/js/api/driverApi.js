@@ -12,10 +12,11 @@ function getAuthHeaders() {
 
 const DRIVER_API = {
     getProfile: () => {
-        console.log("🔌 [API] Calling GET /api/v1/drivers/profile");
-        return fetch(`${API_BASE_URL}/drivers/profile`, {
+        console.log("🔌 [API] Calling GET /api/v1/driver/profile");
+        return fetch(`${API_BASE_URL}/driver/profile`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include",
+            credentials: 'include'
         })
         .then(res => {
             if (!res.ok) {
@@ -42,10 +43,11 @@ const DRIVER_API = {
     },
 
     updateProfile: (profileData) => {
-        console.log("🔌 [API] Calling PUT /api/v1/drivers/profile", profileData);
-        return fetch(`${API_BASE_URL}/drivers/profile`, {
+        console.log("🔌 [API] Calling PUT /api/v1/driver/profile", profileData);
+        return fetch(`${API_BASE_URL}/driver/profile`, {
             method: 'PUT',
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders(), credentials: "include",
+            credentials: 'include',
             body: JSON.stringify(profileData)
         })
         .then(res => {
@@ -67,7 +69,7 @@ const DRIVER_API = {
     },
 
     uploadDocument: (docType, fileName) => {
-        console.log(`🔌 [API] Calling POST /api/v1/drivers/documents for type: ${docType}`);
+        console.log(`🔌 [API] Calling POST /api/v1/driver/documents/upload for type: ${docType}`);
         const token = localStorage.getItem('driverToken');
         const formData = new FormData();
         formData.append('documentType', docType);
@@ -75,11 +77,12 @@ const DRIVER_API = {
         const blob = new Blob(["Simulated Document content"], { type: "text/plain" });
         formData.append('document', blob, fileName || 'doc.pdf');
 
-        return fetch(`${API_BASE_URL}/drivers/documents`, {
+        return fetch(`${API_BASE_URL}/driver/documents/upload`, {
             method: 'POST',
             headers: {
                 'Authorization': token ? `Bearer ${token}` : ''
             },
+            credentials: 'include',
             body: formData
         })
         .then(res => {
@@ -102,10 +105,11 @@ const DRIVER_API = {
     },
 
     getAnalytics: () => {
-        console.log("🔌 [API] Calling GET /api/v1/drivers/analytics");
-        return fetch(`${API_BASE_URL}/drivers/analytics`, {
+        console.log("🔌 [API] Calling GET /api/v1/driver/earnings");
+        return fetch(`${API_BASE_URL}/driver/earnings`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include",
+            credentials: 'include'
         })
         .then(res => {
             if (!res.ok) {
@@ -126,7 +130,7 @@ const DRIVER_API = {
         console.log(`🔌 [API] Calling PUT /api/v1/drivers/duty to: ${dutyStatus}, available: ${available}`);
         return fetch(`${API_BASE_URL}/drivers/duty`, {
             method: 'PUT',
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders(), credentials: "include",
             body: JSON.stringify({ dutyStatus, available })
         })
         .then(res => {

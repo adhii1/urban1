@@ -12,10 +12,10 @@ function getAuthHeaders() {
 
 const TRIP_API = {
     getTrips: () => {
-        console.log("🔌 [API] Calling GET /api/v1/drivers/trips");
-        return fetch(`${API_BASE_URL}/drivers/trips`, {
+        console.log("🔌 [API] Calling GET /api/v1/driver/trips");
+        return fetch(`${API_BASE_URL}/driver/trips`, {
             method: 'GET',
-            headers: getAuthHeaders()
+            headers: getAuthHeaders(), credentials: "include"
         })
         .then(res => {
             if (!res.ok) {
@@ -33,10 +33,10 @@ const TRIP_API = {
     },
 
     updateTripStatus: (tripId, status) => {
-        console.log(`🔌 [API] Calling PUT /api/v1/drivers/trips/status to: ${status} for ID: ${tripId}`);
-        return fetch(`${API_BASE_URL}/drivers/trips/status`, {
+        console.log(`🔌 [API] Calling PUT /api/v1/driver/trips/status to: ${status} for ID: ${tripId}`);
+        return fetch(`${API_BASE_URL}/driver/trips/status`, {
             method: 'PUT',
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders(), credentials: "include",
             body: JSON.stringify({ tripId, status })
         })
         .then(res => {
@@ -67,10 +67,10 @@ const TRIP_API = {
     },
 
     ratePassenger: (tripId, rating, comment = "") => {
-        console.log(`🔌 [API] Calling POST /api/v1/drivers/trips/rate-passenger for: ${tripId} with rating: ${rating}`);
-        return fetch(`${API_BASE_URL}/drivers/trips/rate-passenger`, {
+        console.log(`🔌 [API] Calling POST /api/v1/driver/trips/rate-passenger for: ${tripId} with rating: ${rating}`);
+        return fetch(`${API_BASE_URL}/driver/trips/rate-passenger`, {
             method: 'POST',
-            headers: getAuthHeaders(),
+            headers: getAuthHeaders(), credentials: "include",
             body: JSON.stringify({ tripId, rating, comment })
         })
         .then(res => {

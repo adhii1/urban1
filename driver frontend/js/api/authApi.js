@@ -5,10 +5,11 @@ var API_BASE_URL = 'http://localhost:4000/api/v1';
 const AUTH_API = {
     // Authenticate credentials against backend Driver Login endpoint
     login: (phone, password) => {
-        console.log(`🔌 [API] Calling POST /api/v1/auth/driver/login for: ${phone}`);
-        return fetch(`${API_BASE_URL}/auth/driver/login`, {
+        console.log(`🔌 [API] Calling POST /api/v1/auth/login for: ${phone}`);
+        return fetch(`${API_BASE_URL}/auth/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ phone, password })
         })
         .then(res => {

@@ -38,6 +38,7 @@ class SocketBroker {
         if (this.connected || typeof io === 'undefined') return;
 
         const userId = localStorage.getItem('driverUserId');
+        const token = localStorage.getItem('driverToken');
         if (!userId) {
             console.warn("⚠️ [Socket] Cannot connect: driverUserId not found in localStorage.");
             return;
@@ -45,7 +46,9 @@ class SocketBroker {
 
         console.log(`🔌 [Socket] Connecting to namespace /sockets/driver with userId: ${userId}`);
         this.socket = io('http://localhost:4000/sockets/driver', {
-            query: { userId }
+            auth: { token, userId },
+            withCredentials: true,
+            transports: ['websocket', 'polling']
         });
 
         this.socket.on('connect', () => {
