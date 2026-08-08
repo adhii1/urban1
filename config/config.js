@@ -7,7 +7,7 @@ if (nodeEnv === "test") envFile = ".env.test";
 else if (nodeEnv === "production" || nodeEnv === "prod") envFile = ".env.prod";
 
 console.log(`🔌 [Config] Loading environment variables from ${envFile}`);
-dotenv.config({ path: path.join(__dirname, "../../", envFile) });
+dotenv.config({ path: path.join(__dirname, "../", envFile) });
 
 const requireEnv = (key) => {
   const value = process.env[key];
