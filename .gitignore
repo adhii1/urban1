@@ -4,10 +4,13 @@ node_modules/
 
 # Environment variables
 .env
+.env.*
 .env.local
 .env.development
 .env.production
 .env.test
+.env.dev
+.env.prod
 backend/.env.dev
 backend/.env.test
 backend/.env.prod
@@ -71,6 +74,7 @@ backend/src/uploads/*
 dist/
 build/
 .next/
+**/.next/
 out/
 
 # Vite
@@ -91,3 +95,4 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+.nextpackage-lock.json
