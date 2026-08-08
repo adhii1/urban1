@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ride Status Timeline - TORQQ Shared Mobility</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/booking-redesign.css">
+    <link rel="stylesheet" href="css/ui-components.css">
+</head>
+<body class="dashboard-body">
+
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: flex-start; gap: 16px;">
+            <a href="dashboard.html" class="btn-back" aria-label="Go to Dashboard">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </a>
+            <h2 class="user-name" style="font-size: 18px;">Ride Progress Status</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container">
+        <!-- Simulator Control Panel -->
+        <div class="glass-card" style="margin-bottom: 20px; padding: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+            <div>
+                <span style="font-size: 11px; font-weight: 700; color: #16C15D; text-transform: uppercase;">Stage Simulator</span>
+                <div style="font-size: 14px; font-weight: 700;">Simulate Backend Lifecycle Progress</div>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button id="sim-prev-btn" class="btn-sm" style="padding: 8px 14px; background: rgba(0,0,0,0.06); border-radius: 8px; font-weight: 600;">← Previous Stage</button>
+                <button id="sim-next-btn" class="btn-sm" style="padding: 8px 14px; background: #16C15D; color: #fff; border-radius: 8px; font-weight: 600;">Next Stage →</button>
+                <button id="sim-auto-btn" class="btn-sm" style="padding: 8px 14px; background: #3B82F6; color: #fff; border-radius: 8px; font-weight: 600;">Auto Auto-Play</button>
+            </div>
+        </div>
+
+        <div id="ride-status-root">
+            <!-- Dynamically rendered by ride-status.js -->
+        </div>
+    </main>
+
+    <script src="js/config/environment.js"></script>
+    <script src="js/config/constants.js"></script>
+    <script src="js/config/api.js"></script>
+    <script src="js/config/routes.js"></script>
+    <script src="js/mock/mockData.js"></script>
+    <script src="js/services/bookingService.js"></script>
+    <script src="js/services/driverService.js"></script>
+    <script src="js/services/notificationService.js"></script>
+    <script src="js/components/uiComponents.js"></script>
+    <script src="js/ride-status.js"></script>
+</body>
+</html>

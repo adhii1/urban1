@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wallet & Rewards - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/wallet.css">
+    <style>
+        .tabs-header {
+            display: flex;
+            background: white;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 20px;
+            border: 1px solid #E2E8F0;
+        }
+        .tab-item {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--clr-text-main);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+        .tab-item.active {
+            background: var(--clr-primary-green);
+            color: white;
+        }
+        .wallet-panel {
+            display: none;
+        }
+        .wallet-panel.active {
+            display: block;
+        }
+        .referral-box {
+            background: #F8FAFC;
+            border: 1px dashed var(--clr-primary-green);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .coupon-card {
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+        .coupon-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--clr-primary-green);
+        }
+        .refund-card {
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+
+    <!-- Header -->
+    <header class="dashboard-header" style="justify-content: flex-start; gap: 16px;">
+        <button class="btn-back" onclick="window.history.back()" aria-label="Go Back">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+        </button>
+        <h2 class="page-title">Wallet & Rewards</h2>
+    </header>
+
+    <main class="container wallet-main">
+        
+        <!-- Balance Card -->
+        <section class="wallet-balance-card fade-in" style="margin-bottom: 20px;">
+            <div class="balance-info">
+                <p>Available Balance</p>
+                <h3 id="walletBalance">₹ 0.00</h3>
+            </div>
+            <div class="reward-info">
+                <p>Rewards & Referrals Balance</p>
+                <h4 id="rewardPoints">₹ 0.00</h4>
+            </div>
+            <div class="wallet-actions">
+                <button class="btn-primary" id="btnAddMoney" style="flex: 1;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Add Money
+                </button>
+            </div>
+        </section>
+
+        <!-- Tabs Navigation -->
+        <div class="tabs-header">
+            <div class="tab-item active" data-target="panelWallet">Wallet Ledger</div>
+            <div class="tab-item" data-target="panelReferrals">Rewards & Coupons</div>
+            <div class="tab-item" data-target="panelRefunds">Refund Audits</div>
+        </div>
+
+        <!-- Panel 1: Wallet Ledger (Transactions) -->
+        <div class="wallet-panel active" id="panelWallet">
+            <section class="transactions-section fade-in">
+                <h3 class="section-heading" style="margin-bottom: 12px;">Recent Transactions</h3>
+                <div class="transactions-list" id="transactionsContainer">
+                    <p style="color: var(--clr-text-light); text-align: center; padding: 16px 0;">Loading transactions...</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Panel 2: Referrals & Coupons -->
+        <div class="wallet-panel" id="panelReferrals">
+            <!-- Referral Info -->
+            <div class="referral-box">
+                <h4 style="font-size: 14px; margin-bottom: 4px; color: var(--clr-dark-navy);">Your Referral Code</h4>
+                <div id="referralCodeDisplay" style="font-size: 24px; font-weight: 700; color: var(--clr-primary-green); letter-spacing: 2px; margin: 8px 0;">TORQQ-XXXX</div>
+                <p style="font-size: 12px; color: var(--clr-text-main);">Share this code with your friends. You both get reward points on their first completed trip!</p>
+            </div>
+
+            <!-- Coupons List -->
+            <h3 class="section-heading" style="margin-bottom: 12px;">Available Promo Codes</h3>
+            <div id="couponsContainer">
+                <p style="color: var(--clr-text-light); text-align: center; padding: 16px 0;">Loading coupons...</p>
+            </div>
+        </div>
+
+        <!-- Panel 3: Refund Audits -->
+        <div class="wallet-panel" id="panelRefunds">
+            <h3 class="section-heading" style="margin-bottom: 12px;">Refund History</h3>
+            <div id="refundsContainer">
+                <p style="color: var(--clr-text-light); text-align: center; padding: 16px 0;">Loading refund audits...</p>
+            </div>
+        </div>
+
+        <!-- Bottom padding for nav -->
+        <div style="height: 80px;"></div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="dashboard.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Home</span>
+        </a>
+        <a href="my-trips.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
+            <span>My Trips</span>
+        </a>
+        <a href="booking.html" class="nav-item nav-item-primary">
+            <div class="nav-fab">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </div>
+            <span>Book</span>
+        </a>
+        <a href="wallet.html" class="nav-item active">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+            <span>Wallet</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <!-- Global Scripts -->
+    <script src="js/app.js"></script>
+    <script src="js/customerApi.js"></script>
+    <script src="js/wallet.js"></script>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Driver Route & Telemetry</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Driver Route Navigation & Live Telemetry</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Track assigned corridor route stops, driver location, passenger counts, and ETA progress.</p>
+            </div>
+
+            <!-- Route Metrics Bar -->
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
+                <div class="glass-card" style="padding:16px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">DRIVER LOCATION</div>
+                    <div style="font-size:14px; font-weight:700; color:var(--text-main); margin-top:4px;">📍 HSR Layout Sector 1</div>
+                </div>
+                <div class="glass-card" style="padding:16px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">CURRENT PASSENGERS</div>
+                    <div style="font-size:16px; font-weight:800; color:#16C15D; margin-top:4px;">👥 2 Boarders Onboard</div>
+                </div>
+                <div class="glass-card" style="padding:16px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">REMAINING DISTANCE</div>
+                    <div style="font-size:16px; font-weight:800; color:var(--color-primary); margin-top:4px;">🛣️ 12.4 km</div>
+                </div>
+                <div class="glass-card" style="padding:16px;">
+                    <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">ESTIMATED ETA</div>
+                    <div style="font-size:16px; font-weight:800; color:#3B82F6; margin-top:4px;">⏱️ 22 Mins</div>
+                </div>
+            </div>
+
+            <!-- Main Route Grids -->
+            <div class="dashboard-grid" style="grid-template-columns: 1.6fr 1fr;">
+                
+                <!-- Left: Route Map Canvas & Polyline Placeholder -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <div class="glass-card" style="padding:24px; position:relative; overflow:hidden;">
+                        <div class="flex-between" style="margin-bottom:16px;">
+                            <h2 style="font-size:16px; font-weight:700; color:var(--text-main);">Live Route Canvas & Polyline Path</h2>
+                            <span class="badge badge-success online-pulse">GPS ACTIVE</span>
+                        </div>
+
+                        <!-- Canvas Map Representation -->
+                        <div style="height:340px; border-radius:var(--border-radius-md); background:var(--bg-app); border:1px solid var(--border-color); position:relative; display:flex; flex-direction:column; justify-content:space-between; padding:20px; overflow:hidden;">
+                            
+                            <!-- Polyline SVG Representation -->
+                            <svg style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M 50 280 Q 200 150, 400 200 T 700 80" stroke="#16C15D" stroke-width="5" fill="none" stroke-dasharray="8 6" />
+                            </svg>
+
+                            <!-- Nodes overlay -->
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; z-index:2;">
+                                <div style="background:var(--bg-card-solid); padding:8px 14px; border-radius:10px; border:1.5px solid #22C55E; box-shadow:var(--shadow-sm);">
+                                    <div style="font-size:10px; font-weight:700; color:#22C55E;">DRIVER CURRENT STOP</div>
+                                    <strong style="font-size:13px;">Silk Board Junction</strong>
+                                </div>
+                                <div style="background:var(--bg-card-solid); padding:8px 14px; border-radius:10px; border:1.5px solid #3B82F6; box-shadow:var(--shadow-sm); text-align:right;">
+                                    <div style="font-size:10px; font-weight:700; color:#3B82F6;">NEXT TARGET STOP</div>
+                                    <strong style="font-size:13px;">Agara Lake Flyover Stop</strong>
+                                </div>
+                            </div>
+
+                            <div style="z-index:2; background:rgba(15,23,42,0.85); color:#FFFFFF; padding:12px 18px; border-radius:12px; backdrop-filter:blur(6px); display:flex; align-items:center; justify-content:space-between;">
+                                <div>
+                                    <div style="font-size:11px; color:rgba(255,255,255,0.7); text-transform:uppercase; font-weight:600;">Trip Progress Bar</div>
+                                    <div style="font-size:13px; font-weight:700; margin-top:2px;">45% Completed (Stop 2 of 4)</div>
+                                </div>
+                                <div style="width:140px; background:rgba(255,255,255,0.2); height:8px; border-radius:4px; overflow:hidden;">
+                                    <div style="width:45%; background:#16C15D; height:100%; border-radius:4px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Pickup & Drop Stops Sequence -->
+                <div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Route Sequence & Stops</h2>
+                        
+                        <div style="display:flex; flex-direction:column; gap:14px; position:relative;">
+                            
+                            <!-- Pickup Stop 1 -->
+                            <div style="padding:14px; background:var(--bg-app); border-radius:12px; border-left:4px solid #22C55E; border:1px solid var(--border-color); border-left:4px solid #22C55E;">
+                                <div class="flex-between">
+                                    <span style="font-size:10px; font-weight:700; color:#22C55E;">PASSENGER PICKUP 1</span>
+                                    <span class="badge badge-success" style="font-size:9px;">Completed</span>
+                                </div>
+                                <strong style="display:block; font-size:13px; margin:4px 0 2px 0;">Silk Board Junction</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Boarder: Aarav Sharma (Seat #1)</span>
+                            </div>
+
+                            <!-- Pickup Stop 2 -->
+                            <div style="padding:14px; background:var(--bg-app); border-radius:12px; border-left:4px solid #22C55E; border:1px solid var(--border-color); border-left:4px solid #22C55E;">
+                                <div class="flex-between">
+                                    <span style="font-size:10px; font-weight:700; color:#22C55E;">PASSENGER PICKUP 2</span>
+                                    <span class="badge badge-warning" style="font-size:9px;">Current Target</span>
+                                </div>
+                                <strong style="display:block; font-size:13px; margin:4px 0 2px 0;">Agara Lake Flyover Stop</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Boarder: Priya Patel (Seat #2)</span>
+                            </div>
+
+                            <!-- Drop Stop 1 -->
+                            <div style="padding:14px; background:var(--bg-app); border-radius:12px; border-left:4px solid #3B82F6; border:1px solid var(--border-color); border-left:4px solid #3B82F6;">
+                                <div class="flex-between">
+                                    <span style="font-size:10px; font-weight:700; color:#3B82F6;">PASSENGER DROP 1</span>
+                                    <span class="badge badge-info" style="font-size:9px;">Upcoming</span>
+                                </div>
+                                <strong style="display:block; font-size:13px; margin:4px 0 2px 0;">Bellandur EcoSpace Corridor Stop</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Drop for: Priya Patel</span>
+                            </div>
+
+                            <!-- Drop Stop 2 -->
+                            <div style="padding:14px; background:var(--bg-app); border-radius:12px; border-left:4px solid #3B82F6; border:1px solid var(--border-color); border-left:4px solid #3B82F6;">
+                                <div class="flex-between">
+                                    <span style="font-size:10px; font-weight:700; color:#3B82F6;">PASSENGER DROP 2</span>
+                                    <span class="badge badge-info" style="font-size:9px;">Upcoming</span>
+                                </div>
+                                <strong style="display:block; font-size:13px; margin:4px 0 2px 0;">Electronic City Phase 1 Terminal</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Drop for: Aarav Sharma</span>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

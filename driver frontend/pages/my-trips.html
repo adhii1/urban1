@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - My Trip Logs</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <style>
+        .filter-tabs-container {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 6px;
+        }
+        .trip-filter-tab {
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            color: var(--text-light);
+            transition: var(--transition-smooth);
+            white-space: nowrap;
+        }
+        .trip-filter-tab:hover {
+            background: var(--bg-hover);
+            color: var(--color-primary);
+        }
+        .trip-filter-tab.active-tab {
+            background: var(--color-primary);
+            color: #FFFFFF;
+            border-color: var(--color-primary);
+        }
+        .trips-grid-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <!-- Page Header -->
+            <div class="flex-between" style="margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+                <div>
+                    <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Trip Logs & Schedules</h1>
+                    <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Review details and statuses of all historical allocations.</p>
+                </div>
+                <div style="position:relative; width:100%; max-width:280px;">
+                    <i class="lucide-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-light); font-size:16px;"></i>
+                    <input type="text" id="tripsSearchInput" placeholder="Search trip ID or route..." class="form-input" style="padding-left:36px; font-size:12px;">
+                </div>
+            </div>
+
+            <!-- Filter tabs -->
+            <div class="filter-tabs-container">
+                <button class="trip-filter-tab active-tab" data-tab="ALL">All Trips</button>
+                <button class="trip-filter-tab" data-tab="UPCOMING">Upcoming Shifts</button>
+                <button class="trip-filter-tab" data-tab="COMPLETED">Completed</button>
+                <button class="trip-filter-tab" data-tab="CANCELLED">Cancelled</button>
+            </div>
+
+            <!-- Grid output container -->
+            <div id="tripsListContainer" class="trips-grid-list">
+                <!-- Dynamically loaded -->
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Modal dialogue backdrop template -->
+    <div id="torqqSharedModal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background-color:rgba(15,23,42,0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:1000; padding:20px; transition:opacity 0.25s ease;">
+        <div class="modal-dialog glass-card" style="width:100%; max-width:500px; background:var(--bg-card-solid); border-radius:var(--border-radius-lg); box-shadow:var(--shadow-premium); transform:scale(0.95); transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border-color);">
+                <h3 id="sharedModalTitle" style="font-size:16px; font-weight:700; color:var(--text-main);">Modal Title</h3>
+                <button id="sharedModalCloseBtn" style="background:none; border:none; cursor:pointer; color:var(--text-light); font-size:24px; line-height:1;">&times;</button>
+            </div>
+            <div id="sharedModalBody" style="padding:24px; overflow-y:auto; max-height:70vh; font-size:14px; color:var(--text-main);"></div>
+            <div id="sharedModalFooter" style="display:flex; justify-content:flex-end; gap:12px; padding:16px 24px; border-top:1px solid var(--border-color); background:var(--bg-app);"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/api/tripApi.js"></script>
+    <script src="../js/common.js"></script>
+    <script src="../js/trips.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

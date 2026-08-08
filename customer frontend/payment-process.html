@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Lifecycle - TORQQ</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/booking-redesign.css">
+    <link rel="stylesheet" href="css/ui-components.css">
+</head>
+<body class="dashboard-body">
+
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: flex-start; gap: 16px;">
+            <a href="dashboard.html" class="btn-back" aria-label="Go Back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </a>
+            <h2 class="user-name" style="font-size: 18px;">Payment Gateway</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container" id="payment-process-root">
+        <!-- Loaded dynamically by payment-process.js -->
+    </main>
+
+    <script src="js/config/environment.js"></script>
+    <script src="js/config/constants.js"></script>
+    <script src="js/config/api.js"></script>
+    <script src="js/config/routes.js"></script>
+    <script src="js/mock/mockData.js"></script>
+    <script src="js/services/paymentService.js"></script>
+    <script src="js/components/uiComponents.js"></script>
+    <script src="js/payment-process.js"></script>
+</body>
+</html>

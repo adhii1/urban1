@@ -1,0 +1,5 @@
+[
+    { "id": "RTE-101", "start": "Indiranagar", "end": "Manyata Tech Park", "distance": "12.4 km", "stops": ["Domlur Flyover", "Kalyan Nagar Crossing"], "activeDrivers": 15, "avgTime": "25 mins" },
+    { "id": "RTE-102", "start": "Koramangala", "end": "Whitefield", "distance": "18.2 km", "stops": ["HSR Layout Sector 5", "Marathahalli Bridge"], "activeDrivers": 24, "avgTime": "45 mins" },
+    { "id": "RTE-103", "start": "Electronic City", "end": "Majestic", "distance": "22.5 km", "stops": ["Silk Board", "Madiwala"], "activeDrivers": 8, "avgTime": "55 mins" }
+]

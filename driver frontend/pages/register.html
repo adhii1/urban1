@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ Partner Onboarding</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body style="display:flex; align-items:center; justify-content:center; min-height:100vh; padding:40px 20px; background:var(--bg-app);">
+
+    <main class="glass-card fade-in-up" style="
+        width: 100%;
+        max-width: 500px;
+        padding: 40px 32px;
+        background: var(--bg-card);
+    ">
+        <!-- Brand Logo -->
+        <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:24px;">
+            <span style="background:#16C15D; color:#FFFFFF; width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:22px;">T</span>
+            <h1 style="font-size:20px; font-weight:700; color:var(--text-main);">TORQQ Partner</h1>
+        </div>
+
+        <h2 style="font-size:16px; font-weight:600; color:var(--text-light); text-align:center; margin-bottom:28px;">Register to start earning</h2>
+
+        <form id="onboardingForm">
+            <!-- Full Name -->
+            <div class="form-group">
+                <label for="regName">DRIVER FULL NAME</label>
+                <input type="text" id="regName" class="form-input" placeholder="e.g. John Doe" required>
+            </div>
+
+            <!-- Contact detail Row -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group">
+                    <label for="regPhone">PHONE NUMBER</label>
+                    <div style="position:relative;">
+                        <span style="position:absolute; left:12px; top:50%; transform:translateY(-50%); font-weight:600; font-size:13px; color:var(--text-light);">+91</span>
+                        <input type="tel" id="regPhone" class="form-input" style="padding-left:42px;" placeholder="9876543210" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">EMAIL ADDRESS</label>
+                    <input type="email" id="regEmail" class="form-input" placeholder="john@example.com" required>
+                </div>
+            </div>
+
+            <!-- Password -->
+            <div class="form-group">
+                <label for="regPassword">CHOOSE PASSWORD</label>
+                <input type="password" id="regPassword" class="form-input" placeholder="Min 6 characters" required>
+            </div>
+
+            <!-- Vehicle Details -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div class="form-group">
+                    <label for="regVehicle">VEHICLE CLASS</label>
+                    <select id="regVehicle" class="form-input" required>
+                        <option value="Hatchback">Hatchback (TORQQ Lite)</option>
+                        <option value="Sedan">Sedan (TORQQ Prime)</option>
+                        <option value="SUV">SUV (TORQQ Max)</option>
+                        <option value="EV Shuttle" selected>EV Shuttle (TORQQ Shared)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="regLicense">DRIVING LICENSE NO</label>
+                    <input type="text" id="regLicense" class="form-input" placeholder="KA-51-2024-0012345" required>
+                </div>
+            </div>
+
+            <button type="submit" id="submitRegisterBtn" class="btn btn-primary ripple-btn" style="width:100%; margin-top:24px; padding:14px; justify-content:center;">
+                Create Partner Account
+            </button>
+        </form>
+
+        <div style="margin-top:24px; text-align:center; font-size:13px; color:var(--text-light);">
+            Already have an account? <a href="login.html" style="font-weight:700; color:var(--color-primary);">Sign In</a>
+        </div>
+    </main>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+
+    <script>
+        lucide.createIcons();
+
+        document.getElementById('onboardingForm').onsubmit = (e) => {
+            e.preventDefault();
+            
+            const name = document.getElementById('regName').value.trim();
+            const phone = document.getElementById('regPhone').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const vehicle = document.getElementById('regVehicle').value;
+            const dl = document.getElementById('regLicense').value.trim();
+
+            window.AUTH_API.register({ name, phone, email, password, vehicle, dl })
+                .then(res => {
+                    window.UTILS.showToast(res.message, "success");
+                    sessionStorage.setItem('otp_phone', phone);
+                    setTimeout(() => {
+                        window.location.href = 'otp.html';
+                    }, 1200);
+                })
+                .catch(err => {
+                    window.UTILS.showToast(err.message, "error");
+                });
+        };
+    </script>
+</body>
+</html>

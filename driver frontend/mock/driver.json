@@ -1,0 +1,28 @@
+{
+    "id": "DRV-9081",
+    "name": "John Doe",
+    "phone": "+91 98765 43210",
+    "email": "john.doe@torqq.com",
+    "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256",
+    "rating": 4.85,
+    "acceptanceRate": 94.2,
+    "cancellationRate": 2.1,
+    "experience": "3 Years",
+    "completedTrips": 1420,
+    "vehicle": {
+        "number": "KA-01-MJ-4321",
+        "model": "Maruti Suzuki Ertiga (7-Seater)",
+        "fuelType": "CNG",
+        "mileage": "18.5 km/kg",
+        "insuranceExpiry": "2027-05-15",
+        "maintenanceDue": "In 1,200 km",
+        "tyreStatus": "Good (75% tread)",
+        "photo": "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600"
+    },
+    "bankDetails": {
+        "bankName": "HDFC Bank Ltd.",
+        "accountNo": "•••• •••• 9876",
+        "ifsc": "HDFC0000123",
+        "upiId": "johndoe@okhdfc"
+    }
+}

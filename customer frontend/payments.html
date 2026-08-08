@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payments - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="dashboard-body">
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: flex-start; gap: 16px;">
+            <button class="btn-back" onclick="window.history.back()" aria-label="Go Back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+            <h2 class="user-name" style="font-size: 18px;">Payments</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container">
+        <section class="dashboard-section">
+            <h3 class="section-heading">Payment History</h3>
+            <div class="card" style="background: white; border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 style="font-size: 14px; color: var(--clr-dark-navy);">Monthly Pass - Stop-to-Stop</h4>
+                    <span style="font-size: 12px; color: var(--clr-text-light);">1 Nov 2026</span>
+                </div>
+                <strong style="color: var(--clr-primary-green);">₹2,499</strong>
+            </div>
+            <div class="card" style="background: white; border-radius: var(--radius-md); padding: 16px; box-shadow: var(--shadow-sm); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <h4 style="font-size: 14px; color: var(--clr-dark-navy);">Wallet Recharge</h4>
+                    <span style="font-size: 12px; color: var(--clr-text-light);">20 Oct 2026</span>
+                </div>
+                <strong style="color: var(--clr-primary-green);">₹500</strong>
+            </div>
+        </section>
+    </main>
+    <script src="js/app.js"></script>
+</body>
+</html>

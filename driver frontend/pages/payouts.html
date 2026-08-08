@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Partner Payout Logs</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <style>
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; border-bottom: 2px solid var(--border-color); }
+        td { padding: 12px; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Settlement Payouts</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Monitor automatic weekly settlements or request instant wallet balance transfers.</p>
+            </div>
+
+            <!-- Payout widgets grid -->
+            <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+                
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Statement Table -->
+                    <div class="glass-card" style="padding: 24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Bank Settlement Statements</h2>
+                        
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Settlement ID</th>
+                                        <th>Date</th>
+                                        <th>Payout Channel</th>
+                                        <th style="text-align:right;">Amount (INR)</th>
+                                        <th style="text-align:right;">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>PAY-998012</td>
+                                        <td>Jul 1, 2026</td>
+                                        <td>HDFC Bank (•••• 4321)</td>
+                                        <td style="text-align:right; font-weight:700; color:var(--color-primary);">₹4,250.00</td>
+                                        <td style="text-align:right;"><span class="badge badge-success" style="font-size:9px;">Deposited</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>PAY-997941</td>
+                                        <td>Jun 24, 2026</td>
+                                        <td>HDFC Bank (•••• 4321)</td>
+                                        <td style="text-align:right; font-weight:700; color:var(--color-primary);">₹6,890.00</td>
+                                        <td style="text-align:right;"><span class="badge badge-success" style="font-size:9px;">Deposited</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td>PAY-997810</td>
+                                        <td>Jun 17, 2026</td>
+                                        <td>HDFC Bank (•••• 4321)</td>
+                                        <td style="text-align:right; font-weight:700; color:var(--color-primary);">₹8,120.00</td>
+                                        <td style="text-align:right;"><span class="badge badge-success" style="font-size:9px;">Deposited</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Connected bank card details -->
+                <div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Primary Bank Details</h2>
+                        
+                        <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:16px;">
+                            <div style="font-size:10px; font-weight:600; color:var(--text-light); text-transform:uppercase;">Connected Account</div>
+                            <strong style="font-size:15px; color:var(--text-main); display:block; margin:4px 0;">HDFC Bank Saving</strong>
+                            <div style="font-size:12px; color:var(--text-light);">A/C No: ••••••••••••4321</div>
+                            <div style="font-size:12px; color:var(--text-light);">IFSC Code: HDFC0000120</div>
+                            <div style="font-size:11px; margin-top:12px; color:var(--color-primary); font-weight:600;"><i class="lucide-shield-check"></i> Account Verified</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

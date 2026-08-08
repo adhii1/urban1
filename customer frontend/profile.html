@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="dashboard-body">
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: center;">
+            <h2 class="user-name" style="font-size: 18px;">Profile</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container">
+        <!-- Profile Header with Live Avatar -->
+        <section class="dashboard-section" style="text-align: center;">
+            <div class="profile-pic-container" style="position: relative; width: 90px; height: 90px; margin: 0 auto 16px;">
+                <img id="profileAvatar" src="assets/images/default-avatar.png" alt="Profile Picture" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 3px solid var(--clr-primary-green); cursor: pointer;">
+                <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+            </div>
+            <button class="btn-text" id="btnChangePhoto" style="color: var(--clr-primary-green); font-size: 12px; font-weight: 600;">Change Photo</button>
+            <button class="btn-text" id="btnRemovePhoto" style="color: #ef4444; font-size: 12px; font-weight: 500; margin-left: 12px; display: none;">Remove</button>
+            
+            <!-- Inline Profile Editing -->
+            <div style="margin-top: 24px; text-align: left; max-width: 400px; margin-left: auto; margin-right: auto; padding: 0 16px;">
+                <div class="form-group">
+                    <label>Full Name</label>
+                    <input type="text" id="editName" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: var(--radius-md); margin-top: 6px;">
+                </div>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>Email Address</label>
+                    <input type="email" id="editEmail" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: var(--radius-md); margin-top: 6px;">
+                </div>
+                <button class="btn-primary" id="btnSaveProfile" style="margin-top: 20px; padding: 12px;">Save Profile Changes</button>
+            </div>
+        </section>
+
+        <!-- Emergency Contacts Section -->
+        <section class="dashboard-section" style="margin-top: 32px;">
+            <h3 class="section-heading" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Emergency Contacts</span>
+                <button class="btn-text" id="btnAddContact" style="color: var(--clr-primary-blue); font-weight: 600; font-size: 14px;">+ Add Contact</button>
+            </h3>
+            
+            <div class="card" id="contactsContainer" style="background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 8px 16px;">
+                <!-- Dynamically loaded contacts list -->
+                <p style="color: var(--clr-text-light); text-align: center; padding: 16px 0;">Loading contacts...</p>
+            </div>
+        </section>
+
+        <!-- Pinned Favourites Section -->
+        <section class="dashboard-section" style="margin-top: 32px;">
+            <h3 class="section-heading">Pinned Favourites</h3>
+            <div class="card" id="favouritesContainer" style="background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: 8px 16px;">
+                <p style="color: var(--clr-text-light); text-align: center; padding: 16px 0;">Loading favourites...</p>
+            </div>
+        </section>
+
+        <section class="dashboard-section" style="margin-top: 24px;">
+            <div class="card" style="background: white; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);">
+                <a href="settings.html" style="display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid #F1F5F9;">
+                    <span style="font-weight: 500; color: var(--clr-dark-navy);">App Settings</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                <a href="wallet.html" style="display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid #F1F5F9;">
+                    <span style="font-weight: 500; color: var(--clr-dark-navy);">Wallet Ledger</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                <a href="support.html" style="display: flex; justify-content: space-between; padding: 16px; border-bottom: 1px solid #F1F5F9;">
+                    <span style="font-weight: 500; color: var(--clr-dark-navy);">Help & Support</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                </a>
+                <div style="padding: 16px; text-align: center;">
+                    <button class="btn-text" id="btnLogout" style="color: #EF4444; font-weight: 600;">Log Out</button>
+                </div>
+            </div>
+        </section>
+        
+        <div style="height: 80px;"></div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="dashboard.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+            <span>Home</span>
+        </a>
+        <a href="my-trips.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><polyline points="9 12 11 14 15 10"></polyline></svg>
+            <span>My Trips</span>
+        </a>
+        <a href="booking.html" class="nav-item nav-item-primary">
+            <div class="nav-fab">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            </div>
+            <span>Book</span>
+        </a>
+        <a href="passes.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="10" rx="2" ry="2"></rect><line x1="12" y1="7" x2="12" y2="17"></line><circle cx="12" cy="12" r="1.5"></circle></svg>
+            <span>Passes</span>
+        </a>
+        <a href="profile.html" class="nav-item active">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <!-- Emergency Contact modal -->
+    <div class="modal-overlay" id="contactModal">
+        <div class="modal-container">
+            <button class="modal-close" onclick="document.getElementById('contactModal').classList.remove('show')" aria-label="Close modal">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+            <h3 class="modal-title" style="margin-bottom: 20px;" id="contactModalTitle">Add Emergency Contact</h3>
+            <div class="form-group">
+                <label>Contact Name</label>
+                <input type="text" id="contactName" placeholder="Enter contact name" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: var(--radius-md); margin-top: 6px;">
+            </div>
+            <div class="form-group" style="margin-top: 16px;">
+                <label>Mobile Number</label>
+                <input type="tel" id="contactPhone" placeholder="Enter 10-digit number" style="width: 100%; padding: 12px; border: 1px solid #E2E8F0; border-radius: var(--radius-md); margin-top: 6px;">
+            </div>
+            <button class="btn-primary" id="btnSubmitContact" style="margin-top: 24px; padding: 14px;">Save Contact</button>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/customerApi.js"></script>
+    <script src="js/profile.js"></script>
+</body>
+</html>

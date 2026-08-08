@@ -1,0 +1,23 @@
+{
+    "totalEarnings": 45890.50,
+    "completedTrips": 142,
+    "totalDistance": "982 km",
+    "avgPerTrip": 323.17,
+    "walletBalance": 1450.75,
+    "pendingSettlement": 3820.00,
+    "referralBonus": 1200.00,
+    "dailyHistory": [
+        { "date": "2026-07-07", "earnings": 785.00, "trips": 4, "fuelCost": 150.00, "hours": 5.5 },
+        { "date": "2026-07-06", "earnings": 1420.00, "trips": 8, "fuelCost": 280.00, "hours": 8.2 },
+        { "date": "2026-07-05", "earnings": 1680.00, "trips": 9, "fuelCost": 310.00, "hours": 9.0 },
+        { "date": "2026-07-04", "earnings": 1200.00, "trips": 7, "fuelCost": 250.00, "hours": 7.1 },
+        { "date": "2026-07-03", "earnings": 950.00, "trips": 5, "fuelCost": 180.00, "hours": 6.0 }
+    ],
+    "transactions": [
+        { "id": "TXN-7681", "type": "RIDE_CREDIT", "amount": 185.00, "date": "2026-07-07", "desc": "Earnings for Trip TRP-20938", "status": "Completed" },
+        { "id": "TXN-7682", "type": "RIDE_CREDIT", "amount": 140.00, "date": "2026-07-07", "desc": "Earnings for Trip TRP-20939", "status": "Completed" },
+        { "id": "TXN-7679", "type": "BANK_WITHDRAW", "amount": -1500.00, "date": "2026-07-06", "desc": "Settlement to HDFC bank account", "status": "Completed" },
+        { "id": "TXN-7680", "type": "REFERRAL_BONUS", "amount": 300.00, "date": "2026-07-06", "desc": "Referral bonus for Driver DRV-2210", "status": "Completed" },
+        { "id": "TXN-7675", "type": "FUEL_CHARGE", "amount": -280.00, "date": "2026-07-06", "desc": "TORQQ Fuel Card swipe", "status": "Completed" }
+    ]
+}

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ Driver - Current Trip Navigation</title>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <style>
+        /* Slider Switch styling */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 22px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #CBD5E1;
+            transition: .3s;
+            border-radius: 22px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: var(--color-primary, #16C15D);
+        }
+        input:checked + .slider:before {
+            transform: translateX(24px);
+        }
+        
+        /* Map and overlay layouts */
+        .map-container-card {
+            min-height: 460px;
+            position: relative;
+            overflow: hidden;
+            padding: 0 !important;
+            border-radius: var(--border-radius-lg);
+        }
+        .floating-eta-card {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--bg-card-solid, #FFFFFF);
+            padding: 12px 18px;
+            border-radius: var(--border-radius-md);
+            box-shadow: var(--shadow-premium);
+            border: 1px solid var(--border-color);
+            z-index: 10;
+        }
+        
+        .address-node {
+            position: relative;
+            padding-left: 24px;
+            margin-bottom: 16px;
+        }
+        .address-node::before {
+            content: '';
+            position: absolute;
+            left: 4px;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .node-pickup::before {
+            background: #22C55E;
+            box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.2);
+        }
+        .node-drop::before {
+            background: #EF4444;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+        }
+        .address-node::after {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 20px;
+            width: 2px;
+            height: 18px;
+            background: var(--border-color);
+        }
+        .address-node:last-child::after {
+            display: none;
+        }
+        .address-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+        .address-text {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <!-- Sidebar Injection Point -->
+        <div id="sidebar-placeholder"></div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Navbar Injection Point -->
+            <div id="navbar-placeholder"></div>
+
+            <div class="dashboard-grid">
+                <!-- Left: Replaceable Map -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <div class="glass-card map-container-card">
+                        <!-- Floating Stats -->
+                        <div class="floating-eta-card">
+                            <i class="lucide-navigation online-pulse" style="color:var(--color-primary); font-size:24px;"></i>
+                            <div>
+                                <div style="font-size:10px; font-weight:600; color:var(--text-light); text-transform:uppercase;">Remaining Distance / ETA</div>
+                                <div id="floatingTripStats" class="eta-value" style="font-size:16px; font-weight:700; color:var(--text-main);">Loading...</div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Component -->
+                        <div class="live-map-canvas-wrapper" style="width:100%; height:100%; display:block;">
+                            <canvas id="currentTripMapCanvas" style="width:100%; height:100%; display:block;"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Active Trip details -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <div class="glass-card trip-workflow-card fade-in" style="padding:24px;">
+                        <div class="flex-between" style="border-bottom:1px solid var(--border-color); padding-bottom:12px; margin-bottom:16px;">
+                            <div>
+                                <span id="tripStatusBadge" class="badge badge-info">HEADING TO PICKUP</span>
+                                <div id="bookingIdDisplay" style="font-size:11px; color:var(--text-light); margin-top:2px;">Booking ID: -</div>
+                            </div>
+                        </div>
+
+                        <!-- Customer Details -->
+                        <div style="margin-bottom:20px;">
+                            <div style="font-size:11px; font-weight:600; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Customer Information</div>
+                            <div style="display:flex; align-items:center; gap:12px; padding:12px; background:var(--bg-hover); border-radius:var(--border-radius-md); border:1px solid var(--border-color); position:relative;">
+                                <img id="customerAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                <div style="flex-grow:1; min-width:0;">
+                                    <h2 id="customerName" style="font-size:14px; font-weight:700; color:var(--text-main); margin:0;">Loading...</h2>
+                                    <div style="display:flex; align-items:center; gap:4px; margin-top:2px;">
+                                        <span id="customerPhone" style="font-size:11px; color:var(--text-light);">+91 99887-76655</span>
+                                    </div>
+                                </div>
+                                <button id="callCustomerBtn" class="btn btn-secondary" style="padding:6px 12px; font-size:12px;"><i class="lucide-phone"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- Routing details -->
+                        <div class="trip-addresses" style="margin:16px 0;">
+                            <div class="address-node node-pickup">
+                                <div class="address-title">PICKUP BOARDING</div>
+                                <div id="pickupAddress" class="address-text">-</div>
+                            </div>
+                            <div class="address-node node-drop">
+                                <div class="address-title">DROP-OFF TARGET</div>
+                                <div id="destinationAddress" class="address-text">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Actions layout -->
+                        <div style="display:flex; gap:12px; margin-top: 24px;">
+                            <button id="navigateBtn" class="btn btn-secondary" style="flex:1;"><i class="lucide-navigation"></i> Navigate</button>
+                            <button id="actionTripBtn" class="btn btn-primary" style="flex:2;" disabled>Arrived at Pickup</button>
+                        </div>
+                        
+                        <button id="cancelTripBtn" class="btn btn-danger" style="width:100%; border-radius:var(--border-radius-md); justify-content:center; gap:8px; margin-top:12px;"><i class="lucide-ban"></i> Cancel Ride (Demo)</button>
+                    </div>
+
+                    <!-- Simulator controls -->
+                    <div class="glass-card" style="padding: 16px; border: 1px dashed var(--color-primary);">
+                        <h3 style="font-size: 13px; font-weight:700; color:var(--color-primary); margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+                            <i class="lucide-cpu"></i>
+                            <span>GPS Simulator Controller</span>
+                        </h3>
+                        <div style="display:flex; flex-direction:column; gap:12px;">
+                            <div class="flex-between">
+                                <span style="font-size:12px; color:var(--text-light);">Simulation Mode</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="simulatorToggle" checked>
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button id="simPlayPauseBtn" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center; font-size:11px; padding:6px;"><i class="lucide-play"></i> Run</button>
+                                <button id="simResetBtn" class="btn btn-secondary btn-sm" style="flex:1; justify-content:center; font-size:11px; padding:6px;"><i class="lucide-rotate-ccw"></i> Reset</button>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:8px; font-size:11px;">
+                                <span style="color:var(--text-light); white-space:nowrap;">Speed Multiplier:</span>
+                                <select id="simSpeedSelect" style="background:var(--bg-app); border:1px solid var(--border-color); color:var(--text-main); border-radius:4px; padding:2px 4px; flex-grow:1; font-size:11px;">
+                                    <option value="1">1x (Real-time)</option>
+                                    <option value="2">2x Speed</option>
+                                    <option value="5" selected>5x Speed</option>
+                                    <option value="10">10x Speed</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Injection Point -->
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Reusable Modals & Toasts Container -->
+    <div id="toast-placeholder"></div>
+    <div id="modal-placeholder"></div>
+
+    <!-- Core Javascript Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/socket.js"></script>
+    
+    <!-- Decoupled Services -->
+    <script src="../js/services/gpsService.js"></script>
+    <script src="../js/services/locationService.js"></script>
+    <script src="../js/services/routeService.js"></script>
+    
+    <!-- Decoupled UI Map Component -->
+    <script src="../js/mapComponent.js"></script>
+    
+    <!-- Page Controllers -->
+    <script src="../js/common.js"></script>
+    <script src="../js/current-trip.js"></script>
+
+    <script>
+        // Init icons
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

@@ -1,0 +1,50 @@
+[
+    {
+        "id": "PSG-541",
+        "name": "Aarav Sharma",
+        "phone": "+91 98234 56789",
+        "gender": "Male",
+        "pickup": "Silk Board Junction",
+        "drop": "Electronic City Phase 1",
+        "seat": "Seat #1",
+        "verificationCode": "AB4K",
+        "pickupStatus": "Waiting",
+        "dropStatus": "Pending",
+        "isWomenOnly": false,
+        "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+        "tripsCompleted": 45,
+        "rating": 4.9
+    },
+    {
+        "id": "PSG-542",
+        "name": "Priya Patel",
+        "phone": "+91 98765 43210",
+        "gender": "Female",
+        "pickup": "Agara Lake Flyover Stop",
+        "drop": "Bellandur EcoSpace Corridor Stop",
+        "seat": "Seat #2",
+        "verificationCode": "TR8M",
+        "pickupStatus": "Waiting",
+        "dropStatus": "Pending",
+        "isWomenOnly": false,
+        "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150",
+        "tripsCompleted": 12,
+        "rating": 4.7
+    },
+    {
+        "id": "PSG-543",
+        "name": "Aditi Sen",
+        "phone": "+91 99001 12233",
+        "gender": "Female",
+        "pickup": "Koramangala 4th Block",
+        "drop": "Indiranagar Metro Station",
+        "seat": "Seat #3",
+        "verificationCode": "PX2L",
+        "pickupStatus": "Picked Up",
+        "dropStatus": "Dropped Successfully",
+        "isWomenOnly": true,
+        "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150",
+        "tripsCompleted": 8,
+        "rating": 4.8
+    }
+]

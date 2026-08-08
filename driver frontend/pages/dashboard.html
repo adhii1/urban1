@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ Driver Operations Dashboard</title>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Styles -->
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <!-- Sidebar Injection Point -->
+        <div id="sidebar-placeholder"></div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Navbar Injection Point -->
+            <div id="navbar-placeholder"></div>
+
+            <!-- 1. Stats Overview Grid -->
+            <section class="stats-grid" aria-label="Operational metrics">
+                <!-- Today's Earnings -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Today's Revenue</span>
+                        <div class="stat-icon-wrap"><i class="lucide-indian-rupee"></i></div>
+                    </div>
+                    <div>
+                        <div id="todayEarningsVal" class="stat-value">₹0.00</div>
+                        <div class="stat-meta"><span class="trend-up">▲ 12.5%</span> vs yesterday</div>
+                    </div>
+                </div>
+
+                <!-- Trips Counter -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Allocated Trips</span>
+                        <div class="stat-icon-wrap"><i class="lucide-route"></i></div>
+                    </div>
+                    <div>
+                        <div id="todayTripsVal" class="stat-value">0</div>
+                        <div class="stat-meta">Shuttle target progress</div>
+                    </div>
+                </div>
+
+                <!-- Completion Rate -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Completed Rides</span>
+                        <div class="stat-icon-wrap"><i class="lucide-badge-check"></i></div>
+                    </div>
+                    <div>
+                        <div id="completedTripsVal" class="stat-value">0</div>
+                        <div class="stat-meta"><span class="trend-up">98%</span> completion rate</div>
+                    </div>
+                </div>
+
+                <!-- Online Hours -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Duty Hours</span>
+                        <div class="stat-icon-wrap"><i class="lucide-clock"></i></div>
+                    </div>
+                    <div>
+                        <div id="dutyHoursVal" class="stat-value">0.0</div>
+                        <div class="stat-meta">Active session status</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Main Workspace Layout -->
+            <div class="dashboard-grid">
+                
+                <!-- Left: Live Map & Operations Workflow -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Map Card -->
+                    <div class="glass-card map-container-card">
+                        <!-- Floating Widgets -->
+                        <div class="floating-eta-card">
+                            <i class="lucide-navigation" style="color:var(--color-primary); font-size:24px;" class="online-pulse"></i>
+                            <div>
+                                <div style="font-size:10px; font-weight:600; color:var(--text-light); text-transform:uppercase;">Time to Destination</div>
+                                <div id="floatingEtaDisplay" class="eta-value">12 Mins</div>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Component -->
+                        <div class="live-map-canvas-wrapper">
+                            <canvas id="dashboardMapPlaceholder" style="width:100%; height:100%; display:block;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Operations Panel -->
+                    <div id="activeTripWorkflowPlaceholder">
+                        <!-- Loaded dynamically based on active status state -->
+                    </div>
+                </div>
+
+                <!-- Right: Daily Schedule & Logs -->
+                <div>
+                    <div class="glass-card timeline-card">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom: 20px; display:flex; align-items:center; gap:8px;">
+                            <i class="lucide-calendar" style="color:var(--color-primary);"></i>
+                            <span>Today's Trip Timeline</span>
+                        </h2>
+
+                        <!-- Timeline list -->
+                        <div class="timeline-list">
+                            <div class="timeline-item completed">
+                                <span class="timeline-time">08:00 AM</span>
+                                <div class="timeline-node"></div>
+                                <div class="timeline-content">
+                                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">Completed Trip #4001</h3>
+                                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">Indiranagar to Outer Ring Rd</p>
+                                    <div style="font-size:11px; font-weight:600; color:var(--color-primary); margin-top:4px;">Earned: ₹420.00</div>
+                                </div>
+                            </div>
+
+                            <div class="timeline-item completed">
+                                <span class="timeline-time">10:30 AM</span>
+                                <div class="timeline-node"></div>
+                                <div class="timeline-content">
+                                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">Completed Trip #4002</h3>
+                                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">Outer Ring Rd to Hebbal</p>
+                                    <div style="font-size:11px; font-weight:600; color:var(--color-primary); margin-top:4px;">Earned: ₹680.00</div>
+                                </div>
+                            </div>
+
+                            <div class="timeline-item upcoming">
+                                <span class="timeline-time">02:15 PM</span>
+                                <div class="timeline-node"></div>
+                                <div class="timeline-content">
+                                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">Scheduled Shift Allocation</h3>
+                                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">Hebbal Central to Electronic City</p>
+                                    <span class="badge badge-warning" style="font-size:8px; padding:1px 4px; margin-top:4px; display:inline-flex;">Assigned</span>
+                                </div>
+                            </div>
+
+                            <div class="timeline-item upcoming">
+                                <span class="timeline-time">05:00 PM</span>
+                                <div class="timeline-node"></div>
+                                <div class="timeline-content">
+                                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">Scheduled Return Shift</h3>
+                                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">Electronic City to Indiranagar</p>
+                                    <span class="badge badge-warning" style="font-size:8px; padding:1px 4px; margin-top:4px; display:inline-flex;">Pending</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Footer Injection Point -->
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Reusable Modals & Toasts Container -->
+    <div id="toast-placeholder"></div>
+    <div id="modal-placeholder"></div>
+
+    <!-- Core Javascript Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/socket.js"></script>
+    <script src="../js/map.js"></script>
+    
+    
+    <!-- API Clients -->
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/api/driverApi.js"></script>
+    <script src="../js/api/tripApi.js"></script>
+    
+    <!-- Page Controllers -->
+    <script src="../js/common.js"></script>
+    <script src="../js/dashboard.js"></script>
+
+    <script>
+        // Init icons
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

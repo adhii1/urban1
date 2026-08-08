@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Trips Ledger - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/ui-components.css">
+</head>
+<body class="dashboard-body">
+
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: flex-start; gap: 16px;">
+            <a href="dashboard.html" class="btn-back" aria-label="Go to Dashboard">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            </a>
+            <h2 class="user-name" style="font-size: 18px;">My Trips & Booking Ledger</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container">
+        <!-- Tabs -->
+        <div style="display:flex; gap:10px; margin-bottom:20px; border-bottom:1px solid rgba(0,0,0,0.08); padding-bottom:12px;">
+            <button class="trip-tab active" data-tab="all" style="padding:8px 16px; border-radius:20px; background:#16C15D; color:#fff; font-weight:700; font-size:13px; border:none; cursor:pointer;">All Trips</button>
+            <button class="trip-tab" data-tab="upcoming" style="padding:8px 16px; border-radius:20px; background:rgba(0,0,0,0.05); font-weight:600; font-size:13px; border:none; cursor:pointer;">Upcoming</button>
+            <button class="trip-tab" data-tab="completed" style="padding:8px 16px; border-radius:20px; background:rgba(0,0,0,0.05); font-weight:600; font-size:13px; border:none; cursor:pointer;">Completed</button>
+            <button class="trip-tab" data-tab="cancelled" style="padding:8px 16px; border-radius:20px; background:rgba(0,0,0,0.05); font-weight:600; font-size:13px; border:none; cursor:pointer;">Cancelled</button>
+        </div>
+
+        <div id="my-trips-table-container">
+            <!-- Rendered via UIComponents.renderDataTable -->
+        </div>
+    </main>
+
+    <!-- Rate Driver Modal -->
+    <div id="rate-driver-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(15,23,42,0.5); backdrop-filter:blur(4px); z-index:9999; align-items:center; justify-content:center;">
+        <div class="glass-card" style="background:#FFF; padding:24px; border-radius:16px; max-width:400px; width:90%; text-align:center;">
+            <h3 style="font-size:18px; font-weight:800; margin-bottom:6px;">Rate Your Driver</h3>
+            <p style="font-size:12px; color:var(--clr-text-light); margin-bottom:16px;">How was your ride with Rajesh Kumar?</p>
+            
+            <div style="font-size:28px; margin-bottom:16px; cursor:pointer;" id="star-rating-box">
+                <span data-star="1">⭐</span><span data-star="2">⭐</span><span data-star="3">⭐</span><span data-star="4">⭐</span><span data-star="5">⭐</span>
+            </div>
+
+            <textarea placeholder="Write feedback for driver (optional)..." style="width:100%; height:80px; border-radius:10px; border:1px solid #CBD5E1; padding:10px; font-size:13px; margin-bottom:16px;"></textarea>
+
+            <div style="display:flex; gap:10px;">
+                <button class="btn-redesign-primary" style="flex:1;" id="btn-submit-rating">Submit Rating</button>
+                <button style="padding:10px 16px; background:rgba(0,0,0,0.06); border-radius:10px; font-size:13px; font-weight:600;" onclick="document.getElementById('rate-driver-modal').style.display='none'">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+        <a href="dashboard.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>Home</span>
+        </a>
+        <a href="my-trips.html" class="nav-item active">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+            <span>My Trips</span>
+        </a>
+        <a href="booking.html" class="nav-item nav-item-primary">
+            <div class="nav-fab"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></div>
+            <span>Book</span>
+        </a>
+        <a href="passes.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="10" rx="2"/><line x1="12" y1="7" x2="12" y2="17"/><circle cx="12" cy="12" r="1.5"/></svg>
+            <span>Passes</span>
+        </a>
+        <a href="profile.html" class="nav-item">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>Profile</span>
+        </a>
+    </nav>
+
+    <script src="js/config/environment.js"></script>
+    <script src="js/config/constants.js"></script>
+    <script src="js/config/api.js"></script>
+    <script src="js/config/routes.js"></script>
+    <script src="js/mock/mockData.js"></script>
+    <script src="js/services/bookingService.js"></script>
+    <script src="js/services/notificationService.js"></script>
+    <script src="js/components/uiComponents.js"></script>
+    <script src="js/my-trips.js"></script>
+</body>
+</html>

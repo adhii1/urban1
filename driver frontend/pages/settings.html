@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Partner Profile & Settings</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Settings & Profile</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Customize theme styling, configure notifications, edit UPI bank details, or log out.</p>
+            </div>
+
+            <!-- Settings layout -->
+            <div class="dashboard-grid" style="grid-template-columns: 2fr 1.2fr;">
+                
+                <!-- Left: Edit profile and Bank Accounts -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Edit Card -->
+                    <div class="glass-card" style="padding: 28px;">
+                        <h2 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:20px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">Edit Profile Information</h2>
+                        
+                        <form id="profileSettingsForm">
+                            <div class="form-group">
+                                <label for="settingsNameInput">DRIVER FULL NAME</label>
+                                <input type="text" id="settingsNameInput" class="form-input" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="settingsEmailInput">EMAIL ADDRESS</label>
+                                <input type="email" id="settingsEmailInput" class="form-input" required>
+                            </div>
+
+                            <h3 style="font-size:14px; font-weight:700; color:var(--text-main); margin-top:32px; margin-bottom:16px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">Linked Bank Account Payout Details</h3>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                                <div class="form-group">
+                                    <label for="settingsUpiInput">UPI ID (FOR INSTANT WITHDRAWALS)</label>
+                                    <input type="text" id="settingsUpiInput" class="form-input" placeholder="e.g. driver@ybl" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="settingsBankAccountInput">BANK ACCOUNT NUMBER</label>
+                                    <input type="text" id="settingsBankAccountInput" class="form-input" placeholder="e.g. 50100123456789" required>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn btn-primary ripple-btn" style="margin-top:16px; padding:12px 24px;">Save Settings Details</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Right: Preferences & safety parameters -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Preference Card -->
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">System Preferences</h2>
+                        
+                        <!-- Dark mode toggler -->
+                        <div class="flex-between" style="border-bottom:1px solid var(--border-color); padding-bottom:12px; margin-bottom:12px;">
+                            <div>
+                                <strong style="font-size:13px; color:var(--text-main);">Dark Mode Aesthetic</strong>
+                                <div style="font-size:11px; color:var(--text-light);">Convert UI elements to night colors</div>
+                            </div>
+                            <label class="switch-toggle" style="position:relative; display:inline-block; width:44px; height:24px;">
+                                <input type="checkbox" id="settingsDarkModeToggle" style="opacity:0; width:0; height:0;">
+                                <span class="slider-round" style="position:absolute; cursor:pointer; top:0; left:0; right:0; bottom:0; background-color:#EF4444; transition:.3s; border-radius:34px;"></span>
+                            </label>
+                        </div>
+
+                        <!-- Log Out Buttons -->
+                        <div style="margin-top:24px;">
+                            <button id="settingsLogoutBtn" class="btn btn-secondary" style="width:100%; border:1px solid var(--border-color); justify-content:center;" onclick="window.AUTH_API.logout()">
+                                <i class="lucide-log-out"></i> Log Out Profile
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Safety & Account Administration -->
+                    <div class="glass-card" style="padding:24px; border:1px solid rgba(239, 68, 68, 0.2);">
+                        <h2 style="font-size:15px; font-weight:700; color:#EF4444; margin-bottom:12px;">Danger Zone</h2>
+                        <p style="font-size:12px; color:var(--text-light); line-height:1.5; margin-bottom:16px;">Requesting account deletion suspends active credentials and payouts instantly.</p>
+                        <button id="deleteAccountBtn" class="btn btn-danger" style="width:100%; justify-content:center;"><i class="lucide-trash-2"></i> Delete Account</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal and dialogues -->
+    <div id="torqqSharedModal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background-color:rgba(15,23,42,0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:1000; padding:20px; transition:opacity 0.25s ease;">
+        <div class="modal-dialog glass-card" style="width:100%; max-width:500px; background:var(--bg-card-solid); border-radius:var(--border-radius-lg); box-shadow:var(--shadow-premium); transform:scale(0.95); transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border-color);">
+                <h3 id="sharedModalTitle" style="font-size:16px; font-weight:700; color:var(--text-main);">Modal Title</h3>
+                <button id="sharedModalCloseBtn" style="background:none; border:none; cursor:pointer; color:var(--text-light); font-size:24px; line-height:1;">&times;</button>
+            </div>
+            <div id="sharedModalBody" style="padding:24px; overflow-y:auto; max-height:70vh; font-size:14px; color:var(--text-main);"></div>
+            <div id="sharedModalFooter" style="display:flex; justify-content:flex-end; gap:12px; padding:16px 24px; border-top:1px solid var(--border-color); background:var(--bg-app);"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/api/driverApi.js"></script>
+    <script src="../js/common.js"></script>
+    <script src="../js/settings.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

@@ -1,0 +1,170 @@
+/* ==========================================================================
+   TORQQ Driver Premium SaaS Dashboard - Mobile Responsiveness & Layout Refinement
+   ========================================================================== */
+
+/* --- Mobile Bottom Navigation (Hidden on Desktops) --- */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 64px;
+    background: var(--bg-card);
+    backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border-color);
+    z-index: 999;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light);
+    font-size: 10px;
+    font-weight: 500;
+    flex-grow: 1;
+    height: 100%;
+    cursor: pointer;
+    transition: var(--transition-smooth);
+}
+
+.bottom-nav-item i {
+    font-size: 20px;
+    margin-bottom: 3px;
+}
+
+.bottom-nav-item.active {
+    color: var(--color-primary);
+}
+
+/* Floating Trip Action Button in Mobile Nav */
+.bottom-nav-item.start-trip-btn-mobile {
+    position: relative;
+    top: -16px;
+    background: var(--color-primary);
+    color: #FFFFFF !important;
+    width: 56px;
+    height: 56px;
+    max-width: 56px;
+    border-radius: 50%;
+    box-shadow: 0 10px 20px rgba(22, 193, 93, 0.3);
+    border: 4px solid var(--bg-app);
+}
+
+.bottom-nav-item.start-trip-btn-mobile i {
+    font-size: 24px;
+    margin-bottom: 0;
+}
+
+/* --- Media Breakpoints --- */
+
+/* Large screens and Laptops (shrink padding slightly) */
+@media (max-width: 1200px) {
+    .main-content {
+        padding: 20px;
+        padding-top: calc(var(--navbar-height) + 20px);
+    }
+}
+
+/* Tablets (landscape and portrait) */
+@media (max-width: 992px) {
+    :root {
+        --sidebar-width: 240px;
+    }
+    
+    .dashboard-grid {
+        grid-template-columns: 1fr; /* Stack columns */
+    }
+}
+
+/* Small Tablets and Mobile Viewports */
+@media (max-width: 768px) {
+    :root {
+        --sidebar-width: 280px; /* Full drawer width */
+    }
+
+    /* Collapse Sidebar into Drawer */
+    .sidebar {
+        position: fixed;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 1000;
+        transform: translateX(-100%);
+        box-shadow: none;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+        box-shadow: 20px 0 50px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Sidebar Drawer Backdrop Overlay */
+    .sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        z-index: 998;
+    }
+
+    body.sidebar-open .sidebar-overlay {
+        display: block;
+    }
+
+    /* Shift Main Content to full width */
+    .main-content {
+        margin-left: 0 !important;
+        padding-bottom: 84px; /* Space for mobile bottom navigation */
+    }
+
+    /* Show Mobile Nav */
+    .mobile-bottom-nav {
+        display: flex;
+    }
+
+    /* Stack grid contents */
+    .stats-grid {
+        grid-template-columns: 1fr 1fr; /* 2 columns for quick summaries */
+    }
+    
+    .map-container-card {
+        height: 320px;
+    }
+}
+
+/* Ultra Small Screens (Mobile portrait) */
+@media (max-width: 480px) {
+    .stats-grid {
+        grid-template-columns: 1fr; /* Fully stack stats */
+    }
+
+    .stat-value {
+        font-size: 22px;
+    }
+
+    /* Adjust navbar layouts */
+    .nav-search-container {
+        display: none; /* Hide Search bar on narrow mobile headers */
+    }
+
+    .eta-value {
+        font-size: 18px;
+    }
+
+    .floating-eta-card {
+        padding: 10px 14px;
+        left: 10px;
+        top: 10px;
+    }
+}

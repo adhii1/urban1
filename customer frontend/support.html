@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <style>
+        .ticket-card {
+            background: white;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .ticket-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border-color: var(--clr-primary-green);
+        }
+        .ticket-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .ticket-ref {
+            font-weight: 600;
+            color: var(--clr-dark-navy);
+            font-size: 14px;
+        }
+        .ticket-status {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 99px;
+            text-transform: uppercase;
+        }
+        .status-pending {
+            background: #FEF3C7;
+            color: #D97706;
+        }
+        .status-resolved {
+            background: #D1FAE5;
+            color: #059669;
+        }
+        .priority-badge {
+            font-size: 11px;
+            font-weight: 500;
+            background: #F1F5F9;
+            color: #475569;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .chat-container {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 12px;
+            background: #F8FAFC;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .bubble-incoming {
+            background: #E2E8F0;
+            color: var(--clr-dark-navy);
+            align-self: flex-start;
+            border-top-left-radius: 2px;
+        }
+        .bubble-outgoing {
+            background: var(--clr-primary-green);
+            color: white;
+            align-self: flex-end;
+            border-top-right-radius: 2px;
+        }
+    </style>
+</head>
+<body class="dashboard-body">
+    <header class="dashboard-header">
+        <div class="container dashboard-header-container" style="justify-content: flex-start; gap: 16px;">
+            <button class="btn-back" onclick="window.location.href='dashboard.html'" aria-label="Go Back">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+            </button>
+            <h2 class="user-name" style="font-size: 18px;">24x7 Help Center</h2>
+        </div>
+    </header>
+
+    <main class="dashboard-main container">
+        <section class="dashboard-section" style="margin-top: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 16px; font-weight:600;">Your Support Tickets</h3>
+                <button class="btn-primary" style="padding: 8px 16px; font-size: 12px; border-radius: 6px;" onclick="document.getElementById('createTicketModal').classList.add('show')">+ New Ticket</button>
+            </div>
+            
+            <div id="ticketsListContainer">
+                <div style="text-align: center; color: var(--clr-text-main); padding: 40px 0;">Loading support tickets...</div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Create Ticket Modal -->
+    <div class="modal-overlay" id="createTicketModal">
+        <div class="modal-container">
+            <h3 class="modal-title" style="margin-bottom:16px;">Create Support Ticket</h3>
+            <div style="margin-bottom: 16px;">
+                <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Category</label>
+                <select id="ticketCategory" class="form-input" style="width:100%; border:1px solid #CBD5E1; padding:10px; border-radius:8px; box-sizing: border-box;">
+                    <option value="Booking Issue">Booking Issue</option>
+                    <option value="Payment / Wallet">Payment / Wallet</option>
+                    <option value="Driver Partner Feedback">Driver Partner Feedback</option>
+                    <option value="App / Technical Bug">App / Technical Bug</option>
+                    <option value="Other Query">Other Query</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Priority</label>
+                <select id="ticketPriority" class="form-input" style="width:100%; border:1px solid #CBD5E1; padding:10px; border-radius:8px; box-sizing: border-box;">
+                    <option value="Low">Low</option>
+                    <option value="Medium" selected>Medium</option>
+                    <option value="High">High</option>
+                </select>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display:block; font-size:12px; font-weight:600; margin-bottom:6px;">Detailed Message</label>
+                <textarea id="ticketMessage" rows="4" placeholder="Explain your issue in detail..." class="form-input" style="width:100%; border:1px solid #CBD5E1; padding:10px; border-radius:8px; box-sizing: border-box; resize: none;"></textarea>
+            </div>
+            <p class="text-danger" id="createTicketError" style="margin-bottom: 16px; display:none; font-size: 13px;"></p>
+            <div style="display:flex; gap:12px;">
+                <button class="btn-secondary" style="flex:1;" onclick="document.getElementById('createTicketModal').classList.remove('show')">Cancel</button>
+                <button class="btn-primary" style="flex:1;" id="submitTicketBtn">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Chat Details Modal -->
+    <div class="modal-overlay" id="chatModal">
+        <div class="modal-container" style="max-width: 450px;">
+            <div class="ticket-header" style="border-bottom: 1px solid #E2E8F0; padding-bottom: 12px; margin-bottom: 12px;">
+                <div>
+                    <h3 id="chatTicketRef" style="font-size: 15px; font-weight: 700; color: var(--clr-dark-navy);">SUP-XXXX</h3>
+                    <p id="chatTicketCategory" style="font-size: 11px; color: var(--clr-text-main);">Category</p>
+                </div>
+                <button class="btn-secondary" style="padding: 4px 8px; font-size: 11px;" id="resolveTicketBtn">Mark Resolved</button>
+            </div>
+            
+            <div class="chat-container" id="chatContainer">
+                <!-- Messages populate here -->
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="replyInput" placeholder="Type your reply..." class="form-input" style="flex: 1; border:1px solid #CBD5E1; padding:10px; border-radius:8px; box-sizing: border-box;">
+                <button class="btn-primary" id="sendReplyBtn" style="padding: 10px 16px; border-radius: 8px;">Send</button>
+            </div>
+            <div style="margin-top:12px; text-align: right;">
+                <button class="btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="document.getElementById('chatModal').classList.remove('show')">Close Chat</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="js/customerApi.js"></script>
+    <script src="js/support.js"></script>
+</body>
+</html>

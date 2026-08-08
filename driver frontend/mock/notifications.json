@@ -1,0 +1,6 @@
+[
+    { "id": "ntf-1", "title": "Daily Payout Settled ✅", "message": "Your earnings of ₹1,500.00 from July 6 have been transferred to HDFC account.", "time": "9:00 AM", "read": false, "type": "payout" },
+    { "id": "ntf-2", "title": "Insurance Expiring Soon! ⚠️", "message": "Your vehicle insurance KA-01-MJ-4321 is expiring in 10 days. Please upload new document.", "time": "Yesterday", "read": true, "type": "document" },
+    { "id": "ntf-3", "title": "Holiday Incentive Active 🎁", "message": "Get a bonus of ₹200 on completing 5 trips during Independence Day peak slots.", "time": "2 days ago", "read": true, "type": "promotion" },
+    { "id": "ntf-4", "title": "Emergency Update", "message": "New emergency SOS dispatch route activated for Hebbal Flyover bypass.", "time": "3 days ago", "read": true, "type": "emergency" }
+]

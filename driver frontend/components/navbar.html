@@ -1,0 +1,181 @@
+<!-- TORQQ Driver Navbar Component -->
+<header class="navbar glass-card" style="
+    height: var(--navbar-height);
+    position: fixed;
+    top: 0;
+    left: var(--sidebar-width);
+    right: 0;
+    z-index: 99;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    border-radius: 0;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    transition: var(--transition-smooth);
+">
+    <!-- Left Section: Mobile Menu Trigger & Greetings -->
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <!-- Hamburger Menu for Mobile Drawer toggling -->
+        <button id="mobileMenuToggleBtn" aria-label="Open sidebar menu" style="
+            display: none;
+            padding: 8px;
+            border-radius: 8px;
+            background: var(--bg-hover);
+            color: var(--text-main);
+            cursor: pointer;
+            border: none;
+            font-size: 20px;
+            align-items: center;
+            justify-content: center;
+        ">
+            <i class="lucide-menu" style="font-size: 22px;"></i>
+        </button>
+        
+        <div>
+            <span id="navGreeting" style="font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase;">Good Morning</span>
+            <h1 id="navDriverGreetingName" style="font-size: 18px; font-weight: 700; color: var(--text-main);">Welcome Back, John</h1>
+        </div>
+    </div>
+
+    <!-- Center Section: Search Bar -->
+    <div class="nav-search-container" style="
+        flex-grow: 1;
+        max-width: 320px;
+        margin: 0 32px;
+        position: relative;
+    ">
+        <i class="lucide-search" style="
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+            font-size: 16px;
+        "></i>
+        <input type="text" id="navSearchInput" placeholder="Search trips, routes..." aria-label="Search" style="
+            width: 100%;
+            padding: 10px 12px 10px 38px;
+            border-radius: var(--border-radius-md);
+            border: 1px solid var(--border-color);
+            background: var(--bg-app);
+            color: var(--text-main);
+            font-size: 13px;
+            transition: var(--transition-smooth);
+        ">
+    </div>
+
+    <!-- Right Section: SOS, Date, Online Toggle, Notification, Profile Dropdown -->
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <!-- Clock -->
+        <div id="navLiveClock" style="
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-light);
+            text-align: right;
+            border-right: 1px solid var(--border-color);
+            padding-right: 16px;
+        ">
+            <div>Tuesday, 7 Jul</div>
+            <div style="font-size: 11px; font-weight: 500;">12:54 PM</div>
+        </div>
+
+        <!-- Emergency SOS Button -->
+        <button id="navSosBtn" class="btn btn-danger ripple-btn" style="
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: var(--border-radius-sm);
+            background-color: #EF4444;
+            color: #FFFFFF;
+            animation: pulse-sos 1.5s infinite;
+        ">
+            <i class="lucide-alert-octagon"></i>
+            <span>SOS</span>
+        </button>
+
+        <!-- Duty Online Status Toggle -->
+        <div style="display: flex; align-items: center; gap: 8px; border-right: 1px solid var(--border-color); padding-right: 16px;">
+            <span id="navOnlineLabel" style="font-size: 12px; font-weight: 600; color: var(--text-light);">Offline</span>
+            <label class="switch-toggle" style="
+                position: relative;
+                display: inline-block;
+                width: 44px;
+                height: 24px;
+            ">
+                <input type="checkbox" id="navOnlineToggle" style="opacity: 0; width: 0; height: 0;">
+                <span class="slider-round" style="
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0; left: 0; right: 0; bottom: 0;
+                    background-color: #EF4444;
+                    transition: .3s;
+                    border-radius: 34px;
+                "></span>
+            </label>
+        </div>
+
+        <!-- Real-Time Notification Bell & Drawer Trigger -->
+        <div style="position: relative;">
+            <button id="navNotificationBtn" aria-label="Open notifications menu" style="
+                padding: 10px;
+                border-radius: 10px;
+                background: var(--bg-hover);
+                color: var(--text-main);
+                cursor: pointer;
+                border: none;
+                font-size: 18px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                transition: var(--transition-smooth);
+            ">
+                <i class="lucide-bell"></i>
+            </button>
+            <!-- Badge -->
+            <span id="navNotificationBadge" style="
+                position: absolute;
+                top: -4px;
+                right: -4px;
+                width: 18px;
+                height: 18px;
+                background: #EF4444;
+                color: #FFFFFF;
+                border-radius: 50%;
+                font-size: 10px;
+                font-weight: 700;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                border: 2px solid var(--bg-card-solid);
+            ">0</span>
+        </div>
+
+        <!-- Profile Settings Navigation -->
+        <a href="profile.html" aria-label="View profile details" style="display: flex; align-items: center;">
+            <img id="navDriverAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256" class="avatar" style="width: 38px; height: 38px;" alt="Profile Picture">
+        </a>
+    </div>
+</header>
+<style>
+/* CSS Switch Toggle styling inside navbar */
+.switch-toggle input:checked + .slider-round {
+    background-color: #16C15D;
+}
+.slider-round:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .3s;
+    border-radius: 50%;
+}
+.switch-toggle input:checked + .slider-round:before {
+    transform: translateX(20px);
+}
+</style>

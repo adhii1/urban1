@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Document Manager</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Document Verification</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Audit partner verifications, driving license details, and permit expiries.</p>
+            </div>
+
+            <!-- Documents layouts -->
+            <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+                
+                <div style="display:flex; flex-direction:column; gap:16px;">
+                    <!-- DL Card -->
+                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-file-text" style="font-size:24px;"></i></div>
+                            <div>
+                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Permanent Driving License</h3>
+                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: KA-51-2024-0012345 • Expires: Dec 2029</div>
+                            </div>
+                        </div>
+                        <span class="badge badge-success">Approved</span>
+                    </div>
+
+                    <!-- RC Card -->
+                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-car" style="font-size:24px;"></i></div>
+                            <div>
+                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Vehicle Registration Certificate (RC)</h3>
+                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: KA-01-MJ-4321 • Expires: Mar 2035</div>
+                            </div>
+                        </div>
+                        <span class="badge badge-success">Approved</span>
+                    </div>
+
+                    <!-- Insurance Certificate -->
+                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
+                        <div style="display:flex; align-items:center; gap:16px;">
+                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-shield" style="font-size:24px;"></i></div>
+                            <div>
+                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Commercial Vehicle Insurance</h3>
+                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: INS-90023412 • Expires: Sep 2026</div>
+                            </div>
+                        </div>
+                        <span class="badge badge-warning">Expiring Soon</span>
+                    </div>
+                </div>
+
+                <!-- Right sidebar uploaders -->
+                <div>
+                    <div class="glass-card" style="padding:24px; text-align:center;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Upload Documents</h2>
+                        <div style="border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 32px 16px; cursor:pointer;" onclick="window.UTILS.showToast('Selecting file from filesystem...', 'info')">
+                            <i class="lucide-upload-cloud" style="font-size:36px; color:var(--text-light); margin-bottom:12px; display:inline-flex;"></i>
+                            <div style="font-size:13px; font-weight:600; color:var(--text-main);">Choose File or Drag here</div>
+                            <div style="font-size:11px; color:var(--text-light); margin-top:4px;">Supports JPG, PNG or PDF (Max 5MB)</div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

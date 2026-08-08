@@ -1,0 +1,140 @@
+/* ==========================================================================
+   TORQQ Driver Premium SaaS Dashboard - Transitions & Animations
+   ========================================================================== */
+
+/* --- Loading Skeleton Animation --- */
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.skeleton-pulse {
+    background: linear-gradient(90deg, 
+        rgba(226, 232, 240, 0.4) 25%, 
+        rgba(241, 245, 249, 0.6) 50%, 
+        rgba(226, 232, 240, 0.4) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+[data-theme="dark"] .skeleton-pulse {
+    background: linear-gradient(90deg, 
+        rgba(30, 41, 59, 0.4) 25%, 
+        rgba(51, 65, 85, 0.6) 50%, 
+        rgba(30, 41, 59, 0.4) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+/* --- Fade In and Slide Up --- */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in-up {
+    animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* --- Pulsing Glow (Online Status Badge & SOS countdown) --- */
+@keyframes status-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(22, 193, 93, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(22, 193, 93, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(22, 193, 93, 0);
+    }
+}
+
+.online-pulse {
+    animation: status-pulse 2s infinite;
+}
+
+@keyframes pulse-sos {
+    0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+    }
+    70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 15px rgba(239, 68, 68, 0);
+    }
+    100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* --- Ripples / Floating elevations on cards --- */
+.card-hover-elevate {
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-hover-elevate:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-card-hover);
+}
+
+/* --- Button Click Ripple Effect --- */
+.ripple-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.ripple-btn::after {
+    content: "";
+    background: rgba(255, 255, 255, 0.3);
+    display: block;
+    position: absolute;
+    border-radius: 50%;
+    padding: 50%;
+    width: 32px;
+    height: 32px;
+    left: 50%;
+    top: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+    transition: opacity 1s, transform 0.5s;
+}
+
+.ripple-btn:active::after {
+    transition: 0s;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0);
+}
+
+/* --- Page Transition Fades --- */
+.page-transition-enter {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.page-transition-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}

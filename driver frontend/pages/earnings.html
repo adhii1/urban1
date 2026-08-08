@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Driver Earnings & Statements</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+    <style>
+        .earnings-grid-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            text-align: left;
+            padding: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--border-color);
+        }
+        td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <!-- Page Header -->
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Earnings and Wallet</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Track transaction logs, monitor payouts, and track dynamic incentive targets.</p>
+            </div>
+
+            <!-- Stats Row -->
+            <section class="stats-grid" aria-label="Wallet Overview">
+                <!-- Balance & Withdraw -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Wallet Balance</span>
+                        <div class="stat-icon-wrap"><i class="lucide-wallet"></i></div>
+                    </div>
+                    <div>
+                        <div id="walletBalanceVal" class="stat-value" style="color:var(--color-primary);">₹0.00</div>
+                        <button id="withdrawBtn" class="btn btn-primary ripple-btn" style="padding: 6px 12px; font-size:11px; margin-top:8px;">Withdraw Payout</button>
+                    </div>
+                </div>
+
+                <!-- Pending Settlements -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Pending settlements</span>
+                        <div class="stat-icon-wrap"><i class="lucide-refresh-cw"></i></div>
+                    </div>
+                    <div>
+                        <div id="pendingSettlementVal" class="stat-value">₹0.00</div>
+                        <div class="stat-meta">Deposits within 24-48 Hours</div>
+                    </div>
+                </div>
+
+                <!-- Referral Commissions -->
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Referrals Commission</span>
+                        <div class="stat-icon-wrap"><i class="lucide-users"></i></div>
+                    </div>
+                    <div>
+                        <div id="referralBonusVal" class="stat-value">₹0.00</div>
+                        <div class="stat-meta">Code: <strong style="color:var(--color-primary);">TQDRV98</strong></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Chart & Targets Grid -->
+            <div class="earnings-grid-container">
+                <!-- Left: SVG Earnings Chart & Transaction History -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Line Graph Card -->
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:20px;">Daily Earnings Comparison</h2>
+                        <div id="earningsGraphPlaceholder" style="height:200px; width:100%; border:1px solid var(--border-color); border-radius:var(--border-radius-md); padding:10px; background:var(--bg-app);">
+                            <!-- Drawn dynamically -->
+                        </div>
+                    </div>
+
+                    <!-- Statement History -->
+                    <div class="glass-card" style="padding:24px;">
+                        <div class="flex-between" style="margin-bottom:16px;">
+                            <h2 style="font-size:15px; font-weight:700; color:var(--text-main);">Recent Wallet Transactions</h2>
+                            <button class="btn btn-secondary" onclick="window.UTILS.showToast('Downloading CSV statements...', 'success')" style="padding:8px 12px; font-size:12px;"><i class="lucide-download"></i> Statement CSV</button>
+                        </div>
+                        
+                        <div style="overflow-x:auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Ref ID</th>
+                                        <th>Description</th>
+                                        <th>Date</th>
+                                        <th style="text-align:right;">Amount (INR)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionsTableBody">
+                                    <!-- Loaded dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Daily Incentives progress list -->
+                <div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom: 20px; display:flex; align-items:center; gap:8px;">
+                            <i class="lucide-award" style="color:var(--color-primary);"></i>
+                            <span>Daily Incentive Targets</span>
+                        </h2>
+
+                        <div id="incentivesProgressList">
+                            <!-- Loaded dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <!-- Modal dialogue backdrop template -->
+    <div id="torqqSharedModal" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background-color:rgba(15,23,42,0.6); backdrop-filter:blur(6px); display:none; align-items:center; justify-content:center; z-index:1000; padding:20px; transition:opacity 0.25s ease;">
+        <div class="modal-dialog glass-card" style="width:100%; max-width:500px; background:var(--bg-card-solid); border-radius:var(--border-radius-lg); box-shadow:var(--shadow-premium); transform:scale(0.95); transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); overflow:hidden; display:flex; flex-direction:column;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:20px 24px; border-bottom:1px solid var(--border-color);">
+                <h3 id="sharedModalTitle" style="font-size:16px; font-weight:700; color:var(--text-main);">Modal Title</h3>
+                <button id="sharedModalCloseBtn" style="background:none; border:none; cursor:pointer; color:var(--text-light); font-size:24px; line-height:1;">&times;</button>
+            </div>
+            <div id="sharedModalBody" style="padding:24px; overflow-y:auto; max-height:70vh; font-size:14px; color:var(--text-main);"></div>
+            <div id="sharedModalFooter" style="display:flex; justify-content:flex-end; gap:12px; padding:16px 24px; border-top:1px solid var(--border-color); background:var(--bg-app);"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/api/earningApi.js"></script>
+    <script src="../js/common.js"></script>
+    <script src="../js/earnings.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

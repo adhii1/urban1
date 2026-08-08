@@ -1,0 +1,70 @@
+[
+    {
+        "id": "TRP-20950",
+        "status": "AVAILABLE",
+        "bookingModel": "Stop to Stop (Bus Stop Shuttle)",
+        "date": "2026-07-21",
+        "time": "02:30 PM",
+        "pickup": "Silk Board Junction",
+        "drop": "Electronic City Phase 1",
+        "distance": "12.4 km",
+        "duration": "22 Mins",
+        "pickupOrder": "1. Silk Board → 2. Agara Lake",
+        "dropOrder": "1. Bellandur EcoSpace → 2. Electronic City",
+        "passengers": [
+            {
+                "id": "PSG-541",
+                "name": "Aarav Sharma",
+                "phone": "+91 98234 56789",
+                "pickup": "Silk Board Junction",
+                "drop": "Electronic City Phase 1",
+                "seat": "Seat #1",
+                "verificationCode": "AB4K",
+                "pickupStatus": "Waiting",
+                "dropStatus": "Pending",
+                "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"
+            },
+            {
+                "id": "PSG-542",
+                "name": "Priya Patel",
+                "phone": "+91 98765 43210",
+                "pickup": "Agara Lake Flyover Stop",
+                "drop": "Bellandur EcoSpace Corridor Stop",
+                "seat": "Seat #2",
+                "verificationCode": "TR8M",
+                "pickupStatus": "Waiting",
+                "dropStatus": "Pending",
+                "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150"
+            }
+        ],
+        "earnings": 410.00
+    },
+    {
+        "id": "TRP-20938",
+        "status": "COMPLETED",
+        "bookingModel": "Home to Stop (3-Day Weekly Pass)",
+        "date": "2026-07-21",
+        "time": "10:30 AM",
+        "pickup": "Koramangala 4th Block",
+        "drop": "Indiranagar Metro Station",
+        "distance": "6.8 km",
+        "duration": "15 Mins",
+        "pickupOrder": "1. Koramangala 4th Block",
+        "dropOrder": "1. Indiranagar Metro Station",
+        "passengers": [
+            {
+                "id": "PSG-543",
+                "name": "Aditi Sen",
+                "phone": "+91 99001 12233",
+                "pickup": "Koramangala 4th Block",
+                "drop": "Indiranagar Metro Station",
+                "seat": "Seat #1",
+                "verificationCode": "PX2L",
+                "pickupStatus": "Picked Up",
+                "dropStatus": "Dropped Successfully",
+                "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150"
+            }
+        ],
+        "earnings": 185.00
+    }
+]

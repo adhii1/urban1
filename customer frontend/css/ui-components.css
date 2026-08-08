@@ -1,0 +1,272 @@
+/* ==========================================================================
+   TORQQ Shared Mobility - Reusable Global UI Components & Theme System
+   ========================================================================== */
+
+/* --- Dark Mode Theme Overrides --- */
+[data-theme="dark"] {
+    --clr-white: #0F172A;
+    --clr-light-bg: #1E293B;
+    --clr-text-main: #F8FAFC;
+    --clr-text-light: #94A3B8;
+    --bg-green-light: rgba(29, 185, 84, 0.15);
+    --bg-blue-light: rgba(37, 99, 235, 0.15);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .glass-card,
+[data-theme="dark"] .dashboard-card,
+[data-theme="dark"] .data-table-container {
+    background: rgba(30, 41, 59, 0.85) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    color: #F8FAFC !important;
+}
+
+/* --- High Contrast Theme Mode --- */
+body.high-contrast {
+    filter: contrast(125%);
+    --clr-text-main: #000000 !important;
+    --clr-text-light: #111111 !important;
+}
+[data-theme="dark"].high-contrast {
+    --clr-text-main: #FFFFFF !important;
+    --clr-text-light: #F1F5F9 !important;
+}
+
+/* --- Skeleton Pulse Loader --- */
+.skeleton {
+    background: linear-gradient(90deg, rgba(203, 213, 225, 0.4) 25%, rgba(226, 232, 240, 0.8) 50%, rgba(203, 213, 225, 0.4) 75%);
+    background-size: 200% 100%;
+    animation: skeleton-pulse 1.5s infinite ease-in-out;
+    border-radius: 8px;
+    display: inline-block;
+    min-height: 1rem;
+}
+[data-theme="dark"] .skeleton {
+    background: linear-gradient(90deg, rgba(51, 65, 85, 0.5) 25%, rgba(71, 85, 105, 0.8) 50%, rgba(51, 65, 85, 0.5) 75%);
+}
+@keyframes skeleton-pulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* --- Notification Toast Container --- */
+#toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 360px;
+    width: calc(100% - 40px);
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    background: #FFFFFF;
+    color: #0F172A;
+    padding: 14px 18px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    border-left: 4px solid #16C15D;
+    animation: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.3s ease;
+}
+.toast.toast-error { border-left-color: #EF4444; }
+.toast.toast-info { border-left-color: #3B82F6; }
+.toast.toast-warning { border-left-color: #F59E0B; }
+@keyframes toast-in {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+/* --- Notification Center Drawer --- */
+.notification-drawer {
+    position: fixed;
+    top: 0;
+    right: -420px;
+    width: 400px;
+    max-width: 100%;
+    height: 100vh;
+    background: var(--clr-white, #FFFFFF);
+    box-shadow: -10px 0 30px rgba(0,0,0,0.15);
+    z-index: 9999;
+    transition: right 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    flex-direction: column;
+}
+.notification-drawer.open {
+    right: 0;
+}
+.notification-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+.notification-backdrop.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.notification-header {
+    padding: 20px;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.notification-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.notification-card {
+    padding: 14px;
+    background: var(--clr-light-bg, #F8FAFC);
+    border-radius: 12px;
+    border: 1px solid rgba(0,0,0,0.05);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    transition: background 0.2s ease;
+}
+.notification-card.unread {
+    background: rgba(22, 193, 93, 0.08);
+    border-color: rgba(22, 193, 93, 0.2);
+}
+
+/* --- Generic Data Table Component --- */
+.data-table-wrapper {
+    background: var(--clr-white, #FFFFFF);
+    border-radius: 16px;
+    border: 1px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    overflow: hidden;
+}
+.data-table-toolbar {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.data-table-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.data-table-search {
+    padding: 8px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,0,0,0.15);
+    font-size: 13px;
+    outline: none;
+}
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+.data-table th {
+    background: var(--clr-light-bg, #F8FAFC);
+    padding: 12px 16px;
+    font-weight: 600;
+    color: var(--clr-text-light, #64748B);
+    cursor: pointer;
+    user-select: none;
+}
+.data-table td {
+    padding: 14px 16px;
+    border-top: 1px solid rgba(0,0,0,0.04);
+}
+.data-table-pagination {
+    padding: 14px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--clr-text-light);
+    border-top: 1px solid rgba(0,0,0,0.06);
+}
+
+/* --- Floating Action Button (FAB) --- */
+.fab-btn {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: #16C15D;
+    color: #FFFFFF;
+    box-shadow: 0 8px 20px rgba(22, 193, 93, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: transform 0.2s ease;
+}
+.fab-btn:hover {
+    transform: scale(1.08);
+}
+
+/* --- Success Animated SVG Checkmark --- */
+.success-checkmark-wrapper {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 16px;
+}
+.success-checkmark-svg {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: block;
+    stroke-width: 2.5;
+    stroke: #16C15D;
+    stroke-miterlimit: 10;
+    box-shadow: inset 0px 0px 0px #16C15D;
+    animation: fill-circle .4s ease-in-out .4s forwards, scale-circle .3s ease-in-out .9s both;
+}
+.success-checkmark-circle {
+    stroke-dasharray: 166;
+    stroke-dashoffset: 166;
+    stroke-width: 2.5;
+    stroke-miterlimit: 10;
+    stroke: #16C15D;
+    fill: none;
+    animation: stroke-circle 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+.success-checkmark-check {
+    transform-origin: 50% 50%;
+    stroke-dasharray: 48;
+    stroke-dashoffset: 48;
+    animation: stroke-check 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.8s forwards;
+}
+@keyframes stroke-circle { 100% { stroke-dashoffset: 0; } }
+@keyframes stroke-check { 100% { stroke-dashoffset: 0; } }
+
+/* --- Responsive Utilities --- */
+@media (max-width: 768px) {
+    .notification-drawer { width: 100%; }
+    .data-table-toolbar { flex-direction: column; align-items: stretch; }
+    .data-table-wrapper { overflow-x: auto; }
+}

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ride History - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="dashboard-body">
+
+    <!-- Header -->
+    <header class="dashboard-header" style="justify-content: flex-start; gap: 16px;">
+        <button class="btn-back" onclick="window.history.back()" aria-label="Go Back" style="padding: 8px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+        </button>
+        <h2 class="page-title" style="font-size: 20px; font-weight: 600;">Ride History</h2>
+    </header>
+
+    <main class="container" style="padding-top: 80px; padding-bottom: 80px;">
+        
+        <!-- Tabs -->
+        <div style="display: flex; gap: 16px; margin-bottom: 24px; overflow-x: auto; padding-bottom: 8px;">
+            <button class="btn-primary" style="border-radius: 20px; padding: 8px 16px; font-size: 14px; white-space: nowrap;">Completed</button>
+            <button class="btn-secondary" style="border-radius: 20px; padding: 8px 16px; font-size: 14px; white-space: nowrap; background: var(--clr-white); border: 1px solid #E2E8F0; color: var(--clr-text-main);">Cancelled</button>
+            <button class="btn-secondary" style="border-radius: 20px; padding: 8px 16px; font-size: 14px; white-space: nowrap; background: var(--clr-white); border: 1px solid #E2E8F0; color: var(--clr-text-main);">Missed</button>
+        </div>
+
+        <!-- History List -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+            
+            <!-- Ride Card -->
+            <div class="card fade-in" style="background: var(--clr-white); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                    <span style="font-size: 14px; color: var(--clr-text-light);">12 Oct 2026, 08:30 AM</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--clr-primary-green);">₹ 45.00</span>
+                </div>
+                <div class="route-info" style="margin-bottom: 16px;">
+                    <div class="route-point">
+                        <div class="dot green-dot"></div>
+                        <span style="font-weight: 500;">HSR Layout</span>
+                    </div>
+                    <div class="route-line"></div>
+                    <div class="route-point">
+                        <div class="dot blue-dot"></div>
+                        <span style="font-weight: 500;">Koramangala</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <a href="invoice.html" class="btn-secondary" style="flex: 1; padding: 10px; text-align: center; font-size: 14px; background: var(--clr-light-bg); border-radius: var(--radius-sm); font-weight: 500;">Invoice</a>
+                    <button class="btn-primary" style="flex: 1; padding: 10px; text-align: center; font-size: 14px; border-radius: var(--radius-sm);" onclick="document.getElementById('ratingModal').classList.add('show')">Rate Ride</button>
+                </div>
+            </div>
+
+            <!-- Ride Card -->
+            <div class="card fade-in" style="background: var(--clr-white); border-radius: var(--radius-lg); padding: 16px; box-shadow: var(--shadow-sm);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                    <span style="font-size: 14px; color: var(--clr-text-light);">11 Oct 2026, 06:15 PM</span>
+                    <span style="font-size: 14px; font-weight: 600; color: var(--clr-primary-green);">Pass</span>
+                </div>
+                <div class="route-info" style="margin-bottom: 16px;">
+                    <div class="route-point">
+                        <div class="dot green-dot"></div>
+                        <span style="font-weight: 500;">Koramangala</span>
+                    </div>
+                    <div class="route-line"></div>
+                    <div class="route-point">
+                        <div class="dot blue-dot"></div>
+                        <span style="font-weight: 500;">HSR Layout</span>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <a href="invoice.html" class="btn-secondary" style="flex: 1; padding: 10px; text-align: center; font-size: 14px; background: var(--clr-light-bg); border-radius: var(--radius-sm); font-weight: 500;">Invoice</a>
+                    <button class="btn-secondary" style="flex: 1; padding: 10px; text-align: center; font-size: 14px; background: var(--clr-light-bg); border-radius: var(--radius-sm); font-weight: 500; color: #fbbf24;">Rated ⭐ 5</button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Rating Modal -->
+        <div class="modal-overlay" id="ratingModal">
+            <div class="modal-container text-center">
+                <button class="modal-close" onclick="document.getElementById('ratingModal').classList.remove('show')" aria-label="Close modal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <h3 class="modal-title" style="margin-bottom: 8px;">Rate Your Ride</h3>
+                <p class="modal-subtitle" style="margin-bottom: 24px;">How was your commute with Raju Kumar?</p>
+                
+                <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; color: #fbbf24; font-size: 32px;">
+                    <span style="cursor: pointer;">★</span>
+                    <span style="cursor: pointer;">★</span>
+                    <span style="cursor: pointer;">★</span>
+                    <span style="cursor: pointer;">★</span>
+                    <span style="cursor: pointer;">★</span>
+                </div>
+
+                <div class="form-group" style="text-align: left;">
+                    <textarea class="modal-textarea" placeholder="Leave a review (optional)..." rows="3"></textarea>
+                </div>
+
+                <button class="btn-primary modal-btn-full" onclick="submitRating()">Submit Rating</button>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="js/app.js"></script>
+    <script>
+        async function submitRating() {
+            console.log("Submitting rating...");
+            const comment = document.querySelector('.modal-textarea')?.value || "Great ride!";
+            const rating = 5; // Default rating for the static stars
+
+            try {
+                if (typeof CUSTOMER_API !== 'undefined' && CUSTOMER_API.getBookings) {
+                    const res = await CUSTOMER_API.getBookings('history');
+                    if (res.success && res.data && res.data.length > 0) {
+                        // Find the first completed booking
+                        const completedBooking = res.data.find(b => b.status === 'TRIP_COMPLETED' || b.status === 'COMPLETED');
+                        if (completedBooking) {
+                            const reviewRes = await CUSTOMER_API.createReview({
+                                bookingId: completedBooking._id,
+                                rating: rating,
+                                comments: comment
+                            });
+                            console.log("Review submitted to backend:", reviewRes);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn("Failed to submit review to backend:", err.message);
+            }
+
+            alert("Thank you for your feedback!");
+            document.getElementById('ratingModal').classList.remove('show');
+        }
+    </script>
+</body>
+</html>

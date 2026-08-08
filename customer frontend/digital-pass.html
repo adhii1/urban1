@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Pass - TORQQ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/digital-pass.css">
+</head>
+<body class="pass-body">
+
+    <!-- Immersive Overlay Header -->
+    <header class="overlay-header">
+        <button class="btn-close-overlay" onclick="window.history.back()" aria-label="Close Pass">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+        <h2 class="overlay-title">Digital Pass</h2>
+        <div style="width: 24px;"></div> <!-- Spacer -->
+    </header>
+
+    <main class="pass-container fade-in">
+        <div class="pass-card">
+            <div class="pass-card-header bg-green-gradient">
+                <h3 class="pass-type">Home-to-Office Pass</h3>
+                <p class="pass-number">ID: TQ-9823-XYZ</p>
+            </div>
+            <div class="pass-card-body">
+                <div class="customer-info">
+                    <p class="label">Passenger</p>
+                    <h4 class="value" id="passCustomerName">Rohan Sharma</h4>
+                </div>
+                
+                <div class="route-info-pass">
+                    <div class="route-col">
+                        <p class="label">Pickup</p>
+                        <h4 class="value">HSR Layout</h4>
+                    </div>
+                    <div class="route-arrow">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </div>
+                    <div class="route-col" style="text-align: right;">
+                        <p class="label">Drop</p>
+                        <h4 class="value">Koramangala</h4>
+                    </div>
+                </div>
+
+                <div class="validity-info">
+                    <div class="val-col">
+                        <p class="label">Valid From</p>
+                        <p class="value-sm">01 Oct 2026</p>
+                    </div>
+                    <div class="val-col" style="text-align: right;">
+                        <p class="label">Valid Until</p>
+                        <p class="value-sm text-green">31 Oct 2026</p>
+                    </div>
+                </div>
+
+                <div class="qr-code-section">
+                    <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=TORQQ-TQ-9823-XYZ" alt="QR Code" class="qr-image">
+                    <p class="qr-hint">Show this QR to the driver</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="pass-actions">
+            <button class="btn-secondary" onclick="alert('Pass saved to gallery!')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Download
+            </button>
+            <button class="btn-primary" onclick="alert('Share options opened')">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                Share Pass
+            </button>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const nameEl = document.getElementById('passCustomerName');
+            if(nameEl) {
+                nameEl.textContent = localStorage.getItem('userName') || 'User';
+            }
+        });
+    </script>
+</body>
+</html>

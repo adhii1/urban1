@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Performance Analytics</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Performance Analytics</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Audit trip acceptance ratings, completion efficiency, and rider feedback graphs.</p>
+            </div>
+
+            <!-- Analytics widgets grids -->
+            <section class="stats-grid" aria-label="KPI overview">
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Acceptance rate</span>
+                        <div class="stat-icon-wrap"><i class="lucide-thumbs-up"></i></div>
+                    </div>
+                    <div>
+                        <div class="stat-value">94.2%</div>
+                        <div class="stat-meta"><span class="trend-up">▲ 0.8%</span> this month</div>
+                    </div>
+                </div>
+
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Cancellation Rate</span>
+                        <div class="stat-icon-wrap"><i class="lucide-x-circle"></i></div>
+                    </div>
+                    <div>
+                        <div class="stat-value">2.4%</div>
+                        <div class="stat-meta"><span class="trend-up">▼ 1.2%</span> lower is better</div>
+                    </div>
+                </div>
+
+                <div class="glass-card stat-card">
+                    <div class="stat-header">
+                        <span class="stat-title">Average Rating</span>
+                        <div class="stat-icon-wrap"><i class="lucide-star"></i></div>
+                    </div>
+                    <div>
+                        <div class="stat-value">4.87 / 5</div>
+                        <div class="stat-meta">Based on 142 reviews</div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+                <div class="glass-card" style="padding:24px; text-align:center;">
+                    <h2 style="font-size:16px; font-weight:700; color:var(--text-main); margin-bottom:12px;">Monthly Revenue Progression</h2>
+                    <div style="height: 250px; background:var(--bg-app); border:1px solid var(--border-color); border-radius:var(--border-radius-md); display:flex; align-items:center; justify-content:center; flex-direction:column;">
+                        <i class="lucide-bar-chart-3" style="font-size:48px; color:var(--color-primary); margin-bottom:12px;"></i>
+                        <strong style="color:var(--text-main);">Earnings chart is sync-ready</strong>
+                        <p style="font-size:12px; color:var(--text-light); max-width:320px; margin-top:4px;">Integrates charts library (Chart.js / ApexCharts) to fetch monthly transactions summaries.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

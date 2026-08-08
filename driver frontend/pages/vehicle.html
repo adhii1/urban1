@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Vehicle Information</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">My Vehicle</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Track vehicle stats, EV battery status, and inspect commercial parameters.</p>
+            </div>
+
+            <!-- Vehicle details layouts -->
+            <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+                
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <!-- Spec Sheet -->
+                    <div class="glass-card" style="padding: 24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Vehicle Specifications</h2>
+                        
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                            <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">MODEL & CLASS</div>
+                                <strong style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">Tata Nexon EV Shuttle</strong>
+                                <span style="font-size:11px; color:var(--color-primary); font-weight:600;">TORQQ Shared EV Class</span>
+                            </div>
+                            <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">REGISTRATION NUMBER</div>
+                                <strong style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">KA-01-MJ-4321</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Registered to TORQQ Logistics</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right battery details -->
+                <div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Battery Health (EV)</h2>
+                        
+                        <div style="text-align:center;">
+                            <div style="font-size:48px; color:var(--color-primary); margin-bottom:8px;"><i class="lucide-battery-charging" style="font-size:48px; display:inline-flex;"></i></div>
+                            <strong style="font-size:24px; color:var(--text-main);">82% Charged</strong>
+                            <p style="font-size:11px; color:var(--text-light); margin-top:4px;">Approx. remaining range: 240 Kms</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+    </script>
+</body>
+</html>

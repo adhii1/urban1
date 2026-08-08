@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TORQQ - Driver Help & Support</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/dashboard.css">
+    <link rel="stylesheet" href="../css/animations.css">
+    <link rel="stylesheet" href="../css/responsive.css">
+</head>
+<body>
+
+    <div class="app-wrapper">
+        <div id="sidebar-placeholder"></div>
+
+        <div class="main-content">
+            <div id="navbar-placeholder"></div>
+
+            <div style="margin-bottom:24px;">
+                <h1 style="font-size: 24px; font-weight:800; color:var(--text-main);">Driver Help & Chat</h1>
+                <p style="font-size: 13px; color:var(--text-light); margin-top:2px;">Chat with dispatcher staff, log lost items, and review helper guides.</p>
+            </div>
+
+            <!-- Support layout -->
+            <div class="dashboard-grid" style="grid-template-columns: 1.5fr 1fr;">
+                
+                <!-- Left: Live Support Console -->
+                <div style="display:flex; flex-direction:column; gap:24px;">
+                    <div class="glass-card" style="padding: 24px;">
+                        <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Live Dispatch Support Chat</h2>
+                        
+                        <div class="chat-window">
+                            <div class="chat-messages" id="supportChatConsoleLogs">
+                                <div class="chat-bubble incoming" style="margin-bottom:8px;">Welcome to TORQQ Partner support. How can I help you today?</div>
+                            </div>
+                            <div class="chat-input-bar">
+                                <input type="text" id="supportChatInputField" placeholder="Type message to dispatcher..." style="flex-grow:1; border:1px solid var(--border-color); padding:10px; border-radius:8px; font-size:13px; background:var(--bg-app); color:var(--text-main);">
+                                <button id="sendSupportChatMsgBtn" class="btn btn-primary" style="padding:10px 16px;"><i class="lucide-send"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Helper guides -->
+                <div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Help FAQs</h2>
+                        
+                        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
+                            <details style="padding:10px; border-radius:6px; background:var(--bg-app); cursor:pointer;">
+                                <summary style="font-weight:600; color:var(--text-main);">How are payouts calculated?</summary>
+                                <p style="color:var(--text-light); margin-top:6px; font-size:12px; line-height:1.4;">Payouts are settled directly to your registered UPI ID every Wednesday morning automatically.</p>
+                            </details>
+                            <details style="padding:10px; border-radius:6px; background:var(--bg-app); cursor:pointer;">
+                                <summary style="font-weight:600; color:var(--text-main);">Where do I report lost items?</summary>
+                                <p style="color:var(--text-light); margin-top:6px; font-size:12px; line-height:1.4;">Go to the Passengers Directory tab, locate the rider, and click the "Report Lost" button to file a ticket.</p>
+                            </details>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="footer-placeholder"></div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/constants.js"></script>
+    <script src="../js/state.js"></script>
+    <script src="../js/utils.js"></script>
+    
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/common.js"></script>
+
+    <script>
+        setTimeout(() => lucide.createIcons(), 600);
+
+        // Chat coordination logic
+        const sendBtn = document.getElementById('sendSupportChatMsgBtn');
+        const input = document.getElementById('supportChatInputField');
+        const logs = document.getElementById('supportChatConsoleLogs');
+
+        if (sendBtn && input && logs) {
+            const sendSupportMsg = () => {
+                const text = input.value.trim();
+                if (!text) return;
+                
+                const b = document.createElement('div');
+                b.className = 'chat-bubble outgoing';
+                b.style.alignSelf = 'flex-end';
+                b.style.margin = '4px 0';
+                b.textContent = text;
+                logs.appendChild(b);
+                input.value = '';
+                logs.scrollTop = logs.scrollHeight;
+
+                setTimeout(() => {
+                    const r = document.createElement('div');
+                    r.className = 'chat-bubble incoming';
+                    r.style.alignSelf = 'flex-start';
+                    r.style.margin = '4px 0';
+                    r.textContent = "Thank you. An agent is reviewing your case. Ticket ID: #TK-9980.";
+                    logs.appendChild(r);
+                    logs.scrollTop = logs.scrollHeight;
+                }, 1500);
+            };
+
+            sendBtn.onclick = sendSupportMsg;
+            input.onkeypress = (e) => { if (e.key === 'Enter') sendSupportMsg(); };
+        }
+    </script>
+</body>
+</html>
