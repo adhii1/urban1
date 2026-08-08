@@ -95,4 +95,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-.nextpackage-lock.json
+.next
+
+# Lock files
+package-lock.json
+**/package-lock.json
