@@ -89,6 +89,7 @@
                 .then(res => {
                     window.UTILS.showToast("Login successful! Sending verification code...", "success");
                     sessionStorage.setItem('otp_phone', phone);
+                    sessionStorage.setItem('otp_purpose', 'LOGIN');
                     
                     // Send OTP for 2FA
                     return fetch(`${API_BASE_URL}/auth/send-otp`, {

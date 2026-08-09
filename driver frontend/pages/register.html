@@ -104,6 +104,7 @@
                 .then(res => {
                     window.UTILS.showToast(res.message, "success");
                     sessionStorage.setItem('otp_phone', phone);
+                    sessionStorage.setItem('otp_purpose', 'REGISTRATION');
                     setTimeout(() => {
                         window.location.href = 'otp.html';
                     }, 1200);

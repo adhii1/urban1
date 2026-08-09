@@ -91,12 +91,14 @@ const AUTH_API = {
     },
 
     // Verify OTP code during registration/sign-in flows
-    verifyOTP: (phone, otp) => {
-        console.log(`🔌 [API] Calling POST /api/v1/auth/verify-otp for: ${phone}`);
+    verifyOTP: (phone, otp, purpose) => {
+        const otpPurpose = purpose || sessionStorage.getItem('otp_purpose') || 'LOGIN';
+        console.log(`🔌 [API] Calling POST /api/v1/auth/verify-otp for: ${phone} purpose: ${otpPurpose}`);
         return fetch(`${API_BASE_URL}/auth/verify-otp`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone, otp, purpose: 'REGISTRATION' })
+            body: JSON.stringify({ phone, otp, purpose: otpPurpose })
         })
         .then(res => {
             if (!res.ok) {
