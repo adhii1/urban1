@@ -112,7 +112,17 @@ const updateSettings = asyncWrapper(async (req, res) => {
 
 const getFavourites = asyncWrapper(async (req, res) => {
   const favs = await Favourite.find({ userId: req.user.id }).sort({ createdAt: -1 });
-  return res.json(formatResponse('Favourites retrieved.', favs));
+  
+  // Format for static frontend compatibility (expects { pinned: { routes: [], ... } })
+  const pinned = {
+    routes: favs.filter(f => f.icon === 'route').map(f => ({ _id: f._id, label: f.label, address: f.address })),
+    pickupStops: favs.filter(f => f.icon === 'pickup').map(f => ({ _id: f._id, label: f.label, address: f.address })),
+    dropStops: favs.filter(f => f.icon === 'drop').map(f => ({ _id: f._id, label: f.label, address: f.address })),
+    drivers: [],
+    searches: favs.filter(f => !['route', 'pickup', 'drop'].includes(f.icon)).map(f => ({ _id: f._id, label: f.label, address: f.address })),
+  };
+
+  return res.json(formatResponse('Favourites retrieved.', { pinned, items: favs }));
 });
 
 const addFavourite = asyncWrapper(async (req, res) => {
