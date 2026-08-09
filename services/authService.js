@@ -109,6 +109,10 @@ class AuthService {
     );
 
     logger.info(`[SMS Simulation] OTP sent to ${phone} for ${purpose}`);
+    // In dev mode, log the OTP so you can use it without real SMS
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`\n📱 [DEV OTP] Phone: ${phone} | Code: ${otpCode} | Purpose: ${purpose}\n`);
+    }
 
     return { success: true, message: 'OTP verification code sent successfully.' };
   }
