@@ -28,7 +28,7 @@ const sendOtp = Joi.object({
     'string.pattern.base': 'Phone number must be a valid 10-digit mobile number.',
     'any.required': 'Phone number is required.',
   }),
-  purpose: Joi.string().valid('LOGIN', 'PASSWORD_RESET').optional(),
+  purpose: Joi.string().valid('LOGIN', 'PASSWORD_RESET', 'REGISTRATION').optional(),
 });
 
 const verifyOtp = Joi.object({
@@ -40,7 +40,7 @@ const verifyOtp = Joi.object({
     'any.required': 'OTP is required.',
     'string.pattern.base': 'OTP must be a 4 to 6 digit number.',
   }),
-  purpose: Joi.string().valid('LOGIN', 'PASSWORD_RESET').optional(),
+  purpose: Joi.string().valid('LOGIN', 'PASSWORD_RESET', 'REGISTRATION').optional(),
 });
 
 const forgotPassword = Joi.object({
