@@ -34,4 +34,17 @@ router.get('/payment-config', (req, res) => {
 router.post('/rides/:rideId/rate', ratingController.rateRide);
 router.get('/ratings', ratingController.getCustomerRatings);
 
+// --- Stub endpoints (frontend expects these, return empty data) ---
+const emptyList = (req, res) => res.json({ success: true, message: 'OK', data: [] });
+const emptyObj = (req, res) => res.json({ success: true, message: 'OK', data: {} });
+const stubOk = (req, res) => res.json({ success: true, message: 'OK', data: null });
+
+router.get('/emergency-contacts', emptyList);
+router.post('/emergency-contacts', stubOk);
+router.put('/emergency-contacts/:id', stubOk);
+router.delete('/emergency-contacts/:id', stubOk);
+router.get('/settings', emptyObj);
+router.put('/settings', stubOk);
+router.get('/dashboard', emptyObj);
+
 module.exports = router;
