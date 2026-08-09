@@ -71,10 +71,17 @@ const AUTH_API = {
                 // Pre-generate/send OTP verification for the onboarding mobile number
                 return fetch(`${API_BASE_URL}/auth/send-otp`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ phone: driverData.phone, purpose: 'REGISTRATION' })
                 })
-                .then(() => {
+                .then(r => r.json())
+                .then((otpRes) => {
+                    // In dev mode, OTP is returned in response
+                    if (otpRes.data && otpRes.data.devOtp) {
+                        console.log(`📱 [DEV] OTP Code: ${otpRes.data.devOtp}`);
+                        alert(`DEV MODE - Your OTP: ${otpRes.data.devOtp}`);
+                    }
                     return { success: true, message: data.message || "Registration successful!" };
                 });
             } else {

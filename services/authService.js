@@ -114,7 +114,12 @@ class AuthService {
       console.log(`\n📱 [DEV OTP] Phone: ${phone} | Code: ${otpCode} | Purpose: ${purpose}\n`);
     }
 
-    return { success: true, message: 'OTP verification code sent successfully.' };
+    return { 
+      success: true, 
+      message: 'OTP verification code sent successfully.',
+      // Include OTP in response during development for easy testing
+      ...(process.env.NODE_ENV !== 'production' && { devOtp: otpCode }),
+    };
   }
 
   async verifyOtp(phone, otp, purpose = 'LOGIN') {
