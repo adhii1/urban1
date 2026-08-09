@@ -84,28 +84,11 @@
             const phone = document.getElementById('loginPhone').value.trim();
             const pwd = document.getElementById('loginPassword').value;
 
-            // Login with password, then send OTP for 2FA verification
             window.AUTH_API.login(phone, pwd)
                 .then(res => {
-                    window.UTILS.showToast("Login successful! Sending verification code...", "success");
-                    sessionStorage.setItem('otp_phone', phone);
-                    sessionStorage.setItem('otp_purpose', 'LOGIN');
-                    
-                    // Send OTP for 2FA
-                    return fetch(`${API_BASE_URL}/auth/send-otp`, {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ phone, purpose: 'LOGIN' })
-                    }).then(r => r.json());
-                })
-                .then(otpRes => {
-                    if (otpRes && otpRes.data && otpRes.data.devOtp) {
-                        console.log(`📱 [DEV] OTP Code: ${otpRes.data.devOtp}`);
-                        alert(`DEV MODE - Your OTP: ${otpRes.data.devOtp}`);
-                    }
+                    window.UTILS.showToast("Login successful! Redirecting...", "success");
                     setTimeout(() => {
-                        window.location.href = 'otp.html';
+                        window.location.href = 'dashboard.html';
                     }, 500);
                 })
                 .catch(err => {
