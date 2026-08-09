@@ -17,6 +17,7 @@ const rideRequestSchema = Joi.object({
   pickup: location,
   drop: location,
   stops: Joi.array().items(stop).max(10).optional(),
+  scheduledPickupTime: Joi.string().isoDate().optional(),
 });
 
 const rideCancelSchema = Joi.object({

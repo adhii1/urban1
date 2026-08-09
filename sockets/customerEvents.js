@@ -27,7 +27,7 @@ function registerCustomerEvents(io) {
         if (rateLimited(socket, 'ride:request', rideRequestLimiter, 'ride:request:error', 'Please wait before requesting another ride')) return;
         const v = validateRideRequest(data);
         if (!v.valid) return reject(socket, 'ride:request:error', v.error, 'Invalid ride payload');
-        const { pickup, drop, stops } = v.value;
+        const { pickup, drop, stops, scheduledPickupTime } = v.value;
 
         // Resolve customer name if the connection handler hasn't set it yet
         // (async race on initial connect).
@@ -99,7 +99,8 @@ function registerCustomerEvents(io) {
             coordinates: s.coordinates,
             sequenceOrder: i + 1,
           })),
-          status: 'PENDING',
+          status: scheduledPickupTime ? 'SCHEDULED' : 'PENDING',
+          scheduledPickupTime: scheduledPickupTime ? new Date(scheduledPickupTime) : undefined,
           fare: {
             estimated: fareEstimate.estimated,
             breakdown: fareEstimate.breakdown,
@@ -112,22 +113,31 @@ function registerCustomerEvents(io) {
           CustomerId: userId,
           PickupCoordinates: pickup.coordinates,
           DropCoordinates: drop.coordinates,
-          RequestedAt: rideRequest.requestedAt || new Date()
+          RequestedAt: rideRequest.requestedAt || new Date(),
+          ScheduledPickupTime: scheduledPickupTime || null,
         });
 
-        // Delegate matching to the BundleMatchingEngine
-        const bundleEngine = require('../services/BundleMatchingEngine');
-        logger.info('[BUNDLE_DEBUG] Triggering BundleMatchingEngine', {
-          RideRequestId: rideRequest._id
-        });
-        bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
-          logger.error('Failed to trigger bundle evaluation', { error: err.message });
-        });
+        // For scheduled rides (Flexi advance booking), don't dispatch immediately.
+        // The scheduledDispatchService will pick them up 40min before pickup time.
+        if (!scheduledPickupTime) {
+          // Delegate matching to the BundleMatchingEngine
+          const bundleEngine = require('../services/BundleMatchingEngine');
+          logger.info('[BUNDLE_DEBUG] Triggering BundleMatchingEngine', {
+            RideRequestId: rideRequest._id
+          });
+          bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
+            logger.error('Failed to trigger bundle evaluation', { error: err.message });
+          });
+        } else {
+          logger.info(`[ScheduledDispatch] Ride ${rideRequest._id} scheduled for ${scheduledPickupTime}. Will dispatch ~40min before.`);
+        }
 
         socket.emit('ride:request:ack', {
           success: true,
           rideRequestId: rideRequest._id,
-          message: `Searching for drivers... Your request is being evaluated for carpooling.`,
+          message: scheduledPickupTime
+            ? `Ride scheduled for ${new Date(scheduledPickupTime).toLocaleTimeString()}. We'll find a driver closer to your pickup time.`
+            : `Searching for drivers... Your request is being evaluated for carpooling.`,
           fareEstimate: fareEstimate.estimated,
           fareBreakdown: fareEstimate.breakdown,
           tripDuration: tripDuration.durationMinutes,
@@ -136,6 +146,8 @@ function registerCustomerEvents(io) {
             multiplier: fareEstimate.details.surgeMultiplier,
             label: fareEstimate.details.surgeLabel,
           } : null,
+          scheduled: !!scheduledPickupTime,
+          scheduledPickupTime: scheduledPickupTime || null,
         });
 
         io.of('/sockets/admin').emit('ride:new', {

@@ -35,6 +35,7 @@ const rideRequestSchema = new mongoose.Schema(
       type: String,
       enum: [
         'PENDING',        // Searching for drivers
+        'SCHEDULED',      // Booked in advance, waiting to dispatch
         'ACCEPTED',       // Driver accepted
         'RESERVED',       // Part of a bundle that has been accepted
         'DRIVER_ARRIVING', // Driver en route to pickup
@@ -109,6 +110,8 @@ const rideRequestSchema = new mongoose.Schema(
       },
     },
     requestedAt: { type: Date, default: Date.now },
+    // Flexi: when the customer wants to be picked up (advance booking)
+    scheduledPickupTime: { type: Date, index: true },
     acceptedAt: { type: Date },
     pickupAt: { type: Date },
     completedAt: { type: Date },
