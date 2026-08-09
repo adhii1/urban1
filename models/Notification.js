@@ -1,55 +1,43 @@
-
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema(
   {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true,
+      index: true,
+    },
     title: {
       type: String,
       required: true,
       trim: true,
     },
-    message: {
+    body: {
       type: String,
-      required: true,
+      trim: true,
+      default: '',
     },
-    channels: [
-      {
-        type: String,
-        enum: ['PUSH', 'SMS', 'EMAIL'],
-      },
-    ],
-    targetRole: {
+    type: {
       type: String,
-      enum: ['ALL', 'Admin', 'Driver', 'Customer'],
-      default: 'ALL',
-      index: true,
+      enum: ['RIDE', 'SUBSCRIPTION', 'PAYMENT', 'PROMO', 'SYSTEM', 'ALERT'],
+      default: 'SYSTEM',
     },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      index: true,
-    },
-    readStatus: {
-      type: String,
-      enum: ['UNREAD', 'READ'],
-      default: 'UNREAD',
-      index: true,
-    },
-    status: {
-      type: String,
-      enum: ['PENDING', 'SENT', 'FAILED'],
-      default: 'SENT',
-      index: true,
-    },
-    isDeleted: {
+    isRead: {
       type: Boolean,
       default: false,
       index: true,
     },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 notificationSchema.pre(/^find/, function (next) {
@@ -57,9 +45,6 @@ notificationSchema.pre(/^find/, function (next) {
   next();
 });
 
-notificationSchema.pre('findOneAndUpdate', function (next) {
-  this.where({ isDeleted: false });
-  next();
-});
+notificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Notification', notificationSchema);

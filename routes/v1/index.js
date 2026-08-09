@@ -35,34 +35,55 @@ router.use('/trips', tripRoutes);
 router.use('/rides', rideRoutes);
 router.use('/payments', paymentRoutes);
 
-// --- Stub routes (static frontend expects these) ---
+// --- Feature routes (auth required) ---
 const authenticate = require('../../middleware/authMiddleware');
-const emptyList = (req, res) => res.json({ success: true, message: 'OK', data: [] });
-const stubOk = (req, res) => res.json({ success: true, message: 'OK', data: null });
+const featuresController = require('../../controllers/customerFeaturesController');
 
-router.get('/favourites', authenticate, emptyList);
-router.post('/favourites', authenticate, stubOk);
-router.delete('/favourites/:id', authenticate, stubOk);
-router.get('/notifications', authenticate, emptyList);
-router.put('/notifications/read', authenticate, stubOk);
-router.delete('/notifications/:id', authenticate, stubOk);
-router.get('/coupons', authenticate, emptyList);
-router.post('/coupons/apply', authenticate, stubOk);
-router.get('/support', authenticate, emptyList);
-router.post('/support', authenticate, stubOk);
-router.get('/support/:id', authenticate, stubOk);
-router.post('/support/:id/reply', authenticate, stubOk);
-router.get('/reviews', authenticate, emptyList);
-router.post('/reviews', authenticate, stubOk);
-router.get('/wallet/rewards', authenticate, emptyList);
-router.get('/wallet/referrals', authenticate, emptyList);
-router.get('/wallet/refunds', authenticate, emptyList);
-router.get('/bookings/routes', authenticate, emptyList);
-router.get('/bookings/routes/:id', authenticate, stubOk);
-router.get('/bookings', authenticate, emptyList);
-router.get('/bookings/:id', authenticate, stubOk);
-router.post('/bookings', authenticate, stubOk);
-router.get('/tracking/:tripId', authenticate, stubOk);
-router.post('/tracking/customer-location', authenticate, stubOk);
+// Favourites
+router.get('/favourites', authenticate, featuresController.getFavourites);
+router.post('/favourites', authenticate, featuresController.addFavourite);
+router.delete('/favourites/:id', authenticate, featuresController.deleteFavourite);
+
+// Notifications
+router.get('/notifications', authenticate, featuresController.getNotifications);
+router.put('/notifications/read', authenticate, featuresController.markNotificationsRead);
+router.delete('/notifications/:id', authenticate, featuresController.deleteNotification);
+
+// Coupons
+router.get('/coupons', authenticate, featuresController.getCoupons);
+router.post('/coupons/apply', authenticate, featuresController.applyCoupon);
+
+// Support
+router.get('/support', authenticate, featuresController.getTickets);
+router.post('/support', authenticate, featuresController.createTicket);
+router.get('/support/:id', authenticate, featuresController.getTicketById);
+router.post('/support/:id/reply', authenticate, featuresController.replyToTicket);
+
+// Reviews (placeholder - actual review model exists separately)
+router.get('/reviews', authenticate, (req, res) => res.json({ success: true, data: [] }));
+router.post('/reviews', authenticate, (req, res) => res.json({ success: true, data: null }));
+
+// Wallet
+router.get('/wallet/rewards', authenticate, featuresController.getRewards);
+router.get('/wallet/referrals', authenticate, featuresController.getReferrals);
+router.get('/wallet/refunds', authenticate, featuresController.getRefunds);
+
+// Bookings (route search for static frontend - uses existing Route model)
+const Route = require('../../models/Route');
+router.get('/bookings/routes', authenticate, async (req, res) => {
+  const routes = await Route.find({ status: 'ACTIVE', isDeleted: false }).select('name startLocation endLocation stops');
+  res.json({ success: true, data: routes });
+});
+router.get('/bookings/routes/:id', authenticate, async (req, res) => {
+  const route = await Route.findById(req.params.id);
+  res.json({ success: true, data: route });
+});
+router.get('/bookings', authenticate, (req, res) => res.json({ success: true, data: [] }));
+router.get('/bookings/:id', authenticate, (req, res) => res.json({ success: true, data: null }));
+router.post('/bookings', authenticate, (req, res) => res.json({ success: true, data: null }));
+
+// Tracking
+router.get('/tracking/:tripId', authenticate, (req, res) => res.json({ success: true, data: null }));
+router.post('/tracking/customer-location', authenticate, (req, res) => res.json({ success: true, data: null }));
 
 module.exports = router;

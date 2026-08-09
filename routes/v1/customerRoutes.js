@@ -34,17 +34,20 @@ router.get('/payment-config', (req, res) => {
 router.post('/rides/:rideId/rate', ratingController.rateRide);
 router.get('/ratings', ratingController.getCustomerRatings);
 
-// --- Stub endpoints (frontend expects these, return empty data) ---
-const emptyList = (req, res) => res.json({ success: true, message: 'OK', data: [] });
-const emptyObj = (req, res) => res.json({ success: true, message: 'OK', data: {} });
-const stubOk = (req, res) => res.json({ success: true, message: 'OK', data: null });
+// Emergency Contacts
+const featuresController = require('../../controllers/customerFeaturesController');
+router.get('/emergency-contacts', featuresController.getEmergencyContacts);
+router.post('/emergency-contacts', featuresController.addEmergencyContact);
+router.put('/emergency-contacts/:id', featuresController.updateEmergencyContact);
+router.delete('/emergency-contacts/:id', featuresController.deleteEmergencyContact);
 
-router.get('/emergency-contacts', emptyList);
-router.post('/emergency-contacts', stubOk);
-router.put('/emergency-contacts/:id', stubOk);
-router.delete('/emergency-contacts/:id', stubOk);
-router.get('/settings', emptyObj);
-router.put('/settings', stubOk);
-router.get('/dashboard', emptyObj);
+// Settings
+router.get('/settings', featuresController.getSettings);
+router.put('/settings', featuresController.updateSettings);
+
+// Dashboard (aggregate - simple profile + stats for now)
+router.get('/dashboard', (req, res) => {
+  res.json({ success: true, message: 'OK', data: {} });
+});
 
 module.exports = router;

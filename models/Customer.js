@@ -41,6 +41,14 @@ const customerSchema = new mongoose.Schema(
       default: 'ACTIVE',
       index: true,
     },
+    // Customer preferences/settings
+    settings: {
+      notifications: { type: Boolean, default: true },
+      rideAlerts: { type: Boolean, default: true },
+      promoEmails: { type: Boolean, default: false },
+      language: { type: String, default: 'en' },
+      darkMode: { type: Boolean, default: false },
+    },
     isDeleted: {
       type: Boolean,
       default: false,
