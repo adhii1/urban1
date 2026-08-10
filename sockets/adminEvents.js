@@ -43,7 +43,7 @@ function registerAdminEvents(io) {
     socket.on('admin:rides:active', async () => {
       try {
         const rides = await RideRequest.find({
-          status: { $in: ['PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] },
+          status: { $in: ['SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] },
           isDeleted: false,
         })
           .populate('customerId', 'phone')

@@ -122,7 +122,7 @@ class AuthService {
     };
   }
 
-  async verifyOtp(phone, otp, purpose = 'LOGIN') {
+  async verifyOtp(phone, otp, purpose = 'LOGIN', name = '') {
     logger.info(`Verifying OTP for phone ${phone} with purpose ${purpose}`);
 
     const record = await OTP.findOne({ phone, otp, purpose, expiresAt: { $gt: new Date() } });
@@ -142,8 +142,9 @@ class AuthService {
     if (!user) {
       const placeholderPassword = await hashPassword(require('crypto').randomBytes(16).toString('hex'));
       user = await User.create({ phone, password: placeholderPassword, role: 'Customer' });
-      await Customer.create({ userId: user._id, name: `User ${phone.slice(-4)}` });
-      profileName = `User ${phone.slice(-4)}`;
+      const customerName = name || `User ${phone.slice(-4)}`;
+      await Customer.create({ userId: user._id, name: customerName });
+      profileName = customerName;
     } else if (user.role !== 'Customer') {
       // Non-customer roles (Admin, Driver) should use password login, not OTP.
       this._throwError('Please use password login for this account.', 400);

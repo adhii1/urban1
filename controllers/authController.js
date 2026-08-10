@@ -37,7 +37,7 @@ const sendOtp = asyncWrapper(async (req, res) => {
 });
 
 const verifyOtp = asyncWrapper(async (req, res) => {
-  const data = await authService.verifyOtp(req.body.phone, req.body.otp, req.body.purpose);
+  const data = await authService.verifyOtp(req.body.phone, req.body.otp, req.body.purpose, req.body.name);
   if (data.user) {
     const accessToken = setAuthCookies(res, data.user);
     data.accessToken = accessToken;

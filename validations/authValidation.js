@@ -41,6 +41,7 @@ const verifyOtp = Joi.object({
     'string.pattern.base': 'OTP must be a 4 to 6 digit number.',
   }),
   purpose: Joi.string().valid('LOGIN', 'PASSWORD_RESET', 'REGISTRATION').optional(),
+  name: Joi.string().trim().max(100).optional().allow(''),
 });
 
 const forgotPassword = Joi.object({
