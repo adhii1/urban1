@@ -152,9 +152,17 @@ function registerCustomerEvents(io) {
 
         io.of('/sockets/admin').emit('ride:new', {
           rideRequestId: rideRequest._id,
+          _id: rideRequest._id,
           customerId: userId,
+          customerName: socket.customerName || 'Customer',
+          status: rideRequest.status,
           pickup: pickup.address,
           drop: drop.address,
+          pickupLocation: { address: pickup.address, coordinates: pickup.coordinates },
+          dropLocation: { address: drop.address, coordinates: drop.coordinates },
+          requestedAt: rideRequest.requestedAt,
+          scheduledPickupTime: scheduledPickupTime || null,
+          fareEstimate: fareEstimate.estimated,
         });
       } catch (err) {
         logger.error('ride:request error', { error: err.message });

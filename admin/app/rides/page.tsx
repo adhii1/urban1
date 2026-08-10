@@ -7,9 +7,10 @@ import { useDrivers } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, RefreshCw, X, MapPin, Navigation, Users, Radio } from 'lucide-react';
 
-const STATUS_FILTERS = ['ALL', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
+const STATUS_FILTERS = ['ALL', 'SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
 
 const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
+  SCHEDULED: { bg: 'rgba(139,92,246,0.12)', fg: '#8B5CF6' },
   PENDING: { bg: 'rgba(245,158,11,0.12)', fg: '#F59E0B' },
   ACCEPTED: { bg: 'rgba(59,130,246,0.12)', fg: '#3B82F6' },
   DRIVER_ARRIVING: { bg: 'rgba(59,130,246,0.12)', fg: '#3B82F6' },
@@ -190,6 +191,13 @@ export default function RidesPage() {
                   {ride.status === 'DRIVER_ARRIVING' && ride.etaMinutes && (
                     <p style={{ fontSize: '10px', color: '#3B82F6', marginBottom: '12px', fontWeight: 600 }}>
                       Driver arriving in ~{ride.etaMinutes} min
+                    </p>
+                  )}
+
+                  {/* Scheduled pickup time */}
+                  {ride.status === 'SCHEDULED' && ride.scheduledPickupTime && (
+                    <p style={{ fontSize: '10px', color: '#8B5CF6', marginBottom: '12px', fontWeight: 600 }}>
+                      ⏰ Scheduled pickup: {new Date(ride.scheduledPickupTime).toLocaleTimeString()}
                     </p>
                   )}
 
