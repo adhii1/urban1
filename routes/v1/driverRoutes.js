@@ -34,6 +34,12 @@ router.put('/duty', async (req, res) => {
   res.json({ success: true, message: `Driver is now ${isOnline ? 'online' : 'offline'}`, data: { isOnline, isAvailable: driver.isAvailable } });
 });
 
+// Reset all drivers offline (admin helper for demo)
+router.post('/reset-all-offline', async (req, res) => {
+  const result = await Driver.updateMany({}, { isOnline: false, isAvailable: false });
+  res.json({ success: true, message: `${result.modifiedCount} drivers set offline` });
+});
+
 // Document upload routes
 router.post('/documents/upload', upload.single('document'), documentController.uploadDocument);
 router.get('/documents', documentController.getDocuments);
