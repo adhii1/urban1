@@ -40,6 +40,16 @@ router.post('/reset-all-offline', async (req, res) => {
   res.json({ success: true, message: `${result.modifiedCount} drivers set offline` });
 });
 
+// Reset all stale rides (demo helper)
+const RideRequest = require('../../models/RideRequest');
+router.post('/reset-rides', async (req, res) => {
+  const result = await RideRequest.updateMany(
+    { status: { $in: ['PENDING', 'SCHEDULED'] } },
+    { $set: { status: 'EXPIRED', isBundled: false, ttlAt: new Date() } }
+  );
+  res.json({ success: true, message: `${result.modifiedCount} rides cleared` });
+});
+
 // Document upload routes
 router.post('/documents/upload', upload.single('document'), documentController.uploadDocument);
 router.get('/documents', documentController.getDocuments);
