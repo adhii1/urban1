@@ -52,10 +52,10 @@ const RIDE_SOCKET = (() => {
         socket = io(`${WS_URL}/sockets/customer`, {
             auth: { token, userId },
             withCredentials: true,
-            transports: ['websocket', 'polling'],
-            // Auto-reconnect with fresh cookie on disconnect
+            transports: ['websocket'],
             reconnection: true,
-            reconnectionDelay: 2000,
+            reconnectionDelay: 5000,
+            reconnectionAttempts: 10,
         });
 
         socket.on('connect', () => {
