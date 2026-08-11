@@ -75,8 +75,8 @@ function registerDriverEvents(io) {
         // completed (e.g., after a browser crash or abandoned session).
         let isAvailable = true;
         const NOW = new Date();
-        const STALE_ACCEPTED_MS = 5 * 60 * 1000;  // 5 min: ACCEPTED/DRIVER_ARRIVING without progress
-        const STALE_IN_PROGRESS_MS = 30 * 60 * 1000; // 30 min: IN_PROGRESS without completion
+        const STALE_ACCEPTED_MS = 2 * 60 * 1000;  // 2 min: ACCEPTED/DRIVER_ARRIVING without progress
+        const STALE_IN_PROGRESS_MS = 5 * 60 * 1000; // 5 min: IN_PROGRESS without completion
 
         const activeRide = await RideRequest.findOne({
           acceptedDriverId: driver._id,

@@ -3,7 +3,7 @@ const { haversineKm } = require('../utils/geoHelper');
 const logger = require('../utils/logger');
 
 const MATCH_RADIUS_KM = 5;
-const MAX_DRIVERS_TO_NOTIFY = 5;
+const MAX_DRIVERS_TO_NOTIFY = 1;
 
 /**
  * Safely extract coordinates from a driver's currentLocation.

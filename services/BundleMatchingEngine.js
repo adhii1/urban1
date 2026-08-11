@@ -9,7 +9,7 @@ const { estimateEtaMinutes } = require('../utils/geoHelper');
 const { MATCH_RADIUS_KM } = require('./matchingService');
 
 // Time to wait before giving up on bundling and dispatching as a single ride
-const BUNDLE_WAIT_TIME_MS = 30 * 1000;
+const BUNDLE_WAIT_TIME_MS = 10 * 1000;
 let recoveryInterval = null;
 
 /**
