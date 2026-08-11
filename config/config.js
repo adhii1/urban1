@@ -34,7 +34,7 @@ const config = {
   jwt: {
     secret: requireEnv("JWT_SECRET"),
     accessExpirationMinutes:
-      parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES, 10) || 15,
+      parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES, 10) || 120,
     refreshSecret: requireEnv("REFRESH_SECRET"),
     refreshExpirationDays:
       parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS, 10) || 7,

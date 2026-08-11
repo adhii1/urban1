@@ -18,15 +18,32 @@ const RIDE_SOCKET = (() => {
             return;
         }
 
-        // Load Socket.IO client if not already loaded
-        if (typeof io === 'undefined') {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
-            script.onload = () => initSocket(token, userId);
-            document.head.appendChild(script);
-        } else {
-            initSocket(token, userId);
-        }
+        // Refresh token first to ensure it's valid
+        fetch('http://localhost:4000/api/v1/auth/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+        }).then(res => res.json()).then(data => {
+            // Load Socket.IO client if not already loaded
+            if (typeof io === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+                script.onload = () => initSocket(token, userId);
+                document.head.appendChild(script);
+            } else {
+                initSocket(token, userId);
+            }
+        }).catch(() => {
+            // Try connecting anyway with existing token
+            if (typeof io === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+                script.onload = () => initSocket(token, userId);
+                document.head.appendChild(script);
+            } else {
+                initSocket(token, userId);
+            }
+        });
     }
 
     function initSocket(token, userId) {
@@ -36,6 +53,9 @@ const RIDE_SOCKET = (() => {
             auth: { token, userId },
             withCredentials: true,
             transports: ['websocket', 'polling'],
+            // Auto-reconnect with fresh cookie on disconnect
+            reconnection: true,
+            reconnectionDelay: 2000,
         });
 
         socket.on('connect', () => {
@@ -44,10 +64,16 @@ const RIDE_SOCKET = (() => {
             trigger('connected', {});
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', (reason) => {
             connected = false;
-            console.log('🔌 [RideSocket] Disconnected');
+            console.log('🔌 [RideSocket] Disconnected:', reason);
             trigger('disconnected', {});
+            // If token expired, refresh and reconnect
+            if (reason === 'io server disconnect') {
+                fetch('http://localhost:4000/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
+                    .then(() => { socket.connect(); })
+                    .catch(() => {});
+            }
         });
 
         // Ride lifecycle events
