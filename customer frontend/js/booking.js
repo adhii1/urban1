@@ -390,10 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     let res = { success: true, data: { id: 'TRQ-BK-' + Math.floor(1000 + Math.random() * 9000) } };
 
                     if (bookingData.selectedModel === 'home-mon-fri' && typeof CUSTOMER_API !== 'undefined') {
-                        // Real backend integration for the Monday-Friday Pass —
-                        // creates a WeekdaySubscription that the backend
-                        // scheduler will generate pooled rides from every
-                        // weekday morning.
+                        // Real backend integration for the Monday-Friday Pass
                         const subscriptionPayload = {
                             pickup: {
                                 address: bookingData.pickup,
@@ -408,6 +405,39 @@ document.addEventListener('DOMContentLoaded', () => {
                         };
                         const apiRes = await CUSTOMER_API.createWeekdaySubscription(subscriptionPayload);
                         res = { success: true, data: { id: apiRes.data._id, subscription: apiRes.data } };
+                    } else if (typeof RIDE_SOCKET !== 'undefined' && RIDE_SOCKET.isConnected()) {
+                        // Real-time ride booking via WebSocket
+                        const pickup = {
+                            address: bookingData.pickup,
+                            coordinates: resolveCoordinates(bookingData.pickup),
+                        };
+                        const drop = {
+                            address: bookingData.destination,
+                            coordinates: resolveCoordinates(bookingData.destination),
+                        };
+                        // For flexy (home-one-time): schedule 2hr ahead
+                        let scheduledTime = null;
+                        if (bookingData.selectedModel === 'home-one-time' && bookingData.time) {
+                            const [h, m] = bookingData.time.split(':');
+                            const scheduled = new Date();
+                            scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
+                            if (scheduled > new Date()) scheduledTime = scheduled.toISOString();
+                        }
+                        
+                        RIDE_SOCKET.requestRide(pickup, drop, scheduledTime);
+                        
+                        // Wait for ack
+                        res = await new Promise((resolve) => {
+                            RIDE_SOCKET.on('ride:request:ack', (data) => {
+                                resolve({ success: true, data: { id: data.rideRequestId, ...data } });
+                            });
+                            RIDE_SOCKET.on('ride:request:error', (data) => {
+                                resolve({ success: false, message: data.message });
+                            });
+                            setTimeout(() => resolve({ success: true, data: { id: 'pending' } }), 5000);
+                        });
+                        
+                        if (!res.success) throw new Error(res.message || 'Booking failed');
                     } else if (typeof bookingService !== 'undefined' && bookingService.createBooking) {
                         res = await bookingService.createBooking(bookingData);
                     }
