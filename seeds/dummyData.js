@@ -158,8 +158,8 @@ async function seed() {
       type: 'Point',
       coordinates: randomCoord(CENTER.lng, CENTER.lat, 8),
     },
-    isOnline: i < 50,
-    isAvailable: i < 50,
+    isOnline: false,
+    isAvailable: false,
   }));
   await Driver.insertMany(driversBatch);
   console.log('Created 100 drivers (first 50 online)');
