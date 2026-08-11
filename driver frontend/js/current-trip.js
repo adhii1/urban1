@@ -14,6 +14,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let arrivalThresholdMeters = 100; // configurable threshold
     let averageSpeedKmh = 30;
 
+    // Restore trip from sessionStorage if STATE doesn't have it
+    if (window.STATE && !window.STATE.getState('currentTrip')) {
+        const saved = sessionStorage.getItem('activeTrip');
+        if (saved) {
+            try {
+                const tripData = JSON.parse(saved);
+                window.STATE.setState('currentTrip', tripData);
+                console.log('[CurrentTrip] Restored trip from sessionStorage:', tripData.id);
+            } catch {}
+        }
+    }
+
     // UI Elements
     const tripStatusBadge = document.getElementById('tripStatusBadge');
     const bookingIdDisplay = document.getElementById('bookingIdDisplay');

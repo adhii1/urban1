@@ -256,8 +256,21 @@ function showTripOfferModal(offer) {
         const onAck = (res) => {
             window.SOCKET.off('ride:accept:ack', onAck);
             window.SOCKET.off('ride:accept:error', onErr);
+            // Persist the accepted ride data so current-trip.html can restore it
+            const tripData = {
+                id: rideRequestId,
+                rideRequestId: rideRequestId,
+                status: 'ACCEPTED',
+                pickup: offer.pickup?.address || pickupOrder,
+                drop: offer.drop?.address || dropOrder,
+                passengers: passengersList.length > 0 ? passengersList : [{ id: 'PSG-1', name: offer.passengers?.[0]?.customerName || 'Customer', pickup: offer.pickup?.address, drop: offer.drop?.address, pickupStatus: 'Waiting', dropStatus: 'Pending' }],
+                estimatedEarnings: estimatedFare,
+                shuttleSessionId: res.shuttleSessionId || null,
+            };
+            sessionStorage.setItem('activeTrip', JSON.stringify(tripData));
+            window.STATE.setState('currentTrip', tripData);
             window.UTILS.showToast("Trip Accepted! Head to pickup location.", "success");
-            window.location.href = 'current-trip.html';
+            setTimeout(() => { window.location.href = 'current-trip.html'; }, 500);
         };
         const onErr = (err) => {
             window.SOCKET.off('ride:accept:ack', onAck);

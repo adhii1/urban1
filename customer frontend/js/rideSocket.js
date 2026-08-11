@@ -68,12 +68,6 @@ const RIDE_SOCKET = (() => {
             connected = false;
             console.log('🔌 [RideSocket] Disconnected:', reason);
             trigger('disconnected', {});
-            // If token expired, refresh and reconnect
-            if (reason === 'io server disconnect') {
-                fetch('http://localhost:4000/api/v1/auth/refresh', { method: 'POST', credentials: 'include' })
-                    .then(() => { socket.connect(); })
-                    .catch(() => {});
-            }
         });
 
         // Ride lifecycle events
