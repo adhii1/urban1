@@ -107,35 +107,19 @@ class SocketBroker {
     // enough, so this used to leave drivers "connected" but invisible to
     // the matching engine.
     _goOnline() {
-        if (!navigator.geolocation) {
-            console.warn("⚠️ [Socket] Geolocation unavailable; cannot go online.");
-            return;
-        }
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                this.emit('driver:online', {
-                    latitude: pos.coords.latitude,
-                    longitude: pos.coords.longitude,
-                });
-            },
-            (err) => console.warn("⚠️ [Socket] Failed to get location for driver:online:", err.message),
-            { enableHighAccuracy: true, timeout: 10000 }
-        );
+        // Use Bangalore HSR Layout coordinates for demo (matching seed route locations)
+        const DEMO_LOCATION = { latitude: 12.9279, longitude: 77.6309 };
+        this.emit('driver:online', DEMO_LOCATION);
     }
 
     _startLocationUpdates() {
         this._stopLocationUpdates();
-        if (!navigator.geolocation) return;
+        // Send Bangalore HSR Layout coordinates for demo
         this._locationInterval = setInterval(() => {
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    this.emit('driver:location', {
-                        latitude: pos.coords.latitude,
-                        longitude: pos.coords.longitude,
-                    });
-                },
-                (err) => console.warn("⚠️ [Socket] driver:location geolocation error:", err.message)
-            );
+            this.emit('driver:location', {
+                latitude: 12.9279 + (Math.random() - 0.5) * 0.002,
+                longitude: 77.6309 + (Math.random() - 0.5) * 0.002,
+            });
         }, 10000);
     }
 
