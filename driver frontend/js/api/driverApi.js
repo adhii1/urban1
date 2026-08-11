@@ -127,8 +127,8 @@ const DRIVER_API = {
     },
 
     updateDutyStatus: (dutyStatus, available) => {
-        console.log(`🔌 [API] Calling PUT /api/v1/drivers/duty to: ${dutyStatus}, available: ${available}`);
-        return fetch(`${API_BASE_URL}/drivers/duty`, {
+        console.log(`🔌 [API] Calling PUT /api/v1/driver/duty to: ${dutyStatus}, available: ${available}`);
+        return fetch(`${API_BASE_URL}/driver/duty`, {
             method: 'PUT',
             headers: getAuthHeaders(), credentials: "include",
             body: JSON.stringify({ dutyStatus, available })

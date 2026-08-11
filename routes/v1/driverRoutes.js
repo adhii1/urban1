@@ -19,6 +19,21 @@ router.patch('/trips/:id/start', driverController.startTrip);
 router.patch('/trips/:id/complete', driverController.completeTrip);
 router.patch('/trips/:id/manifest/:customerId/:action', driverController.updateManifestStatus);
 
+// Duty status toggle (REST endpoint for static frontend)
+const Driver = require('../../models/Driver');
+router.put('/duty', async (req, res) => {
+  const { dutyStatus, available } = req.body;
+  const driver = await Driver.findOne({ userId: req.user.id });
+  if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
+  
+  const isOnline = dutyStatus === 'ONLINE';
+  driver.isOnline = isOnline;
+  driver.isAvailable = isOnline && available !== false;
+  await driver.save();
+  
+  res.json({ success: true, message: `Driver is now ${isOnline ? 'online' : 'offline'}`, data: { isOnline, isAvailable: driver.isAvailable } });
+});
+
 // Document upload routes
 router.post('/documents/upload', upload.single('document'), documentController.uploadDocument);
 router.get('/documents', documentController.getDocuments);
