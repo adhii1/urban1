@@ -1,0 +1,645 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{TORQQ Platform}}
+\fancyhead[R]{Backend API Documentation}
+\fancyfoot[C]{\thepage}
+
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{codegreen}{RGB}{16,185,129}
+\definecolor{codegray}{RGB}{100,116,139}
+\definecolor{codeblue}{RGB}{37,99,235}
+
+\lstset{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{codegray},
+  keywordstyle=\color{codeblue},
+  stringstyle=\color{codegreen},
+  showstringspaces=false,
+  tabsize=2,
+}
+
+\title{
+  \vspace{-2cm}
+  \textbf{TORQQ Shared Mobility Platform}\\
+  \Large{Backend API Documentation \& Verification Report}\\
+  \vspace{0.5cm}
+  \large{Version 1.0.0 | August 2026}
+}
+\author{TORQQ Engineering Team}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Platform Overview}
+% ============================================================
+
+TORQQ is a shared mobility platform supporting:
+\begin{itemize}
+  \item \textbf{Flexi} -- Single-person on-demand rides (book 2 hours ahead, like Ola/Uber)
+  \item \textbf{Hybrid} -- 3 days/week shared shuttle with managed bus stops
+  \item \textbf{Weekday} -- Mon-Fri daily shared shuttle with managed bus stops
+  \item \textbf{Stop-to-Stop} -- All 7 days shared shuttle on fixed routes
+\end{itemize}
+
+\subsection{Architecture}
+\begin{itemize}
+  \item \textbf{Backend}: Node.js + Express + MongoDB + Socket.IO
+  \item \textbf{Real-time}: WebSocket namespaces for Customer, Driver, Admin
+  \item \textbf{Payment}: Razorpay integration (order creation, verification, refunds)
+  \item \textbf{Background Services}: Ride expiry, subscription expiry, scheduled dispatch, trip generation, bundle matching
+\end{itemize}
+
+\subsection{Server Configuration}
+\begin{lstlisting}
+Base URL: http://localhost:4000/api/v1
+WebSocket: ws://localhost:4000/sockets/{customer|driver|admin}
+Authentication: HTTP-only cookies (JWT access + refresh tokens)
+JWT Expiry: 2 hours (access), 7 days (refresh)
+\end{lstlisting}
+
+% ============================================================
+\section{Authentication APIs}
+% ============================================================
+
+\subsection{POST /auth/login -- Unified Login}
+\textbf{Request:}
+\begin{lstlisting}
+POST /api/v1/auth/login
+Content-Type: application/json
+
+{"phone": "7019268918", "password": "password123"}
+\end{lstlisting}
+
+\textbf{Response (200 OK):}
+\begin{lstlisting}
+{
+  "success": true,
+  "message": "Login successful.",
+  "data": {
+    "user": {
+      "id": "6a76e3249a463f9225b510ea",
+      "name": "Ravi Kumar",
+      "phone": "7019268918",
+      "role": "Customer",
+      "hasCustomPassword": true
+    },
+    "accessToken": "eyJhbGciOiJIUzI1NiIs..."
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /auth/admin/login -- Admin Login}
+\begin{lstlisting}
+POST /api/v1/auth/admin/login
+{"phone": "9000000000", "password": "password123"}
+
+Response: {"success": true, "data": {"user": {"name": "Super Admin", "role": "Admin"}}}
+\end{lstlisting}
+
+\subsection{POST /auth/send-otp -- OTP Login Flow}
+\begin{lstlisting}
+POST /api/v1/auth/send-otp
+{"phone": "7019268918", "purpose": "LOGIN"}
+
+Response: {"success": true, "message": "OTP verification code sent successfully.",
+           "data": {"devOtp": "597828"}}
+\end{lstlisting}
+
+\subsection{POST /auth/verify-otp -- OTP Verification}
+\begin{lstlisting}
+POST /api/v1/auth/verify-otp
+{"phone": "7019268918", "otp": "597828", "purpose": "LOGIN"}
+
+Response: {"success": true, "data": {"user": {...}, "accessToken": "..."}}
+\end{lstlisting}
+
+\subsection{POST /auth/driver/register -- Driver Registration}
+\begin{lstlisting}
+POST /api/v1/auth/driver/register
+{"phone": "9876500001", "password": "Test@1234", "name": "New Driver",
+ "vehicleNumber": "KA01XX1234", "vehicleModel": "Swift", "licenseNumber": "KA-DL-001"}
+
+Response: {"success": true, "message": "Driver registered successfully."}
+\end{lstlisting}
+
+% ============================================================
+\section{Customer APIs}
+% ============================================================
+
+\subsection{GET /customer/profile}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "name": "Ravi Kumar",
+    "phone": "7019268918",
+    "homeLocation": {"address": "HSR Layout", "coordinates": [77.63, 12.92]},
+    "pickupLocation": {...},
+    "dropLocation": {...},
+    "subscription": {...}
+  }
+}
+\end{lstlisting}
+
+\subsection{GET /customer/plans -- Browse Subscription Plans}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": [
+    {
+      "name": "Flexy",
+      "tier": "Flexy",
+      "serviceType": "Home-to-Office",
+      "price": 2499,
+      "durationDays": 30,
+      "pauseDaysAllowed": 5,
+      "features": ["Flexible booking", "Single person ride", "Book 2hrs ahead"],
+      "bookingRules": {
+        "maxPassengersPerBooking": 1,
+        "minAdvanceBookingMinutes": 120,
+        "allowedDaysPerWeek": 7,
+        "isSharedRide": false,
+        "useManagedStops": false
+      }
+    },
+    {
+      "name": "Hybrid",
+      "tier": "Hybrid",
+      "price": 1799,
+      "bookingRules": {
+        "maxPassengersPerBooking": 6,
+        "allowedDaysPerWeek": 3,
+        "isSharedRide": true,
+        "useManagedStops": true
+      }
+    },
+    {
+      "name": "Weekday",
+      "tier": "Weekday",
+      "price": 1999,
+      "bookingRules": {
+        "allowedDaysPerWeek": 5,
+        "allowedWeekdays": [1,2,3,4,5],
+        "isSharedRide": true
+      }
+    }
+  ]
+}
+\end{lstlisting}
+
+\subsection{POST /customer/subscriptions/purchase -- Self-Subscribe}
+\begin{lstlisting}
+POST /api/v1/customer/subscriptions/purchase
+{"planId": "...", "routeId": "...", "startDate": "2026-08-12",
+ "selectedWeekdays": [1,3,5], "pickupStopIndex": 0, "dropStopIndex": 2}
+
+Response: {
+  "success": true,
+  "data": {
+    "subscriptionId": "6a7b...",
+    "orderId": "order_mock_1786...",
+    "amount": 179900,
+    "currency": "INR",
+    "plan": {"name": "Hybrid", "price": 1799}
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /customer/subscriptions/verify-payment}
+\begin{lstlisting}
+POST /api/v1/customer/subscriptions/verify-payment
+{"subscriptionId": "...", "orderId": "...", "paymentId": "pay_...", "signature": "..."}
+
+Response: {"success": true, "data": {"status": "ACTIVE", "startDate": "...", "endDate": "..."}}
+\end{lstlisting}
+
+\subsection{GET /customer/subscriptions/booking-eligibility}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "eligible": true,
+    "plan": {"name": "Flexy", "tier": "Flexy", "minAdvanceBookingMinutes": 120},
+    "subscription": {"bookingsThisWeek": 0}
+  }
+}
+\end{lstlisting}
+
+\subsection{GET /customer/subscription}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "status": "ACTIVE",
+    "planId": {"name": "Flexy", "tier": "Flexy", "price": 2499, "bookingRules": {...}},
+    "routeId": {"name": "HSR to Electronic City", "stops": [...]},
+    "startDate": "2026-08-08",
+    "endDate": "2026-09-07",
+    "remainingPauseDays": 5
+  }
+}
+\end{lstlisting}
+
+\subsection{POST /customer/pause-request}
+\begin{lstlisting}
+POST /api/v1/customer/pause-request
+{"date": "2026-08-15"}
+
+Response: {"success": true, "data": {"status": "PENDING", "requestedDate": "2026-08-15"}}
+\end{lstlisting}
+
+\subsection{GET /customer/emergency-contacts}
+\begin{lstlisting}
+Response: {"success": true, "data": [
+  {"name": "Mom", "phone": "9988776655", "relationship": "Mother"}
+]}
+\end{lstlisting}
+
+\subsection{GET /customer/settings}
+\begin{lstlisting}
+Response: {"success": true, "data": {
+  "notifications": true, "rideAlerts": true,
+  "promoEmails": false, "language": "en", "darkMode": false
+}}
+\end{lstlisting}
+
+% ============================================================
+\section{Driver APIs}
+% ============================================================
+
+\subsection{GET /driver/profile}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "name": "Raju Kumar",
+    "vehicleNumber": "KA01MJ5678",
+    "vehicleModel": "Tata Nexon EV",
+    "vehicleCapacity": 6,
+    "route": {"name": "HSR Layout - Electronic City", "stops": [...]},
+    "status": "ACTIVE"
+  }
+}
+\end{lstlisting}
+
+\subsection{PUT /driver/duty -- Go Online/Offline}
+\begin{lstlisting}
+PUT /api/v1/driver/duty
+{"dutyStatus": "ONLINE", "available": true}
+
+Response: {"success": true, "message": "Driver is now online",
+           "data": {"isOnline": true, "isAvailable": true}}
+\end{lstlisting}
+
+\subsection{GET /driver/trips}
+\begin{lstlisting}
+Response: {"success": true, "data": [
+  {"routeId": {"name": "HSR - EC"}, "status": "SCHEDULED",
+   "manifest": [{"customer": {...}, "pickupStop": {...}, "dropStop": {...}}]}
+]}
+\end{lstlisting}
+
+\subsection{GET /driver/earnings}
+\begin{lstlisting}
+Response: {"success": true, "data": {"totalEarnings": 12500, "trips": 45, ...}}
+\end{lstlisting}
+
+% ============================================================
+\section{Admin APIs}
+% ============================================================
+
+\subsection{GET /admin/dashboard}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "totalCustomers": 10004,
+    "totalDrivers": 101,
+    "activeTrips": 2,
+    "completedTrips": 15,
+    "cancelledTrips": 0,
+    "activeSubscriptions": 3
+  }
+}
+\end{lstlisting}
+
+\subsection{GET /admin/settings}
+\begin{lstlisting}
+Response: {
+  "success": true,
+  "data": {
+    "platformName": "TORQQ",
+    "maxSeatsPerCab": 6,
+    "autoMatchRadius": 5,
+    "sosAutoDispatch": true,
+    "maintenanceMode": false,
+    "commissionRate": 10,
+    "minFare": 50
+  }
+}
+\end{lstlisting}
+
+\subsection{GET /admin/profile}
+\begin{lstlisting}
+Response: {"success": true, "data": {"name": "Super Admin", "role": "Super Admin", "phone": "9000000000"}}
+\end{lstlisting}
+
+\subsection{GET /admin/pause-requests}
+\begin{lstlisting}
+Response: {"success": true, "data": [
+  {"customerId": {"name": "Ravi Kumar"}, "status": "PENDING", "requestedDate": "2026-08-15"}
+]}
+\end{lstlisting}
+
+\subsection{POST /admin/pause-requests/:id/approve}
+\begin{lstlisting}
+Response: {"success": true, "data": {"status": "APPROVED"}}
+// Subscription auto-paused, remainingPauseDays decremented
+\end{lstlisting}
+
+\subsection{CRUD Endpoints}
+\begin{longtable}{lll}
+\toprule
+\textbf{Resource} & \textbf{Methods} & \textbf{Path} \\
+\midrule
+Drivers & GET, POST, PATCH, DELETE & /admin/drivers \\
+Customers & GET, POST, PATCH, DELETE & /admin/customers \\
+Trips & GET, POST, PATCH, DELETE & /admin/trips \\
+Routes & GET, POST, PATCH, DELETE & /admin/routes \\
+Plans & GET, POST, PATCH, DELETE & /admin/plans \\
+Subscriptions & GET, POST, PATCH & /admin/subscriptions \\
+Analytics & GET & /admin/analytics?range=7d|30d|1y \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Real-Time WebSocket Events}
+% ============================================================
+
+\subsection{Customer Namespace: /sockets/customer}
+
+\begin{longtable}{lp{8cm}}
+\toprule
+\textbf{Event} & \textbf{Description} \\
+\midrule
+\texttt{ride:request} (emit) & Customer books a ride with pickup, drop, optional scheduledPickupTime \\
+\texttt{ride:request:ack} (receive) & Ride created, returns rideRequestId, fareEstimate, scheduled flag \\
+\texttt{ride:accepted} (receive) & Driver assigned: driver name, vehicle, OTP, ETA \\
+\texttt{ride:driver-arriving} (receive) & Driver en route, ETA minutes \\
+\texttt{ride:started} (receive) & Ride in progress after OTP verified \\
+\texttt{ride:completed} (receive) & Ride finished, final fare \\
+\texttt{driver:location:update} (receive) & Real-time driver GPS coordinates \\
+\bottomrule
+\end{longtable}
+
+\subsection{Driver Namespace: /sockets/driver}
+
+\begin{longtable}{lp{8cm}}
+\toprule
+\textbf{Event} & \textbf{Description} \\
+\midrule
+\texttt{driver:online} (emit) & Go online with GPS location \\
+\texttt{driver:location} (emit) & Update current location (every 10s) \\
+\texttt{ride:new-request} (receive) & New ride offer: pickup, drop, passengers, fare, ETA \\
+\texttt{ride:accept} (emit) & Accept a ride offer \\
+\texttt{ride:accept:ack} (receive) & Acceptance confirmed \\
+\texttt{ride:verify-otp} (emit) & Verify customer OTP at pickup \\
+\texttt{ride:complete} (emit) & Mark ride as completed \\
+\texttt{ride:complete:ack} (receive) & Completion confirmed with fare \\
+\bottomrule
+\end{longtable}
+
+\subsection{Admin Namespace: /sockets/admin}
+
+\begin{longtable}{lp{8cm}}
+\toprule
+\textbf{Event} & \textbf{Description} \\
+\midrule
+\texttt{ride:new} (receive) & New ride request (real-time feed) \\
+\texttt{admin:rides:active} (emit) & Request all active rides \\
+\texttt{admin:ride:reassign} (emit) & Reassign ride to different driver \\
+\texttt{admin:shuttles:active} (emit) & Get active shuttle sessions \\
+\texttt{admin:shuttle:cancel} (emit) & Cancel a shuttle session \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Core Business Flows}
+% ============================================================
+
+\subsection{Flexi Ride (Scheduled -- 2 Hours Ahead)}
+\begin{enumerate}
+  \item Customer sends \texttt{ride:request} with \texttt{scheduledPickupTime} = now + 2 hours
+  \item Backend creates RideRequest with status \texttt{SCHEDULED}
+  \item \texttt{scheduledDispatchService} checks every minute
+  \item 40 minutes before pickup: transitions to \texttt{PENDING}
+  \item \texttt{BundleMatchingEngine} finds nearest available driver within 5km
+  \item Driver receives \texttt{ride:new-request} with ~40 min to reach pickup
+  \item Driver accepts → OTP generated → Customer notified
+  \item GPS tracking active throughout
+  \item OTP verified at pickup → Ride starts
+  \item Driver completes → Final fare calculated
+\end{enumerate}
+
+\textbf{Console Log (Verified):}
+\begin{lstlisting}
+[ScheduledDispatch] Ride 6a79dfa6... scheduled for 2026-08-10T16:26:46Z.
+                    Will dispatch ~40min before.
+[BUNDLE_DEBUG] New ride request created
+  RideRequestId: 6a79dfa6...
+  Status: SCHEDULED
+  ScheduledPickupTime: 2026-08-10T16:26:46Z
+ride:request:ack -> "Ride scheduled for 9:56 PM. We'll find a driver
+                     closer to your pickup time."
+\end{lstlisting}
+
+\subsection{Flexi Ride (Immediate)}
+\begin{enumerate}
+  \item Customer sends \texttt{ride:request} without scheduledPickupTime
+  \item Backend creates RideRequest with status \texttt{PENDING}
+  \item \texttt{BundleMatchingEngine} immediately searches for compatible rides
+  \item If no bundle forms within 10s, dispatches as single ride
+  \item Nearest online+available driver found → offer sent
+  \item Driver accepts → full flow (OTP, GPS, completion)
+\end{enumerate}
+
+\textbf{Console Log (Verified):}
+\begin{lstlisting}
+[BUNDLE_DEBUG] New ride request created
+  Status: PENDING
+  ScheduledPickupTime: null
+[BUNDLE_DEBUG] Triggering BundleMatchingEngine
+[BUNDLE_DEBUG] Recovery cycle - Single ride fallback
+[BUNDLE_DEBUG] Searching drivers - RequiredCapacity: 1, Radius: 5km
+[BUNDLE_DEBUG] Drivers found - DriverCount: 1
+[BUNDLE_DEBUG] Sending bundle to driver
+EVENT_DELIVERY_TRACE: emitToUser EMITTED - ride:new-request delivered
+\end{lstlisting}
+
+\subsection{Hybrid/Weekday (Shared Shuttle Bundling)}
+\begin{enumerate}
+  \item Admin assigns drivers to routes (each route has ordered stops)
+  \item Customers subscribe to Hybrid/Weekday plans, pick their route + stops
+  \item \texttt{tripGeneratorService} runs daily:
+    \begin{itemize}
+      \item Finds active subscriptions eligible for today
+      \item Groups customers by route
+      \item Creates Trip with manifest (all passengers + pickup/drop stops)
+      \item Assigns the route's driver
+    \end{itemize}
+  \item Driver sees scheduled trip with full passenger list
+  \item Driver navigates to each stop, verifies OTP per passenger
+  \item If customer changes route → auto-moved to new route's trip
+\end{enumerate}
+
+\subsection{Customer Route Change}
+\begin{lstlisting}
+tripGeneratorService.handleRouteChange(customerId, oldRouteId, newRouteId, subscription)
+// 1. Removes customer from old route's trip manifest
+// 2. Adds to new route's trip (or creates one if none exists)
+// 3. New route's assigned driver sees updated manifest
+\end{lstlisting}
+
+% ============================================================
+\section{Payment Integration (Razorpay)}
+% ============================================================
+
+\begin{enumerate}
+  \item \textbf{Create Order}: Backend calls \texttt{razorpay.orders.create()} with amount in paise
+  \item \textbf{Frontend Checkout}: Opens Razorpay popup with order\_id
+  \item \textbf{Verify Signature}: Backend verifies HMAC SHA256: \\
+    \texttt{hmac(order\_id|payment\_id, secret) === signature}
+  \item \textbf{Activate}: On success, subscription status → ACTIVE
+  \item \textbf{Refunds}: \texttt{razorpay.payments.refund(payment\_id, amount)}
+\end{enumerate}
+
+\textbf{Mock Mode}: When \texttt{RAZORPAY\_KEY\_ID} is not set, all operations return mock responses for testing.
+
+% ============================================================
+\section{Background Services}
+% ============================================================
+
+\begin{longtable}{lp{5cm}l}
+\toprule
+\textbf{Service} & \textbf{Purpose} & \textbf{Interval} \\
+\midrule
+SubscriptionExpiry & Expire past-endDate subscriptions, cancel stale payments & 1 hour \\
+ScheduledDispatch & Dispatch SCHEDULED rides 40min before pickup & 1 minute \\
+TripGenerator & Create daily trips from active shared subscriptions & 1 hour \\
+RideExpiry & Expire PENDING rides past 5-min timeout & 30 seconds \\
+BundleMatchingEngine & Group compatible rides, find drivers & Event-driven + 10s recovery \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Verification Test Results}
+% ============================================================
+
+All endpoints tested on August 11, 2026. Server running in development mode with MongoDB connected.
+
+\begin{longtable}{clp{6cm}}
+\toprule
+\textbf{\#} & \textbf{Status} & \textbf{Test} \\
+\midrule
+1 & \checkmark & Health check (DB connected) \\
+2 & \checkmark & Customer password login \\
+3 & \checkmark & Customer OTP send + verify \\
+4 & \checkmark & Customer profile retrieval \\
+5 & \checkmark & Browse 4 plans (Flexy/Hybrid/Weekday/Standard) \\
+6 & \checkmark & Active subscription with booking rules \\
+7 & \checkmark & Booking eligibility check \\
+8 & \checkmark & Emergency contacts CRUD \\
+9 & \checkmark & Customer settings GET/PUT \\
+10 & \checkmark & Favourites (pinned format) \\
+11 & \checkmark & Notifications list \\
+12 & \checkmark & Coupons browse \\
+13 & \checkmark & Support ticket creation \\
+14 & \checkmark & Pause request submission \\
+15 & \checkmark & Wallet (rewards + referral code) \\
+16 & \checkmark & Route search (7 routes) \\
+17 & \checkmark & Driver password login \\
+18 & \checkmark & Driver profile (vehicle + route) \\
+19 & \checkmark & Driver trips \\
+20 & \checkmark & Driver earnings \\
+21 & \checkmark & Driver duty toggle (online/offline) \\
+22 & \checkmark & Admin login \\
+23 & \checkmark & Admin dashboard (10004 customers, 101 drivers) \\
+24 & \checkmark & Admin settings (platform config) \\
+25 & \checkmark & Admin profile \\
+26 & \checkmark & Admin plans (4) \\
+27 & \checkmark & Admin subscriptions (4) \\
+28 & \checkmark & Admin pause requests (approve/reject) \\
+29 & \checkmark & Admin routes (7) \\
+30 & \checkmark & Admin drivers (101) \\
+31 & \checkmark & Subscription purchase flow (Razorpay order) \\
+32 & \checkmark & Payment verification (subscription activated) \\
+33 & \checkmark & Flexi scheduled ride (SCHEDULED status) \\
+34 & \checkmark & Flexi immediate ride (BundleEngine dispatch) \\
+35 & \checkmark & Admin real-time ride notification \\
+36 & \checkmark & Driver ride offer delivery (WebSocket) \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Database Models}
+% ============================================================
+
+\begin{longtable}{lp{8cm}}
+\toprule
+\textbf{Model} & \textbf{Purpose} \\
+\midrule
+User & Base auth (phone, password, role) \\
+Customer & Profile, locations, subscription link, settings \\
+Driver & Vehicle, route assignment, GPS, ratings, documents \\
+Admin & Permissions, role hierarchy \\
+Plan & Subscription plans with booking rules \\
+Subscription & Customer-plan-route link, payment, schedule \\
+Route & Named routes with ordered GeoJSON stops \\
+Trip & Scheduled shuttle trips with passenger manifest \\
+RideRequest & On-demand rides (full lifecycle) \\
+ShuttleSession & Multi-passenger bundled ride sessions \\
+PauseRequest & Customer pause requests (approve/reject) \\
+Settings & Platform configuration (singleton) \\
+EmergencyContact & Customer emergency contacts \\
+Favourite & Saved/pinned locations \\
+Notification & User notifications \\
+SupportTicket & Help desk tickets with replies \\
+Coupon & Discount codes with validation \\
+\bottomrule
+\end{longtable}
+
+% ============================================================
+\section{Security \& Infrastructure}
+% ============================================================
+
+\begin{itemize}
+  \item \textbf{Authentication}: JWT with HTTP-only cookies, auto-refresh
+  \item \textbf{Rate Limiting}: Per-IP and per-socket rate limiters
+  \item \textbf{CORS}: Whitelisted origins with credentials
+  \item \textbf{Helmet}: Full security headers (CSP, HSTS, XSS protection)
+  \item \textbf{Input Validation}: Joi schemas on all endpoints
+  \item \textbf{Soft Delete}: All models use \texttt{isDeleted} flag
+  \item \textbf{Token Blacklist}: Logout invalidates tokens
+  \item \textbf{Socket Auth}: JWT verification on WebSocket connection
+  \item \textbf{Redis}: Optional adapter for horizontal Socket.IO scaling
+\end{itemize}
+
+\end{document}
