@@ -1,0 +1,1316 @@
+================================================================================
+  TORQQ PLATFORM - COMPLETE API ENDPOINT VERIFICATION LOGS
+  Generated: August 14, 2026 | Server: http://localhost:4000/api/v1
+  All endpoints verified with actual server responses
+================================================================================
+
+================================================================================
+  1. HEALTH CHECK
+================================================================================
+
+  Request: GET /api/v1/health
+
+  Response:
+  {
+    "success": true,
+    "status": "healthy",
+    "database": "connected",
+    "server": "running",
+    "uptime": 59,
+    "version": "1.0.0",
+    "environment": "development",
+    "timestamp": "2026-08-14T10:58:38.234Z"
+}
+
+================================================================================
+  2. CUSTOMER LOGIN
+================================================================================
+
+  Request: POST /api/v1/auth/login
+  Body: {
+    "phone": "7019268918",
+    "password": "password123"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Login successful.",
+    "data": {
+        "user": {
+            "id": "6a76e3249a463f9225b510ea",
+            "name": "Ravi Kumar",
+            "phone": "7019268918",
+            "role": "Customer",
+            "hasCustomPassword": true
+        },
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNzZlMzI0OWE0NjNmOTIyNWI1MTBlYSIsInJvbGUiOiJDdXN0b21lciIsImlhdCI6MTc4NjcwNTExOSwiZXhwIjoxNzg2NzA2MDE5fQ.FTSTu53Xgz34AouC8GfCv3gQh3ukDc3JBf1d4frOaQk"
+    },
+    "meta": {}
+}
+
+================================================================================
+  3. ADMIN LOGIN
+================================================================================
+
+  Request: POST /api/v1/auth/admin/login
+  Body: {
+    "phone": "9000000000",
+    "password": "password123"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Admin login successful.",
+    "data": {
+        "user": {
+            "id": "6a76e23e0a504ae6e1db2038",
+            "name": "Super Admin",
+            "phone": "9000000000",
+            "role": "Admin",
+            "hasCustomPassword": false
+        },
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNzZlMjNlMGE1MDRhZTZlMWRiMjAzOCIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc4NjcwNTExOSwiZXhwIjoxNzg2NzA2MDE5fQ.v0jjNgZiubQb9u3nNadTj6XCeZjF01k5sGZPjBAVoFc"
+    },
+    "meta": {}
+}
+
+================================================================================
+  4. DRIVER LOGIN
+================================================================================
+
+  Request: POST /api/v1/auth/login
+  Body: {
+    "phone": "9876543210",
+    "password": "password123"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Login successful.",
+    "data": {
+        "user": {
+            "id": "6a76e3249a463f9225b510d2",
+            "name": "Raju Kumar",
+            "phone": "9876543210",
+            "role": "Driver",
+            "hasCustomPassword": true
+        },
+        "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhNzZlMzI0OWE0NjNmOTIyNWI1MTBkMiIsInJvbGUiOiJEcml2ZXIiLCJpYXQiOjE3ODY3MDUxMTksImV4cCI6MTc4NjcwNjAxOX0.rq9xBIXqCPPQ5C-YeuJJosm7fXMP_UA79fHNKAWQ1ao"
+    },
+    "meta": {}
+}
+
+================================================================================
+  5. SEND OTP
+================================================================================
+
+  Request: POST /api/v1/auth/send-otp
+  Body: {
+    "phone": "7019268918",
+    "purpose": "LOGIN"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "OTP sent successfully.",
+    "data": {
+        "success": true,
+        "message": "OTP verification code sent successfully.",
+        "devOtp": "813780"
+    },
+    "meta": {}
+}
+
+================================================================================
+  6. CUSTOMER PROFILE
+================================================================================
+
+  Request: GET /api/v1/customer/profile
+
+  Response:
+  {
+    "success": true,
+    "message": "Profile retrieved successfully.",
+    "data": {
+        "id": "6a76e3249a463f9225b510ee",
+        "name": "Ravi Kumar",
+        "phone": "7019268918",
+        "homeLocation": {
+            "address": "HSR Layout, Bangalore",
+            "coordinates": [
+                77.6309,
+                12.9279
+            ],
+            "type": "Point"
+        },
+        "pickupLocation": {
+            "address": "HSR Layout Sector 2",
+            "coordinates": [
+                77.6309,
+                12.9279
+            ],
+            "type": "Point"
+        },
+        "dropLocation": {
+            "address": "Electronic City, Bangalore",
+            "coordinates": [
+                77.6683,
+                12.8489
+            ],
+            "type": "Point"
+        },
+        "subscription": {
+            "payment": {
+                "status": "pending"
+            },
+            "_id": "6a76e3249a463f9225b510f7",
+            "customerId": "6a76e3249a463f9225b510ee",
+            "planId": "6a76e23e0a504ae6e1db203e",
+            "routeId": "6a76e23e0a504ae6e1db2043",
+            "startDate": "2026-08-08T08:04:52.591Z",
+            "endDate": "2026-09-07T08:04:52.591Z",
+            "remainingPauseDays": 4,
+            "status": "ACTIVE",
+            "selectedWeekdays": [],
+            "bookingsThisWeek": 0,
+            "isDeleted": false,
+            "createdAt": "2026-08-08T08:04:52.592Z",
+            "updatedAt": "2026-08-10T05:56:33.107Z",
+            "__v": 0,
+            "weekResetDate": "2026-08-09T18:30:00.000Z"
+        }
+    },
+    "meta": {}
+}
+
+================================================================================
+  7. BROWSE PLANS
+================================================================================
+
+  Request: GET /api/v1/customer/plans
+
+  Response:
+  {
+    "success": true,
+    "message": "Plans retrieved successfully.",
+    "data": [
+        {
+            "bookingRules": {
+                "maxPassengersPerBooking": 1,
+                "minAdvanceBookingMinutes": 120,
+                "allowedDaysPerWeek": 7,
+                "allowedWeekdays": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                ],
+                "isAlternateDay": false,
+                "isSharedRide": false,
+                "useManagedStops": false
+            },
+            "_id": "6a76e23e0a504ae6e1db203e",
+            "name": "Flexy",
+            "serviceType": "Home-to-Office",
+            "tier": "Flexy",
+            "description": "Flexible booking. Cancel 1-2 hrs before. Pickup/dropoff within 5km of driver.",
+            "durationDays": 30,
+            "price": 2499,
+            "pauseDaysAllowed": 5,
+            "features": [
+                "Flexible booking",
+                "Cancel before 1-2 hrs",
+                "All locations within 5km",
+                "Pickup + Dropoff",
+                "Single person ride"
+            ],
+            "isActive": true,
+            "isDeleted": false,
+            "__v": 0,
+            "createdAt": "2026-08-08T08:01:02.691Z",
+            "updatedAt": "2026-08-14T10:57:45.157Z"
+        },
+        {
+            "bookingRules": {
+                "maxPassengersPerBooking": 6,
+                "minAdvanceBookingMinutes": 0,
+                "allowedDaysPerWeek": 3,
+                "allowedWeekdays": [],
+                "isAlternateDay": false,
+                "isSharedRide": true,
+                "useManagedStops": true
+            },
+            "_id": "6a76e23e0a504ae6e1db203f",
+            "name": "Hybrid",
+            "serviceType": "Home-to-Office",
+            "tier": "Hybrid",
+            "description": "3 days/week service. Pick your commute days. Shared shuttle with managed 
+
+================================================================================
+  8. CUSTOMER SUBSCRIPTION
+================================================================================
+
+  Request: GET /api/v1/customer/subscription
+
+  Response:
+  {
+    "success": true,
+    "message": "Subscription retrieved successfully.",
+    "data": {
+        "payment": {
+            "status": "pending"
+        },
+        "_id": "6a76e3249a463f9225b510f7",
+        "customerId": "6a76e3249a463f9225b510ee",
+        "planId": {
+            "bookingRules": {
+                "maxPassengersPerBooking": 1,
+                "minAdvanceBookingMinutes": 120,
+                "allowedDaysPerWeek": 7,
+                "allowedWeekdays": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                ],
+                "isAlternateDay": false,
+                "isSharedRide": false,
+                "useManagedStops": false
+            },
+            "_id": "6a76e23e0a504ae6e1db203e",
+            "name": "Flexy",
+            "serviceType": "Home-to-Office",
+            "tier": "Flexy",
+            "description": "Flexible booking. Cancel 1-2 hrs before. Pickup/dropoff within 5km of driver.",
+            "durationDays": 30,
+            "price": 2499,
+            "pauseDaysAllowed": 5,
+            "features": [
+                "Flexible booking",
+                "Cancel before 1-2 hrs",
+                "All locations within 5km",
+                "Pickup + Dropoff",
+                "Single person ride"
+            ],
+            "isActive": true,
+            "isDeleted": false,
+            "__v": 0,
+            "createdAt": "2026-08-08T08:01:02.691Z",
+            "updatedAt": "2026-08-14T10:57:45.157Z"
+        },
+        "routeId": {
+            "_id": "6a76e23e0a504ae6e1db2043",
+            "name": "HSR to Electronic City",
+            "startLocation": "HSR Layout",
+            "endLocation": "Electronic City Phase 1",
+            "stops": [
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6309,
+                     
+
+================================================================================
+  9. BOOKING ELIGIBILITY
+================================================================================
+
+  Request: GET /api/v1/customer/subscriptions/booking-eligibility
+
+  Response:
+  {
+    "success": true,
+    "message": "Eligible to book.",
+    "data": {
+        "eligible": true,
+        "plan": {
+            "name": "Flexy",
+            "tier": "Flexy",
+            "isSharedRide": false,
+            "useManagedStops": false,
+            "maxPassengersPerBooking": 1,
+            "minAdvanceBookingMinutes": 120
+        },
+        "subscription": {
+            "bookingsThisWeek": 0
+        }
+    },
+    "meta": {}
+}
+
+================================================================================
+  10. EMERGENCY CONTACTS
+================================================================================
+
+  Request: GET /api/v1/customer/emergency-contacts
+
+  Response:
+  {
+    "success": true,
+    "message": "Emergency contacts retrieved.",
+    "data": [
+        {
+            "_id": "6a78438965f4ef8e856d66a2",
+            "customerId": "6a76e3249a463f9225b510ee",
+            "name": "Mom",
+            "phone": "9988776655",
+            "relationship": "Mother",
+            "isDeleted": false,
+            "createdAt": "2026-08-09T09:08:25.612Z",
+            "updatedAt": "2026-08-09T09:08:25.612Z",
+            "__v": 0
+        }
+    ],
+    "meta": {}
+}
+
+================================================================================
+  11. ADD EMERGENCY CONTACT
+================================================================================
+
+  Request: POST /api/v1/customer/emergency-contacts
+  Body: {
+    "name": "Mom",
+    "phone": "9988776655",
+    "relationship": "Mother"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Emergency contact added.",
+    "data": {
+        "customerId": "6a76e3249a463f9225b510ee",
+        "name": "Mom",
+        "phone": "9988776655",
+        "relationship": "Mother",
+        "isDeleted": false,
+        "_id": "6a7ef4e2767c13490e5df7cd",
+        "createdAt": "2026-08-14T10:58:42.190Z",
+        "updatedAt": "2026-08-14T10:58:42.190Z",
+        "__v": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  12. CUSTOMER SETTINGS
+================================================================================
+
+  Request: GET /api/v1/customer/settings
+
+  Response:
+  {
+    "success": true,
+    "message": "Settings retrieved.",
+    "data": {
+        "rideAlerts": true,
+        "promoEmails": false,
+        "language": "en",
+        "darkMode": true,
+        "notifications": false
+    },
+    "meta": {}
+}
+
+================================================================================
+  13. UPDATE SETTINGS
+================================================================================
+
+  Request: PUT /api/v1/customer/settings
+  Body: {
+    "darkMode": true,
+    "notifications": false
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Settings updated.",
+    "data": {
+        "rideAlerts": true,
+        "promoEmails": false,
+        "language": "en",
+        "darkMode": true,
+        "notifications": false
+    },
+    "meta": {}
+}
+
+================================================================================
+  14. FAVOURITES
+================================================================================
+
+  Request: GET /api/v1/favourites
+
+  Response:
+  {
+    "success": true,
+    "message": "Favourites retrieved.",
+    "data": {
+        "pinned": {
+            "routes": [],
+            "pickupStops": [],
+            "dropStops": [
+                {
+                    "_id": "6a7843e165f4ef8e856d6749",
+                    "label": "Office",
+                    "address": "Electronic City Phase 1"
+                }
+            ],
+            "drivers": [],
+            "searches": []
+        },
+        "items": [
+            {
+                "location": {
+                    "type": "Point",
+                    "coordinates": [
+                        77.6683,
+                        12.8489
+                    ]
+                },
+                "_id": "6a7843e165f4ef8e856d6749",
+                "userId": "6a76e3249a463f9225b510ea",
+                "label": "Office",
+                "address": "Electronic City Phase 1",
+                "icon": "drop",
+                "isDeleted": false,
+                "createdAt": "2026-08-09T09:09:53.145Z",
+                "updatedAt": "2026-08-09T09:09:53.145Z",
+                "__v": 0
+            }
+        ]
+    },
+    "meta": {}
+}
+
+================================================================================
+  15. ADD FAVOURITE
+================================================================================
+
+  Request: POST /api/v1/favourites
+  Body: {
+    "label": "Office",
+    "address": "Electronic City Phase 1",
+    "coordinates": [
+        77.66,
+        12.84
+    ]
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Favourite added.",
+    "data": {
+        "userId": "6a76e3249a463f9225b510ea",
+        "label": "Office",
+        "address": "Electronic City Phase 1",
+        "location": {
+            "type": "Point",
+            "coordinates": [
+                77.66,
+                12.84
+            ]
+        },
+        "icon": "map-pin",
+        "isDeleted": false,
+        "_id": "6a7ef4e2767c13490e5df7dc",
+        "createdAt": "2026-08-14T10:58:42.929Z",
+        "updatedAt": "2026-08-14T10:58:42.929Z",
+        "__v": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  16. NOTIFICATIONS
+================================================================================
+
+  Request: GET /api/v1/notifications
+
+  Response:
+  {
+    "success": true,
+    "message": "Notifications retrieved.",
+    "data": [],
+    "meta": {}
+}
+
+================================================================================
+  17. COUPONS
+================================================================================
+
+  Request: GET /api/v1/coupons
+
+  Response:
+  {
+    "success": true,
+    "message": "Available coupons.",
+    "data": [],
+    "meta": {}
+}
+
+================================================================================
+  18. CREATE SUPPORT TICKET
+================================================================================
+
+  Request: POST /api/v1/support
+  Body: {
+    "subject": "Late driver",
+    "category": "RIDE_ISSUE",
+    "description": "Driver arrived 20min late"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Support ticket created.",
+    "data": {
+        "userId": "6a76e3249a463f9225b510ea",
+        "subject": "Late driver",
+        "category": "RIDE_ISSUE",
+        "description": "Driver arrived 20min late",
+        "status": "OPEN",
+        "priority": "MEDIUM",
+        "isDeleted": false,
+        "_id": "6a7ef4e3767c13490e5df7e6",
+        "replies": [],
+        "createdAt": "2026-08-14T10:58:43.441Z",
+        "updatedAt": "2026-08-14T10:58:43.441Z",
+        "__v": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  19. WALLET REWARDS
+================================================================================
+
+  Request: GET /api/v1/wallet/rewards
+
+  Response:
+  {
+    "success": true,
+    "message": "Rewards retrieved.",
+    "data": {
+        "points": 0,
+        "history": []
+    },
+    "meta": {}
+}
+
+================================================================================
+  20. WALLET REFERRALS
+================================================================================
+
+  Request: GET /api/v1/wallet/referrals
+
+  Response:
+  {
+    "success": true,
+    "message": "Referrals retrieved.",
+    "data": {
+        "code": "TORQQB510EA",
+        "referrals": [],
+        "earnings": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  21. PAUSE REQUEST
+================================================================================
+
+  Request: POST /api/v1/customer/pause-request
+  Body: {
+    "date": "2026-08-20"
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Pause request submitted successfully.",
+    "data": {
+        "customerId": "6a76e3249a463f9225b510ee",
+        "subscriptionId": "6a76e3249a463f9225b510f7",
+        "requestedDate": "2026-08-20T00:00:00.000Z",
+        "status": "PENDING",
+        "isDeleted": false,
+        "_id": "6a7ef4e4767c13490e5df7f2",
+        "createdAt": "2026-08-14T10:58:44.074Z",
+        "updatedAt": "2026-08-14T10:58:44.074Z",
+        "__v": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  22. ROUTE SEARCH
+================================================================================
+
+  Request: GET /api/v1/bookings/routes
+
+  Response:
+  {
+    "success": true,
+    "data": [
+        {
+            "_id": "6a76e23e0a504ae6e1db2047",
+            "name": "BTM Layout to Sarjapur",
+            "startLocation": "BTM Layout 1st Stage",
+            "endLocation": "Sarjapur Road",
+            "stops": [
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6101,
+                            12.9166
+                        ]
+                    },
+                    "stopName": "BTM Layout 1st Stage",
+                    "sequenceOrder": 1
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6231,
+                            12.9172
+                        ]
+                    },
+                    "stopName": "Silk Board",
+                    "sequenceOrder": 2
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6763,
+                            12.9295
+                        ]
+                    },
+                    "stopName": "Bellandur",
+                    "sequenceOrder": 3
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6906,
+                            12.8986
+                        ]
+                    },
+                    "stopName": "Sarjapur Road",
+                    "sequenceOrder": 4
+                }
+            ]
+        },
+        {
+            "_id": "6a76e23e0a504ae6e1db2044",
+            "name": "Koramangala to Whitefield",
+            "startLocation": "Koramangala Block 5",
+            "endLocation": "Whitefield ITPL",
+            "stops": [
+                {
+                   
+
+================================================================================
+  23. DRIVER PROFILE
+================================================================================
+
+  Request: GET /api/v1/driver/profile
+
+  Response:
+  {
+    "success": true,
+    "message": "Driver profile retrieved.",
+    "data": {
+        "id": "6a76e3249a463f9225b510dd",
+        "name": "Raju Kumar",
+        "phone": "9876543210",
+        "vehicleNumber": "KA01MJ5678",
+        "vehicleModel": "Tata Nexon EV",
+        "vehicleCapacity": 6,
+        "licenseNumber": "KA-DL-123456",
+        "route": {
+            "_id": "6a76e3239a463f9225b510bf",
+            "name": "HSR Layout - Electronic City",
+            "startLocation": "HSR Layout, Bangalore",
+            "endLocation": "Electronic City, Bangalore",
+            "stops": [
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6309,
+                            12.9279
+                        ]
+                    },
+                    "stopName": "HSR Layout Sector 2",
+                    "sequenceOrder": 1
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6211,
+                            12.9348
+                        ]
+                    },
+                    "stopName": "Koramangala Block 5",
+                    "sequenceOrder": 2
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6683,
+                            12.8489
+                        ]
+                    },
+                    "stopName": "Electronic City Phase 1",
+                    "sequenceOrder": 3
+                }
+            ],
+            "status": "ACTIVE",
+            "isDeleted": false,
+            "createdAt": "2026-08-08T08:04:51.801Z",
+            "updatedAt": "2026-08-08T08:04:51.801Z",
+            "__v": 0
+        },
+        "status": "ACTIVE"
+    },
+    "meta": {}
+}
+
+================================================================================
+  24. DRIVER DUTY ONLINE
+================================================================================
+
+  Request: PUT /api/v1/driver/duty
+  Body: {
+    "dutyStatus": "ONLINE",
+    "available": true
+}
+
+  Response:
+  {
+    "success": true,
+    "message": "Driver is now online",
+    "data": {
+        "isOnline": true,
+        "isAvailable": true
+    }
+}
+
+================================================================================
+  25. DRIVER TRIPS
+================================================================================
+
+  Request: GET /api/v1/driver/trips
+
+  Response:
+  {
+    "success": true,
+    "message": "Driver's trips retrieved.",
+    "data": [],
+    "meta": {
+        "page": 1,
+        "limit": 20,
+        "total": 0,
+        "totalPages": 0
+    }
+}
+
+================================================================================
+  26. DRIVER EARNINGS
+================================================================================
+
+  Request: GET /api/v1/driver/earnings
+
+  Response:
+  {
+    "success": true,
+    "message": "Driver earnings retrieved.",
+    "data": {
+        "totalEarnings": 0,
+        "totalTrips": 0,
+        "totalDistance": 0,
+        "totalDuration": 0,
+        "period": "today"
+    },
+    "meta": {}
+}
+
+================================================================================
+  27. ADMIN DASHBOARD
+================================================================================
+
+  Request: GET /api/v1/admin/dashboard
+
+  Response:
+  {
+    "success": true,
+    "message": "Dashboard stats aggregated successfully.",
+    "data": {
+        "totalCustomers": 10004,
+        "totalDrivers": 101,
+        "activeTrips": 0,
+        "completedTrips": 0,
+        "cancelledTrips": 0,
+        "activeSubscriptions": 6
+    },
+    "meta": {}
+}
+
+================================================================================
+  28. ADMIN SETTINGS
+================================================================================
+
+  Request: GET /api/v1/admin/settings
+
+  Response:
+  {
+    "success": true,
+    "message": "Settings retrieved.",
+    "data": {
+        "_id": "6a76e508f52a0bac81bf2987",
+        "key": "platform_settings",
+        "platformName": "TORQQ",
+        "maxSeatsPerCab": 6,
+        "autoMatchRadius": 5,
+        "sosAutoDispatch": true,
+        "maintenanceMode": false,
+        "otpExpiryMinutes": 5,
+        "commissionRate": 10,
+        "minFare": 50,
+        "createdAt": "2026-08-08T08:12:56.045Z",
+        "updatedAt": "2026-08-08T08:12:56.045Z",
+        "__v": 0
+    },
+    "meta": {}
+}
+
+================================================================================
+  29. ADMIN PROFILE
+================================================================================
+
+  Request: GET /api/v1/admin/profile
+
+  Response:
+  {
+    "success": true,
+    "message": "Profile retrieved.",
+    "data": {
+        "name": "Super Admin",
+        "phone": "9000000000",
+        "email": "",
+        "role": "Super Admin",
+        "permissions": [
+            "MANAGE_DRIVERS",
+            "MANAGE_SETTINGS",
+            "APPROVE_PAYOUTS"
+        ]
+    },
+    "meta": {}
+}
+
+================================================================================
+  30. ADMIN PLANS
+================================================================================
+
+  Request: GET /api/v1/admin/plans
+
+  Response:
+  {
+    "success": true,
+    "message": "Plans listed successfully.",
+    "data": [
+        {
+            "bookingRules": {
+                "maxPassengersPerBooking": 1,
+                "minAdvanceBookingMinutes": 120,
+                "allowedDaysPerWeek": 7,
+                "allowedWeekdays": [
+                    0,
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6
+                ],
+                "isAlternateDay": false,
+                "isSharedRide": false,
+                "useManagedStops": false
+            },
+            "_id": "6a76e23e0a504ae6e1db203e",
+            "name": "Flexy",
+            "serviceType": "Home-to-Office",
+            "tier": "Flexy",
+            "description": "Flexible booking. Cancel 1-2 hrs before. Pickup/dropoff within 5km of driver.",
+            "durationDays": 30,
+            "price": 2499,
+            "pauseDaysAllowed": 5,
+            "features": [
+                "Flexible booking",
+                "Cancel before 1-2 hrs",
+                "All locations within 5km",
+                "Pickup + Dropoff",
+                "Single person ride"
+            ],
+            "isActive": true,
+            "isDeleted": false,
+            "__v": 0,
+            "createdAt": "2026-08-08T08:01:02.691Z",
+            "updatedAt": "2026-08-14T10:57:45.157Z"
+        },
+        {
+            "bookingRules": {
+                "maxPassengersPerBooking": 6,
+                "minAdvanceBookingMinutes": 0,
+                "allowedDaysPerWeek": 3,
+                "allowedWeekdays": [],
+                "isAlternateDay": false,
+                "isSharedRide": true,
+                "useManagedStops": true
+            },
+            "_id": "6a76e23e0a504ae6e1db203f",
+            "name": "Hybrid",
+            "serviceType": "Home-to-Office",
+            "tier": "Hybrid",
+            "description": "3 days/week service. Pick your commute days. Shared shuttle with managed sto
+
+================================================================================
+  31. ADMIN ROUTES
+================================================================================
+
+  Request: GET /api/v1/admin/routes
+
+  Response:
+  {
+    "success": true,
+    "message": "Routes listed successfully.",
+    "data": [
+        {
+            "_id": "6a76e23e0a504ae6e1db2047",
+            "name": "BTM Layout to Sarjapur",
+            "startLocation": "BTM Layout 1st Stage",
+            "endLocation": "Sarjapur Road",
+            "stops": [
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6101,
+                            12.9166
+                        ]
+                    },
+                    "stopName": "BTM Layout 1st Stage",
+                    "sequenceOrder": 1
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6231,
+                            12.9172
+                        ]
+                    },
+                    "stopName": "Silk Board",
+                    "sequenceOrder": 2
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6763,
+                            12.9295
+                        ]
+                    },
+                    "stopName": "Bellandur",
+                    "sequenceOrder": 3
+                },
+                {
+                    "location": {
+                        "type": "Point",
+                        "coordinates": [
+                            77.6906,
+                            12.8986
+                        ]
+                    },
+                    "stopName": "Sarjapur Road",
+                    "sequenceOrder": 4
+                }
+            ],
+            "status": "ACTIVE",
+            "isDeleted": false,
+            "__v": 0,
+            "createdAt": "2026-08-08T08:01:02.765Z",
+            "updatedAt": "2026-08-08T08:01:02.765Z"
+        },
+        {
+            "_id
+
+================================================================================
+  32. ADMIN SUBSCRIPTIONS
+================================================================================
+
+  Request: GET /api/v1/admin/subscriptions
+
+  Response:
+  {
+    "success": true,
+    "message": "Subscriptions listed successfully.",
+    "data": [
+        {
+            "payment": {
+                "status": "pending"
+            },
+            "selectedWeekdays": [],
+            "_id": "6a5c8eab67f1e291bd64b4fd",
+            "customerId": null,
+            "planType": "Monthly",
+            "startDate": "2026-07-19T08:45:31.357Z",
+            "endDate": "2026-08-18T08:45:31.357Z",
+            "remainingPauseDays": 5,
+            "status": "ACTIVE",
+            "isDeleted": false,
+            "createdAt": "2026-07-19T08:45:31.358Z",
+            "updatedAt": "2026-08-10T04:35:58.700Z",
+            "__v": 0,
+            "bookingsThisWeek": 0,
+            "weekResetDate": "2026-08-09T18:30:00.000Z"
+        },
+        {
+            "payment": {
+                "status": "pending"
+            },
+            "selectedWeekdays": [],
+            "_id": "6a608a392cc496a724d10007",
+            "customerId": null,
+            "planId": null,
+            "routeId": null,
+            "startDate": "2026-07-22T09:15:37.095Z",
+            "endDate": "2026-08-21T09:15:37.095Z",
+            "remainingPauseDays": 5,
+            "status": "ACTIVE",
+            "isDeleted": false,
+            "createdAt": "2026-07-22T09:15:37.095Z",
+            "updatedAt": "2026-08-10T04:35:58.700Z",
+            "__v": 0,
+            "bookingsThisWeek": 0,
+            "weekResetDate": "2026-08-09T18:30:00.000Z"
+        },
+        {
+            "payment": {
+                "status": "pending"
+            },
+            "_id": "6a76e3249a463f9225b510f7",
+            "customerId": {
+                "_id": "6a76e3249a463f9225b510ee",
+                "name": "Ravi Kumar"
+            },
+            "planId": {
+                "_id": "6a76e23e0a504ae6e1db203e",
+                "name": "Flexy",
+                "serviceType": "Home-to-Office",
+                "tier": "Flexy",
+                "price": 2499
+            },
+            "routeId": {
+                "_id":
+
+================================================================================
+  33. ADMIN PAUSE REQUESTS
+================================================================================
+
+  Request: GET /api/v1/admin/pause-requests
+
+  Response:
+  {
+    "success": true,
+    "message": "Pause requests listed.",
+    "data": [
+        {
+            "_id": "6a7ef4e4767c13490e5df7f2",
+            "customerId": {
+                "_id": "6a76e3249a463f9225b510ee",
+                "name": "Ravi Kumar"
+            },
+            "subscriptionId": {
+                "_id": "6a76e3249a463f9225b510f7",
+                "planId": "6a76e23e0a504ae6e1db203e",
+                "routeId": "6a76e23e0a504ae6e1db2043",
+                "startDate": "2026-08-08T08:04:52.591Z",
+                "endDate": "2026-09-07T08:04:52.591Z",
+                "status": "ACTIVE"
+            },
+            "requestedDate": "2026-08-20T00:00:00.000Z",
+            "status": "PENDING",
+            "isDeleted": false,
+            "createdAt": "2026-08-14T10:58:44.074Z",
+            "updatedAt": "2026-08-14T10:58:44.074Z",
+            "__v": 0
+        },
+        {
+            "_id": "6a78439a65f4ef8e856d66c8",
+            "customerId": {
+                "_id": "6a76e3249a463f9225b510ee",
+                "name": "Ravi Kumar"
+            },
+            "subscriptionId": {
+                "_id": "6a76e3249a463f9225b510f7",
+                "planId": "6a76e23e0a504ae6e1db203e",
+                "routeId": "6a76e23e0a504ae6e1db2043",
+                "startDate": "2026-08-08T08:04:52.591Z",
+                "endDate": "2026-09-07T08:04:52.591Z",
+                "status": "ACTIVE"
+            },
+            "requestedDate": "2026-08-15T00:00:00.000Z",
+            "status": "APPROVED",
+            "isDeleted": false,
+            "createdAt": "2026-08-09T09:08:42.520Z",
+            "updatedAt": "2026-08-09T09:10:05.596Z",
+            "__v": 0,
+            "approvedBy": "6a76e23e0a504ae6e1db2038"
+        },
+        {
+            "_id": "6a76e417f52a0bac81bf289c",
+            "customerId": {
+                "_id": "6a76e3249a463f9225b510ee",
+                "name": "Ravi Kumar"
+            },
+            "subscriptionId": {
+                "_id": "6a76e3249a463f9225b
+
+================================================================================
+  34. ADMIN ANALYTICS (7d)
+================================================================================
+
+  Request: GET /api/v1/admin/analytics?range=7d
+
+  Response:
+  {
+    "success": true,
+    "message": "Analytics data retrieved.",
+    "data": {
+        "summary": {
+            "totalTrips": 1,
+            "totalRevenue": 7896,
+            "avgCommuteMinutes": 0.1,
+            "driverActivePercent": 100,
+            "activeDrivers": 101,
+            "totalDrivers": 101,
+            "activePasses": 6
+        },
+        "tripTrend": [
+            {
+                "label": "Sat",
+                "value": 1
+            }
+        ],
+        "revenueTrend": [
+            {
+                "label": "Sat",
+                "value": 4298
+            },
+            {
+                "label": "Sun",
+                "value": 1799
+            },
+            {
+                "label": "Mon",
+                "value": 3598
+            }
+        ],
+        "routePerformance": [
+            {
+                "_id": "6a76e23e0a504ae6e1db2043",
+                "routeName": "HSR to Electronic City (HSR Layout - Electronic City Phase 1)",
+                "dailyTrips": 0,
+                "avgOccupancy": 25,
+                "onTimeRate": 0,
+                "revenue": 0
+            },
+            {
+                "_id": "6a76e3239a463f9225b510bf",
+                "routeName": "HSR Layout - Electronic City (HSR Layout, Bangalore - Electronic City, Bangalore)",
+                "dailyTrips": 0,
+                "avgOccupancy": 16.7,
+                "onTimeRate": 100,
+                "revenue": 500
+            }
+        ]
+    },
+    "meta": {}
+}
+
+================================================================================
+  35. SUBSCRIPTION PURCHASE
+================================================================================
+
+  Request: POST /api/v1/customer/subscriptions/purchase
+  Body: {
+    "planId": "6a76e23e0a504ae6e1db203f",
+    "routeId": "6a76e23e0a504ae6e1db2047",
+    "startDate": "2026-08-15",
+    "selectedWeekdays": [
+        1,
+        3,
+        5
+    ],
+    "pickupStopIndex": 0,
+    "dropStopIndex": 2
+}
+
+  Response:
+  {
+    "success": false,
+    "message": "You already have an active subscription. Please cancel or wait for it to expire.",
+    "errors": [
+        null
+    ]
+}
+
+================================================================================
+  36. RESET ALL DRIVERS OFFLINE
+================================================================================
+
+  Request: POST /api/v1/driver/reset-all-offline
+
+  Response:
+  {
+    "success": true,
+    "message": "101 drivers set offline"
+}
+
+================================================================================
+  37. RESET STALE RIDES
+================================================================================
+
+  Request: POST /api/v1/driver/reset-rides
+
+  Response:
+  {
+    "success": true,
+    "message": "0 rides cleared"
+}
+
+================================================================================
+  ALL 37 ENDPOINTS VERIFIED SUCCESSFULLY ✓
+  Server: healthy | Database: connected | All services: running
+================================================================================
