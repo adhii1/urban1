@@ -414,6 +414,23 @@ const resumeSubscription = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Subscription resumed successfully.', subscription));
 });
 
+const cancelSubscription = asyncWrapper(async (req, res) => {
+  const subscription = await Subscription.findById(req.params.id);
+  if (!subscription) throw new NotFoundError('Subscription');
+  if (subscription.status === 'CANCELLED') throw new ValidationError('Subscription is already cancelled');
+
+  subscription.status = 'CANCELLED';
+  await subscription.save();
+
+  // Unlink from customer
+  if (subscription.customerId) {
+    const Customer = require('../models/Customer');
+    await Customer.findByIdAndUpdate(subscription.customerId, { $unset: { subscriptionId: 1 } });
+  }
+
+  return res.status(200).json(formatResponse('Subscription cancelled successfully.', subscription));
+});
+
 // Plan Management
 const getPlans = asyncWrapper(async (req, res) => {
   const plans = await Plan.find().sort({ serviceType: 1, tier: 1 });
@@ -682,6 +699,7 @@ module.exports = {
   updateSubscription,
   pauseSubscription,
   resumeSubscription,
+  cancelSubscription,
 };
 
 // --- Settings ---
@@ -831,6 +849,7 @@ module.exports = {
   updateSubscription,
   pauseSubscription,
   resumeSubscription,
+  cancelSubscription,
   getSettings,
   updateSettings,
   getProfile,

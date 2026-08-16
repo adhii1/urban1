@@ -59,6 +59,7 @@ router.post('/subscriptions', validateRequest(adminValidation.createSubscription
 router.patch('/subscriptions/:id', validateRequest(adminValidation.updateSubscription), adminController.updateSubscription);
 router.post('/subscriptions/:id/pause', validateRequest(adminValidation.pauseSubscription), adminController.pauseSubscription);
 router.post('/subscriptions/:id/resume', validateRequest(adminValidation.resumeSubscription), adminController.resumeSubscription);
+router.post('/subscriptions/:id/cancel', adminController.cancelSubscription);
 
 // Settings
 router.get('/settings', adminController.getSettings);

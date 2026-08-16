@@ -50,6 +50,53 @@ router.post('/reset-rides', async (req, res) => {
   res.json({ success: true, message: `${result.modifiedCount} rides cleared` });
 });
 
+// One-stop demo reset endpoint
+const Subscription = require('../../models/Subscription');
+const Customer = require('../../models/Customer');
+router.post('/reset-demo', async (req, res) => {
+  try {
+    // 1. Set all drivers offline
+    const driversResult = await Driver.updateMany({}, { isOnline: false, isAvailable: false });
+
+    // 2. Clear all stale/pending rides
+    const ridesResult = await RideRequest.updateMany(
+      { status: { $in: ['PENDING', 'SCHEDULED', 'DRIVER_ASSIGNED'] } },
+      { $set: { status: 'EXPIRED', isBundled: false, ttlAt: new Date() } }
+    );
+
+    // 3. Cancel any PENDING_PAYMENT subscriptions (stale orders)
+    const pendingSubsResult = await Subscription.updateMany(
+      { status: 'PENDING_PAYMENT' },
+      { $set: { status: 'CANCELLED', 'payment.status': 'failed' } }
+    );
+
+    // 4. Cancel ALL active subscriptions so customer can re-purchase for demo
+    const activeSubsResult = await Subscription.updateMany(
+      { status: { $in: ['ACTIVE', 'PAUSED'] } },
+      { $set: { status: 'CANCELLED' } }
+    );
+
+    // 5. Unlink subscriptions from customers
+    await Customer.updateMany(
+      { subscriptionId: { $exists: true } },
+      { $unset: { subscriptionId: 1 } }
+    );
+
+    res.json({
+      success: true,
+      message: 'Demo reset complete',
+      data: {
+        driversOffline: driversResult.modifiedCount,
+        ridesCleared: ridesResult.modifiedCount,
+        pendingSubsCancelled: pendingSubsResult.modifiedCount,
+        activeSubsCancelled: activeSubsResult.modifiedCount,
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Document upload routes
 router.post('/documents/upload', upload.single('document'), documentController.uploadDocument);
 router.get('/documents', documentController.getDocuments);
