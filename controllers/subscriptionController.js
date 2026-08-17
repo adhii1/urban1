@@ -201,6 +201,61 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
   // Link to customer
   await Customer.findByIdAndUpdate(customer._id, { subscriptionId: subscription._id });
 
+  // Immediately create a ride request so it shows on admin + driver gets notified
+  const plan = await Plan.findById(subscription.planId);
+  const route = await Route.findById(subscription.routeId);
+  
+  if (plan && route && plan.bookingRules?.isSharedRide) {
+    const RideRequest = require('../models/RideRequest');
+    const { emitToUser } = require('../config/socket');
+    
+    const pickupStop = route.stops?.[subscription.pickupStopIndex] || route.stops?.[0];
+    const dropStop = route.stops?.[subscription.dropStopIndex] || route.stops?.[route.stops.length - 1];
+    
+    // Create ride request for today
+    const rideRequest = await RideRequest.create({
+      customerId: req.user.id,
+      customerName: customer.name,
+      pickupLocation: {
+        address: pickupStop?.stopName || route.startLocation,
+        type: 'Point',
+        coordinates: pickupStop?.location?.coordinates || [77.6309, 12.9279],
+      },
+      dropLocation: {
+        address: dropStop?.stopName || route.endLocation,
+        type: 'Point',
+        coordinates: dropStop?.location?.coordinates || [77.6683, 12.8489],
+      },
+      status: 'PENDING',
+      fare: { estimated: plan.price / 30 }, // daily fare estimate
+    });
+
+    // Notify admin in real-time
+    const io = require('../config/socket').getIO();
+    io.of('/sockets/admin').emit('ride:new', {
+      _id: rideRequest._id,
+      rideRequestId: rideRequest._id,
+      customerId: req.user.id,
+      customerName: customer.name,
+      status: 'PENDING',
+      pickupLocation: rideRequest.pickupLocation,
+      dropLocation: rideRequest.dropLocation,
+      requestedAt: rideRequest.requestedAt,
+      fareEstimate: rideRequest.fare?.estimated,
+      type: 'SHUTTLE',
+      planName: plan.name,
+      routeName: route.name,
+    });
+
+    // Trigger BundleMatchingEngine to find a driver
+    const bundleEngine = require('../services/BundleMatchingEngine');
+    bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
+      logger.error('Failed to dispatch subscription ride', { error: err.message });
+    });
+
+    logger.info(`Immediate ride created for subscription ${subscription._id}: ${rideRequest._id}`);
+  }
+
   logger.info(`Subscription activated for customer ${customer._id}`, {
     subscriptionId: subscription._id,
     paymentId,
