@@ -25,7 +25,26 @@ const TRIP_API = {
         })
         .then(data => {
             if (data.success) {
-                return { success: true, trips: data.data };
+                // Transform backend format to frontend expected format
+                const trips = (data.data || []).map(t => {
+                    const routeName = t.routeId?.name || '';
+                    const pickup = t.pickup?.address || t.pickupLocation?.address || routeName.split('→')[0]?.trim() || t.routeId?.startLocation || 'Pickup';
+                    const drop = t.drop?.address || t.dropLocation?.address || routeName.split('→')[1]?.trim() || t.routeId?.endLocation || 'Drop';
+                    const tripDate = new Date(t.tripDate || t.createdAt || Date.now());
+                    return {
+                        id: t._id,
+                        status: t.status === 'SCHEDULED' ? 'AVAILABLE' : t.status,
+                        date: tripDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+                        time: tripDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                        pickup,
+                        drop,
+                        earnings: t.fare?.estimated || t.fare?.final || 0,
+                        passengers: (t.manifest || []).length || 1,
+                        customerName: t.customerName || (t.manifest?.[0]?.customer?.name) || 'Customer',
+                        type: t.type || 'TRIP',
+                    };
+                });
+                return { success: true, trips };
             } else {
                 throw new Error(data.message || 'Trips fetch failed.');
             }
