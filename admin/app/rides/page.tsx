@@ -40,9 +40,11 @@ export default function RidesPage() {
   useEffect(() => {
     const fetchRides = async () => {
       try {
-        const res = await adminApi.getRides ? adminApi.getRides() : await fetch('/api/v1/admin/rides', { credentials: 'include' }).then(r => r.json());
+        const res = await adminApi.getRides();
         if (res?.success && res?.data) setRestRides(res.data);
-      } catch {}
+      } catch {
+        // Silently ignore auth errors during polling
+      }
     };
     fetchRides();
     const interval = setInterval(fetchRides, 5000);

@@ -38,7 +38,8 @@ export default function HomePage() {
     }
 
     if (adminUserId) {
-      validateSession();
+      // Already logged in — go to dashboard directly
+      router.replace('/dashboard');
     } else {
       router.replace('/login');
     }

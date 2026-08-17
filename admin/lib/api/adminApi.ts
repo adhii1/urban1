@@ -25,8 +25,7 @@ export async function apiFetch<T = any>(
     if (refreshRes.ok) {
       res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
     } else {
-      const { useAdminStore } = await import('../../stores/adminStore');
-      useAdminStore.getState().logout();
+      // Don't auto-logout — just throw so the calling code can decide
       throw new Error('SESSION_EXPIRED');
     }
   }

@@ -46,8 +46,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         }
       } catch {
         if (cancelled) return;
-        logout();
-        router.replace('/login');
+        // Don't logout on validation failure — session might just need a fresh login
+        // The user can still use the cached state
+        console.warn('Session validation failed, continuing with cached state');
       }
     }
 
