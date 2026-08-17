@@ -2,7 +2,7 @@
 
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
-import { useRoutes, useCreateRoute, useUpdateRoute, useDeleteRoute } from '../../lib/hooks/useAdminQueries';
+import { useRoutes, useCreateRoute, useUpdateRoute, useDeleteRoute, useDrivers } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, X, Crosshair } from 'lucide-react';
 import StopMapPicker, { type PickerStop } from '../../components/StopMapPicker';
@@ -13,15 +13,18 @@ const emptyForm = {
   name: '',
   startLocation: '',
   endLocation: '',
+  assignedDriver: '',
 };
 
 export default function RoutesPage() {
   useAuthGuard();
   const { data, isLoading } = useRoutes();
+  const { data: driversData } = useDrivers();
   const createRoute = useCreateRoute();
   const updateRoute = useUpdateRoute();
   const deleteRoute = useDeleteRoute();
   const routes = data?.success ? (data.data || data.routes || []) : [];
+  const drivers = driversData?.success ? (driversData.data || []) : [];
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -76,6 +79,7 @@ export default function RoutesPage() {
       name: route.name || '',
       startLocation: route.startLocation || '',
       endLocation: route.endLocation || '',
+      assignedDriver: route.assignedDriver?._id || route.assignedDriver || '',
     });
     setStops(stopsFromRoute(route));
     setSelectedStop(null);
@@ -121,6 +125,7 @@ export default function RoutesPage() {
       name: form.name,
       startLocation: form.startLocation,
       endLocation: form.endLocation,
+      assignedDriver: form.assignedDriver || undefined,
       stops: validStops.map((s, i) => ({
         stopName: s.name.trim(),
         sequenceOrder: i + 1,
@@ -280,6 +285,17 @@ export default function RoutesPage() {
                             value={form.endLocation} onChange={(e) => setForm({ ...form, endLocation: e.target.value })}
                             style={{ fontSize: '12.5px', padding: '10px 12px' }} />
                         </div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label id="lbl-driver" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Assign Driver</label>
+                        <select aria-labelledby="lbl-driver" className="form-input"
+                          value={form.assignedDriver} onChange={(e) => setForm({ ...form, assignedDriver: e.target.value })}
+                          style={{ fontSize: '12.5px', padding: '10px 12px' }}>
+                          <option value="">-- No driver assigned --</option>
+                          {drivers.filter((d: any) => d.status === 'ACTIVE').map((d: any) => (
+                            <option key={d._id} value={d._id}>{d.name} — {d.vehicleNumber}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>

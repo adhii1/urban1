@@ -313,6 +313,10 @@ const getRoutes = asyncWrapper(async (req, res) => {
 const createRoute = asyncWrapper(async (req, res) => {
   const { name, startLocation, endLocation, stops, assignedDriver } = req.body;
   const route = await Route.create({ name, startLocation, endLocation, stops, assignedDriver });
+  // Link driver to this route
+  if (assignedDriver) {
+    await Driver.findByIdAndUpdate(assignedDriver, { routeId: route._id });
+  }
   return res.status(201).json(formatResponse('Route created successfully.', route));
 });
 
@@ -325,7 +329,17 @@ const updateRoute = asyncWrapper(async (req, res) => {
   if (startLocation !== undefined) route.startLocation = startLocation;
   if (endLocation !== undefined) route.endLocation = endLocation;
   if (stops !== undefined) route.stops = stops;
-  if (assignedDriver !== undefined) route.assignedDriver = assignedDriver;
+  if (assignedDriver !== undefined) {
+    // Unlink previous driver from this route
+    if (route.assignedDriver && route.assignedDriver.toString() !== assignedDriver) {
+      await Driver.findByIdAndUpdate(route.assignedDriver, { $unset: { routeId: 1 } });
+    }
+    route.assignedDriver = assignedDriver || null;
+    // Link new driver to this route
+    if (assignedDriver) {
+      await Driver.findByIdAndUpdate(assignedDriver, { routeId: route._id });
+    }
+  }
   if (status !== undefined) route.status = status;
 
   await route.save();
