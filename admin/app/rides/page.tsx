@@ -6,6 +6,7 @@ import { useAdminSocket } from '../../lib/hooks/useAdminSocket';
 import { useDrivers } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, RefreshCw, X, MapPin, Navigation, Users, Radio } from 'lucide-react';
+import { adminApi } from '../../lib/api/adminApi';
 
 const STATUS_FILTERS = ['ALL', 'SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const;
 
@@ -28,12 +29,34 @@ export default function RidesPage() {
 
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [restRides, setRestRides] = useState<any[]>([]);
   const [reassignModal, setReassignModal] = useState<{ ride: any; open: boolean }>({ ride: null, open: false });
   const [editLocationModal, setEditLocationModal] = useState<{ ride: any; type: 'pickup' | 'drop'; open: boolean }>({
     ride: null, type: 'pickup', open: false,
   });
 
-  const filteredRides = activeRides.filter((ride) => {
+  // Poll REST endpoint every 5s as fallback for socket
+  useEffect(() => {
+    const fetchRides = async () => {
+      try {
+        const res = await adminApi.getRides ? adminApi.getRides() : await fetch('/api/v1/admin/rides', { credentials: 'include' }).then(r => r.json());
+        if (res?.success && res?.data) setRestRides(res.data);
+      } catch {}
+    };
+    fetchRides();
+    const interval = setInterval(fetchRides, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Merge socket rides with REST rides (dedup by _id)
+  const allRides = [...activeRides];
+  for (const ride of restRides) {
+    if (!allRides.find(r => (r._id || r.rideRequestId) === ride._id)) {
+      allRides.push(ride);
+    }
+  }
+
+  const filteredRides = allRides.filter((ride) => {
     const matchesStatus = statusFilter === 'ALL' || ride.status === statusFilter;
     const matchesSearch = !searchTerm ||
       (ride.pickupLocation?.address || ride.pickup || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -132,7 +155,7 @@ export default function RidesPage() {
             <div className="glass-card" style={{ padding: '40px', textAlign: 'center' }}>
               <Navigation size={32} color="var(--text-light)" style={{ marginBottom: '12px' }} />
               <p style={{ fontSize: '13px', color: 'var(--text-light)' }}>
-                {activeRides.length === 0 ? 'No active rides. Waiting for new requests...' : 'No rides match your filters.'}
+                {activeRides.length === 0 && restRides.length === 0 ? 'No active rides. Waiting for new requests...' : 'No rides match your filters.'}
               </p>
             </div>
           ) : (

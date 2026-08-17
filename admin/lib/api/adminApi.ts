@@ -141,4 +141,8 @@ export const adminApi = {
     apiFetch(`/admin/pause-requests/${id}/approve`, { method: 'POST' }),
   rejectPauseRequest: (id: string) =>
     apiFetch(`/admin/pause-requests/${id}/reject`, { method: 'POST' }),
+
+  // Live Rides (REST)
+  getRides: (status?: string) =>
+    apiFetch(`/admin/rides${status ? `?status=${status}` : ''}`),
 };

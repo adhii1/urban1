@@ -74,4 +74,22 @@ router.get('/pause-requests', adminController.getPauseRequests);
 router.post('/pause-requests/:id/approve', adminController.approvePauseRequest);
 router.post('/pause-requests/:id/reject', adminController.rejectPauseRequest);
 
+// Live Rides (REST fallback for admin panel)
+const RideRequest = require('../../models/RideRequest');
+router.get('/rides', async (req, res) => {
+  const { status } = req.query;
+  const filter = { isDeleted: false };
+  if (status) {
+    filter.status = status;
+  } else {
+    filter.status = { $in: ['SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] };
+  }
+  const rides = await RideRequest.find(filter)
+    .populate('acceptedDriverId', 'name vehicleNumber')
+    .sort({ createdAt: -1 })
+    .limit(100)
+    .lean();
+  res.json({ success: true, data: rides });
+});
+
 module.exports = router;
