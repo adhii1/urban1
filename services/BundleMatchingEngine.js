@@ -356,7 +356,7 @@ async function runRecoveryJob() {
 
 function startRecoveryJob() {
   if (!recoveryInterval) {
-    recoveryInterval = setInterval(runRecoveryJob, 30000);
+    recoveryInterval = setInterval(runRecoveryJob, 5000);
   }
 }
 
