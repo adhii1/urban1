@@ -67,12 +67,43 @@ const getTrips = asyncWrapper(async (req, res) => {
     Trip.countDocuments(filter),
   ]);
 
+  // Also get pending/accepted ride requests assigned to this driver
+  const RideRequest = require('../models/RideRequest');
+  const activeRides = await RideRequest.find({
+    acceptedDriverId: driver._id,
+    status: { $in: ['ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] },
+    isDeleted: false,
+  }).sort({ createdAt: -1 }).lean();
+
+  // Also get pending offers (rides that matched this driver but not yet accepted)
+  const pendingOffers = await RideRequest.find({
+    'matchedDrivers.driverId': driver._id,
+    status: 'PENDING',
+    isDeleted: false,
+  }).sort({ createdAt: -1 }).limit(10).lean();
+
+  // Convert rides to trip-like format for the frontend
+  const rideAsTrips = [...activeRides, ...pendingOffers].map(r => ({
+    _id: r._id,
+    type: 'RIDE',
+    status: r.status,
+    tripDate: r.requestedAt || r.createdAt,
+    routeId: { name: `${r.pickupLocation?.address || '?'} → ${r.dropLocation?.address || '?'}` },
+    pickup: r.pickupLocation,
+    drop: r.dropLocation,
+    customerName: r.customerName,
+    fare: r.fare,
+    manifest: [{ customer: { name: r.customerName || 'Customer' }, status: r.status === 'COMPLETED' ? 'DROPPED' : 'PENDING' }],
+  }));
+
+  const allTrips = [...rideAsTrips, ...trips];
+
   return res.status(200).json(
-    formatResponse("Driver's trips retrieved.", trips, {
+    formatResponse("Driver's trips retrieved.", allTrips, {
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      total: total + rideAsTrips.length,
+      totalPages: Math.ceil((total + rideAsTrips.length) / limit),
     }),
   );
 });
