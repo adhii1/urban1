@@ -19,6 +19,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (window.DRIVER_API && window.DRIVER_API.getProfile) {
             window.DRIVER_API.getProfile().catch(console.error);
         }
+
+        // Fetch notifications globally so the navbar bell badge count is
+        // accurate on every page, not just the notifications page.
+        if (window.NOTIFICATION_API && window.NOTIFICATION_API.getNotifications) {
+            window.NOTIFICATION_API.getNotifications().catch(console.error);
+            if (!window._notifPollStarted) {
+                window._notifPollStarted = true;
+                setInterval(() => {
+                    window.NOTIFICATION_API.getNotifications().catch(console.error);
+                }, 15000);
+            }
+        }
     }
 
     // 2. Load Reusable Components dynamically

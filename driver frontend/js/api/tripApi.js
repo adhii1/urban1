@@ -4,10 +4,12 @@ var API_BASE_URL = 'http://localhost:4000/api/v1';
 
 function getAuthHeaders() {
     const token = localStorage.getItem('driverToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
+    // Never send a blank Bearer header — that would make the backend fall
+    // back to a shared browser cookie that may belong to a different role
+    // (admin/customer), causing a misleading 403 Insufficient permissions.
+    return token
+        ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        : { 'Content-Type': 'application/json' };
 }
 
 const TRIP_API = {

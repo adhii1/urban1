@@ -4,10 +4,9 @@ var API_BASE_URL = 'http://localhost:4000/api/v1';
 
 function getAuthHeaders() {
     const token = localStorage.getItem('driverToken');
-    return {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-    };
+    return token
+        ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+        : { 'Content-Type': 'application/json' };
 }
 
 const EARNING_API = {

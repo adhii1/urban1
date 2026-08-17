@@ -203,15 +203,17 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
 
   // Immediately create a ride request so it shows on admin + driver gets notified
   const plan = await Plan.findById(subscription.planId);
-  const route = await Route.findById(subscription.routeId);
-  
+  const route = await Route.findById(subscription.routeId).populate('assignedDriver');
+
   if (plan && route && plan.bookingRules?.isSharedRide) {
     const RideRequest = require('../models/RideRequest');
-    const { emitToUser } = require('../config/socket');
-    
+    const Driver = require('../models/Driver');
+    const Notification = require('../models/Notification');
+    const { emitToUser, getIO } = require('../config/socket');
+
     const pickupStop = route.stops?.[subscription.pickupStopIndex] || route.stops?.[0];
     const dropStop = route.stops?.[subscription.dropStopIndex] || route.stops?.[route.stops.length - 1];
-    
+
     // Create ride request for today
     const rideRequest = await RideRequest.create({
       customerId: req.user.id,
@@ -227,11 +229,13 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
         coordinates: dropStop?.location?.coordinates || [77.6683, 12.8489],
       },
       status: 'PENDING',
-      fare: { estimated: plan.price / 30 }, // daily fare estimate
+      fare: { estimated: Math.round(plan.price / 30) }, // daily fare estimate
+      matchedDrivers: route.assignedDriver ? [{ driverId: route.assignedDriver._id, notifiedAt: new Date() }] : [],
     });
 
+    const io = getIO();
+
     // Notify admin in real-time
-    const io = require('../config/socket').getIO();
     io.of('/sockets/admin').emit('ride:new', {
       _id: rideRequest._id,
       rideRequestId: rideRequest._id,
@@ -247,13 +251,44 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
       routeName: route.name,
     });
 
-    // Trigger BundleMatchingEngine to find a driver
-    const bundleEngine = require('../services/BundleMatchingEngine');
-    bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
-      logger.error('Failed to dispatch subscription ride', { error: err.message });
-    });
+    // If this route has a driver assigned by admin, send the offer DIRECTLY
+    // to that driver instead of generic geo-matching. This is the correct
+    // behavior for Hybrid/Weekday/Stop-to-Stop shuttle plans — the admin
+    // has already placed a specific driver on this route/area.
+    if (route.assignedDriver && route.assignedDriver.userId) {
+      const driverUserId = route.assignedDriver.userId.toString();
 
-    logger.info(`Immediate ride created for subscription ${subscription._id}: ${rideRequest._id}`);
+      // Persisted notification record (shows on driver's Notifications page)
+      await Notification.create({
+        userId: driverUserId,
+        title: 'New Shuttle Passenger',
+        body: `${customer.name} booked ${plan.name} on your route "${route.name}". Pickup: ${rideRequest.pickupLocation.address}`,
+        type: 'RIDE',
+        metadata: { rideRequestId: rideRequest._id, routeId: route._id, planName: plan.name },
+      });
+
+      // Real-time socket push straight to the assigned driver
+      emitToUser('driver', driverUserId, 'ride:new-request', {
+        rideRequestId: rideRequest._id,
+        pickup: rideRequest.pickupLocation,
+        drop: rideRequest.dropLocation,
+        passengers: [{ rideRequestId: rideRequest._id, customerName: customer.name, pickup: rideRequest.pickupLocation, drop: rideRequest.dropLocation, isPrimary: true }],
+        passengerCount: 1,
+        fareEstimate: rideRequest.fare.estimated,
+        routeName: route.name,
+        planName: plan.name,
+        isShuttleAssignment: true,
+      });
+
+      logger.info(`Shuttle ride ${rideRequest._id} sent directly to assigned driver ${route.assignedDriver.name} (route: ${route.name})`);
+    } else {
+      // No driver assigned to this route yet — fall back to generic geo-matching
+      const bundleEngine = require('../services/BundleMatchingEngine');
+      bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
+        logger.error('Failed to dispatch subscription ride', { error: err.message });
+      });
+      logger.info(`No driver assigned to route ${route.name}; falling back to BundleMatchingEngine for ride ${rideRequest._id}`);
+    }
   }
 
   logger.info(`Subscription activated for customer ${customer._id}`, {

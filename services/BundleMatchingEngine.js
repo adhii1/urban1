@@ -249,6 +249,19 @@ async function dispatchBundle(bundleRides) {
 
       emittedDriverIds.push(driver._id.toString());
 
+      // Persist a Notification record so the driver's Notifications page
+      // shows this offer even if they weren't connected at emit time.
+      try {
+        const Notification = require('../models/Notification');
+        Notification.create({
+          userId: driverUserId,
+          title: passengers.length > 1 ? `New Shared Ride (${passengers.length} passengers)` : 'New Ride Request',
+          body: `Pickup: ${primary.pickupLocation.address} → Drop: ${primary.dropLocation.address} | Fare: ₹${primary.fare?.estimated || 0}`,
+          type: 'RIDE',
+          metadata: { rideRequestId: primary._id.toString(), bundleId },
+        }).catch(() => {});
+      } catch (_) { /* non-critical */ }
+
       if (delivered) {
         deliveredDriverIds.push(driver._id.toString());
         logger.info('[BUNDLE_DEBUG] Bundle emitted successfully', { DriverId: driver._id, DriverUserId: driverUserId });

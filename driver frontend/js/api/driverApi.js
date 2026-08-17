@@ -4,9 +4,22 @@ var API_BASE_URL = 'http://localhost:4000/api/v1';
 
 function getAuthHeaders() {
     const token = localStorage.getItem('driverToken');
+    if (!token) {
+        // No driver token in localStorage — do NOT send a blank Authorization
+        // header. Cookies are shared by domain across ports, so if another
+        // role (admin/customer) logged in more recently in this browser, a
+        // blank Bearer header would cause the backend to silently fall back
+        // to that OTHER role's cookie, producing a confusing 403 error.
+        // Force re-login instead.
+        console.warn('[Auth] No driver token found — redirecting to login.');
+        localStorage.setItem('driverAuthError', 'Session expired. Please log in again.');
+        const path = window.location.pathname;
+        window.location.href = path.includes('/pages/') ? 'login.html' : 'pages/login.html';
+        throw new Error('No driver session. Redirecting to login.');
+    }
     return {
         'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
+        'Authorization': `Bearer ${token}`
     };
 }
 
@@ -138,6 +151,48 @@ const DRIVER_API = {
                 return res.json().then(err => { throw new Error(err.message || 'Failed to update duty status'); });
             }
             return res.json();
+        });
+    },
+
+    getRatingSummary: () => {
+        console.log("🔌 [API] Calling GET /api/v1/driver/ratings/summary");
+        return fetch(`${API_BASE_URL}/driver/ratings/summary`, {
+            method: 'GET',
+            headers: getAuthHeaders(), credentials: "include"
+        })
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(err => { throw new Error(err.message || 'Failed to fetch rating summary'); });
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                return { success: true, summary: data.data };
+            } else {
+                throw new Error(data.message || 'Rating summary fetch failed.');
+            }
+        });
+    },
+
+    getRatings: (page = 1, limit = 20) => {
+        console.log("🔌 [API] Calling GET /api/v1/driver/ratings");
+        return fetch(`${API_BASE_URL}/driver/ratings?page=${page}&limit=${limit}`, {
+            method: 'GET',
+            headers: getAuthHeaders(), credentials: "include"
+        })
+        .then(res => {
+            if (!res.ok) {
+                return res.json().then(err => { throw new Error(err.message || 'Failed to fetch ratings'); });
+            }
+            return res.json();
+        })
+        .then(data => {
+            if (data.success) {
+                return { success: true, ratings: data.data.ratings || [], pagination: data.data.pagination };
+            } else {
+                throw new Error(data.message || 'Ratings fetch failed.');
+            }
         });
     }
 };

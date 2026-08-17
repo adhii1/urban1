@@ -7,13 +7,21 @@ let notificationFilter = 'ALL'; // ALL, UNREAD, PROMO, EMERGENCY
 document.addEventListener('DOMContentLoaded', () => {
     if (!document.getElementById('notificationsListWrap')) return;
 
+    function loadNotifications() {
+        window.NOTIFICATION_API.getNotifications()
+            .then(res => {
+                activeNotifications = res.notifications;
+                renderNotifications();
+            })
+            .catch(err => console.error('Failed to load notifications:', err.message));
+    }
+
     // Fetch initial list
-    window.NOTIFICATION_API.getNotifications()
-        .then(res => {
-            activeNotifications = res.notifications;
-            renderNotifications();
-            setupNotificationsListeners();
-        });
+    loadNotifications();
+    setupNotificationsListeners();
+
+    // Poll for new notifications every 10s (e.g. new ride offers, shuttle assignments)
+    setInterval(loadNotifications, 10000);
 });
 
 // Render list
