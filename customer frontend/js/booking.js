@@ -403,17 +403,28 @@ document.addEventListener('DOMContentLoaded', () => {
                         const planMap = { 'home-3day': 'Hybrid', 'home-mon-fri': 'Weekday', 'stop-to-stop': 'Standard' };
                         const tierName = planMap[bookingData.selectedModel];
                         const API = 'http://localhost:4000/api/v1';
+                        
+                        // Refresh session first
+                        await fetch(`${API}/auth/refresh`, { method: 'POST', credentials: 'include' }).catch(() => {});
+                        
                         const token = localStorage.getItem('accessToken');
                         const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
                         const opts = { credentials: 'include', headers };
                         
                         // Get plans
-                        const plansRes = await fetch(`${API}/customer/plans`, opts).then(r => r.json());
+                        let plansRes = await fetch(`${API}/customer/plans`, opts).then(r => r.json());
+                        
+                        // If 401, the token might be in cookie only — retry without Bearer
+                        if (!plansRes.success && plansRes.message?.includes('expired')) {
+                            const opts2 = { credentials: 'include', headers: { 'Content-Type': 'application/json' } };
+                            plansRes = await fetch(`${API}/customer/plans`, opts2).then(r => r.json());
+                        }
                         const plan = (plansRes.data || []).find(p => p.tier === tierName);
                         
                         if (plan) {
                             // Get routes for this plan
-                            const routesRes = await fetch(`${API}/customer/plans/${plan._id}/routes`, opts).then(r => r.json());
+                            let routesRes = await fetch(`${API}/customer/plans/${plan._id}/routes`, opts).then(r => r.json());
+                            if (!routesRes.success) routesRes = await fetch(`${API}/customer/plans/${plan._id}/routes`, { credentials: 'include', headers: { 'Content-Type': 'application/json' } }).then(r => r.json());
                             const route = (routesRes.data || [])[0];
                             
                             if (route) {
