@@ -389,24 +389,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     let res = { success: true, data: { id: 'TRQ-BK-' + Math.floor(1000 + Math.random() * 9000) } };
 
-                    if (bookingData.selectedModel === 'home-mon-fri' && typeof CUSTOMER_API !== 'undefined') {
-                        // Real backend integration for the Monday-Friday Pass
-                        const subscriptionPayload = {
-                            pickup: {
-                                address: bookingData.pickup,
-                                coordinates: resolveCoordinates(bookingData.pickup),
-                            },
-                            drop: {
-                                address: bookingData.destination,
-                                coordinates: resolveCoordinates(bookingData.destination),
-                            },
-                            weekdays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-                            pickupTime: bookingData.time,
-                        };
-                        const apiRes = await CUSTOMER_API.createWeekdaySubscription(subscriptionPayload);
-                        res = { success: true, data: { id: apiRes.data._id, subscription: apiRes.data } };
-                    } else if (typeof RIDE_SOCKET !== 'undefined' && RIDE_SOCKET.isConnected()) {
-                        // Real-time ride booking via WebSocket
+                    if (typeof RIDE_SOCKET !== 'undefined') {
+                        // Ensure socket is connected
+                        if (!RIDE_SOCKET.isConnected()) {
+                            RIDE_SOCKET.connect();
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+                        
+                        // Real-time ride booking via WebSocket for ALL plan types
                         const pickup = {
                             address: bookingData.pickup,
                             coordinates: resolveCoordinates(bookingData.pickup),
@@ -415,13 +405,17 @@ document.addEventListener('DOMContentLoaded', () => {
                             address: bookingData.destination,
                             coordinates: resolveCoordinates(bookingData.destination),
                         };
-                        // For flexy (home-one-time): schedule 2hr ahead
+                        
+                        // Determine if scheduled based on time selection
                         let scheduledTime = null;
-                        if (bookingData.selectedModel === 'home-one-time' && bookingData.time) {
+                        if (bookingData.time) {
                             const [h, m] = bookingData.time.split(':');
                             const scheduled = new Date();
                             scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
-                            if (scheduled > new Date()) scheduledTime = scheduled.toISOString();
+                            // If time is in the future, schedule it
+                            if (scheduled.getTime() > Date.now() + 30 * 60 * 1000) {
+                                scheduledTime = scheduled.toISOString();
+                            }
                         }
                         
                         RIDE_SOCKET.requestRide(pickup, drop, scheduledTime);
@@ -438,8 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         
                         if (!res.success) throw new Error(res.message || 'Booking failed');
-                    } else if (typeof bookingService !== 'undefined' && bookingService.createBooking) {
-                        res = await bookingService.createBooking(bookingData);
                     }
 
                     currentStep = bookingData.selectedModel === 'stop-to-stop' ? 7 : 8;
