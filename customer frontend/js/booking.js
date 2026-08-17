@@ -389,49 +389,95 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     let res = { success: true, data: { id: 'TRQ-BK-' + Math.floor(1000 + Math.random() * 9000) } };
 
-                    if (typeof RIDE_SOCKET !== 'undefined') {
-                        // Ensure socket is connected
-                        if (!RIDE_SOCKET.isConnected()) {
-                            RIDE_SOCKET.connect();
-                            await new Promise(r => setTimeout(r, 2000));
-                        }
+                    const pickup = {
+                        address: bookingData.pickup,
+                        coordinates: resolveCoordinates(bookingData.pickup),
+                    };
+                    const drop = {
+                        address: bookingData.destination,
+                        coordinates: resolveCoordinates(bookingData.destination),
+                    };
+
+                    // For recurring models (3-day, 5-day, shuttle): create subscription via REST
+                    if (['home-3day', 'home-mon-fri', 'stop-to-stop'].includes(bookingData.selectedModel)) {
+                        const planMap = { 'home-3day': 'Hybrid', 'home-mon-fri': 'Weekday', 'stop-to-stop': 'Standard' };
+                        const tierName = planMap[bookingData.selectedModel];
                         
-                        // Real-time ride booking via WebSocket for ALL plan types
-                        const pickup = {
-                            address: bookingData.pickup,
-                            coordinates: resolveCoordinates(bookingData.pickup),
-                        };
-                        const drop = {
-                            address: bookingData.destination,
-                            coordinates: resolveCoordinates(bookingData.destination),
-                        };
+                        // Get plan ID for this tier
+                        const plansRes = await CUSTOMER_API.getPlans();
+                        const plan = (plansRes.data || []).find(p => p.tier === tierName);
                         
-                        // Determine if scheduled based on time selection
-                        let scheduledTime = null;
-                        if (bookingData.time) {
-                            const [h, m] = bookingData.time.split(':');
-                            const scheduled = new Date();
-                            scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
-                            // If time is in the future, schedule it
-                            if (scheduled.getTime() > Date.now() + 30 * 60 * 1000) {
-                                scheduledTime = scheduled.toISOString();
+                        if (plan) {
+                            // Get first route
+                            const routesRes = await CUSTOMER_API.request(`/customer/plans/${plan._id}/routes`);
+                            const route = (routesRes.data || [])[0];
+                            
+                            if (route) {
+                                // Map weekday names to numbers
+                                const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+                                const selectedWeekdays = (bookingData.hybridDays || []).map(d => dayMap[d]).filter(d => d !== undefined);
+                                
+                                const subRes = await CUSTOMER_API.request('/customer/subscriptions/purchase', {
+                                    method: 'POST',
+                                    body: JSON.stringify({
+                                        planId: plan._id,
+                                        routeId: route._id,
+                                        startDate: new Date().toISOString().split('T')[0],
+                                        selectedWeekdays: selectedWeekdays.length > 0 ? selectedWeekdays : undefined,
+                                        pickupStopIndex: 0,
+                                        dropStopIndex: Math.min(2, (route.stops || []).length - 1),
+                                    }),
+                                });
+                                
+                                if (subRes.success) {
+                                    // Auto-verify payment in dev (mock)
+                                    await CUSTOMER_API.request('/customer/subscriptions/verify-payment', {
+                                        method: 'POST',
+                                        body: JSON.stringify({
+                                            subscriptionId: subRes.data.subscriptionId,
+                                            orderId: subRes.data.orderId,
+                                            paymentId: 'pay_mock_' + Date.now(),
+                                            signature: 'mock_sig',
+                                        }),
+                                    });
+                                    res = { success: true, data: { id: subRes.data.subscriptionId, type: 'subscription' } };
+                                } else {
+                                    throw new Error(subRes.message || 'Subscription failed');
+                                }
                             }
                         }
-                        
-                        RIDE_SOCKET.requestRide(pickup, drop, scheduledTime);
-                        
-                        // Wait for ack
-                        res = await new Promise((resolve) => {
-                            RIDE_SOCKET.on('ride:request:ack', (data) => {
-                                resolve({ success: true, data: { id: data.rideRequestId, ...data } });
+                    } else {
+                        // For one-time (flexi): use socket ride request
+                        if (typeof RIDE_SOCKET !== 'undefined') {
+                            if (!RIDE_SOCKET.isConnected()) {
+                                RIDE_SOCKET.connect();
+                                await new Promise(r => setTimeout(r, 2000));
+                            }
+                            
+                            let scheduledTime = null;
+                            if (bookingData.time) {
+                                const [h, m] = bookingData.time.split(':');
+                                const scheduled = new Date();
+                                scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
+                                if (scheduled.getTime() > Date.now() + 30 * 60 * 1000) {
+                                    scheduledTime = scheduled.toISOString();
+                                }
+                            }
+                            
+                            RIDE_SOCKET.requestRide(pickup, drop, scheduledTime);
+                            
+                            res = await new Promise((resolve) => {
+                                RIDE_SOCKET.on('ride:request:ack', (data) => {
+                                    resolve({ success: true, data: { id: data.rideRequestId, ...data } });
+                                });
+                                RIDE_SOCKET.on('ride:request:error', (data) => {
+                                    resolve({ success: false, message: data.message });
+                                });
+                                setTimeout(() => resolve({ success: true, data: { id: 'pending' } }), 5000);
                             });
-                            RIDE_SOCKET.on('ride:request:error', (data) => {
-                                resolve({ success: false, message: data.message });
-                            });
-                            setTimeout(() => resolve({ success: true, data: { id: 'pending' } }), 5000);
-                        });
-                        
-                        if (!res.success) throw new Error(res.message || 'Booking failed');
+                            
+                            if (!res.success) throw new Error(res.message || 'Booking failed');
+                        }
                     }
 
                     currentStep = bookingData.selectedModel === 'stop-to-stop' ? 7 : 8;

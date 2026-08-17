@@ -90,6 +90,7 @@ const CUSTOMER_API = (() => {
 
     return {
         logout: logoutUser,
+        request, // expose raw request for custom calls
 
         // Profile
         getProfile: () => request('/customer/profile'),
