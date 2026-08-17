@@ -75,6 +75,7 @@ class SocketBroker {
         // (Backend event name is 'ride:new-request', NOT 'tripAssignment'.)
         this.socket.on('ride:new-request', (offer) => {
             console.log("📥 [Socket] Received ride offer:", offer);
+            alert(`🚗 NEW RIDE REQUEST!\n\nPickup: ${offer.pickup?.address || 'Unknown'}\nDrop: ${offer.drop?.address || 'Unknown'}\nFare: ₹${offer.fareEstimate || 'N/A'}\nPassengers: ${offer.passengerCount || 1}\n\nGo to dashboard to accept!`);
             this.triggerEvent('ride:new-request', offer);
         });
 
