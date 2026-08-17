@@ -58,14 +58,15 @@ const initiatePurchase = asyncWrapper(async (req, res) => {
   const route = await Route.findOne({ _id: routeId, status: 'ACTIVE', isDeleted: false });
   if (!route) throw new NotFoundError('Route');
 
-  // Check no existing active subscription
+  // Check no existing active subscription OF THE SAME TIER
   const existingSub = await Subscription.findOne({
     customerId: customer._id,
+    planId: plan._id,
     status: { $in: ['ACTIVE', 'PENDING_PAYMENT'] },
     isDeleted: false,
   });
   if (existingSub) {
-    throw new ValidationError('You already have an active subscription. Please cancel or wait for it to expire.');
+    throw new ValidationError('You already have an active subscription for this plan type.');
   }
 
   // Validate booking rules
