@@ -104,8 +104,10 @@ const getSubscription = asyncWrapper(async (req, res) => {
 
   const subscription = await Subscription.findOne({
     customerId: customer._id,
-    status: { $ne: 'EXPIRED' },
+    status: { $in: ['ACTIVE', 'PAUSED', 'PENDING_PAYMENT'] },
+    isDeleted: false,
   })
+    .sort({ createdAt: -1 })
     .populate('planId')
     .populate('routeId', 'name startLocation endLocation stops');
 

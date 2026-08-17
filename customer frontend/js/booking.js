@@ -402,23 +402,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (['home-3day', 'home-mon-fri', 'stop-to-stop'].includes(bookingData.selectedModel)) {
                         const planMap = { 'home-3day': 'Hybrid', 'home-mon-fri': 'Weekday', 'stop-to-stop': 'Standard' };
                         const tierName = planMap[bookingData.selectedModel];
+                        const API = 'http://localhost:4000/api/v1';
+                        const token = localStorage.getItem('accessToken');
+                        const headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token };
+                        const opts = { credentials: 'include', headers };
                         
-                        // Get plan ID for this tier
-                        const plansRes = await CUSTOMER_API.getPlans();
+                        // Get plans
+                        const plansRes = await fetch(`${API}/customer/plans`, opts).then(r => r.json());
                         const plan = (plansRes.data || []).find(p => p.tier === tierName);
                         
                         if (plan) {
-                            // Get first route
-                            const routesRes = await CUSTOMER_API.request(`/customer/plans/${plan._id}/routes`);
+                            // Get routes for this plan
+                            const routesRes = await fetch(`${API}/customer/plans/${plan._id}/routes`, opts).then(r => r.json());
                             const route = (routesRes.data || [])[0];
                             
                             if (route) {
-                                // Map weekday names to numbers
                                 const dayMap = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
                                 const selectedWeekdays = (bookingData.hybridDays || []).map(d => dayMap[d]).filter(d => d !== undefined);
                                 
-                                const subRes = await CUSTOMER_API.request('/customer/subscriptions/purchase', {
-                                    method: 'POST',
+                                // Purchase subscription
+                                const subRes = await fetch(`${API}/customer/subscriptions/purchase`, {
+                                    method: 'POST', ...opts,
                                     body: JSON.stringify({
                                         planId: plan._id,
                                         routeId: route._id,
@@ -427,24 +431,30 @@ document.addEventListener('DOMContentLoaded', () => {
                                         pickupStopIndex: 0,
                                         dropStopIndex: Math.min(2, (route.stops || []).length - 1),
                                     }),
-                                });
+                                }).then(r => r.json());
                                 
                                 if (subRes.success) {
-                                    // Auto-verify payment in dev (mock)
-                                    await CUSTOMER_API.request('/customer/subscriptions/verify-payment', {
-                                        method: 'POST',
+                                    // Auto-verify payment (mock mode)
+                                    await fetch(`${API}/customer/subscriptions/verify-payment`, {
+                                        method: 'POST', ...opts,
                                         body: JSON.stringify({
                                             subscriptionId: subRes.data.subscriptionId,
                                             orderId: subRes.data.orderId,
                                             paymentId: 'pay_mock_' + Date.now(),
                                             signature: 'mock_sig',
                                         }),
-                                    });
+                                    }).then(r => r.json());
+                                    
                                     res = { success: true, data: { id: subRes.data.subscriptionId, type: 'subscription' } };
+                                    console.log('✅ Subscription created and activated:', subRes.data.subscriptionId);
                                 } else {
                                     throw new Error(subRes.message || 'Subscription failed');
                                 }
+                            } else {
+                                throw new Error('No routes available for this plan');
                             }
+                        } else {
+                            throw new Error('Plan not found');
                         }
                     } else {
                         // For one-time (flexi): use socket ride request
