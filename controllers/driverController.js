@@ -138,22 +138,35 @@ const getEarnings = asyncWrapper(async (req, res) => {
     completedAt: { $gte: startDate },
   }).lean();
 
+  // Also count completed on-demand rides (RideRequest)
+  const RideRequest = require('../models/RideRequest');
+  const completedRides = await RideRequest.find({
+    acceptedDriverId: driver._id,
+    status: 'COMPLETED',
+    completedAt: { $gte: startDate },
+    isDeleted: false,
+  }).lean();
+
   // Calculate total earnings from completed rides
   let totalEarnings = 0;
-  let totalTrips = completedTrips.length;
+  let totalTrips = completedTrips.length + completedRides.length;
   let totalDistance = 0;
   let totalDuration = 0;
 
   completedTrips.forEach(trip => {
-    if (trip.fare?.final) {
-      totalEarnings += trip.fare.final;
-    }
-    if (trip.fare?.details?.distanceKm) {
-      totalDistance += trip.fare.details.distanceKm;
-    }
+    if (trip.fare?.final) totalEarnings += trip.fare.final;
+    if (trip.fare?.details?.distanceKm) totalDistance += trip.fare.details.distanceKm;
     if (trip.startedAt && trip.completedAt) {
-      const durationMs = new Date(trip.completedAt) - new Date(trip.startedAt);
-      totalDuration += durationMs / (1000 * 60); // convert to minutes
+      totalDuration += (new Date(trip.completedAt) - new Date(trip.startedAt)) / (1000 * 60);
+    }
+  });
+
+  completedRides.forEach(ride => {
+    const fare = ride.fare?.final || ride.fare?.estimated || 0;
+    totalEarnings += fare;
+    if (ride.fare?.details?.distanceKm) totalDistance += ride.fare.details.distanceKm;
+    if (ride.pickupAt && ride.completedAt) {
+      totalDuration += (new Date(ride.completedAt) - new Date(ride.pickupAt)) / (1000 * 60);
     }
   });
 

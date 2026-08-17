@@ -11,9 +11,9 @@ function getAuthHeaders() {
 }
 
 const EARNING_API = {
-    getEarnings: () => {
+    getEarnings: (period = 'all') => {
         console.log("🔌 [API] Calling GET /api/v1/driver/earnings");
-        return fetch(`${API_BASE_URL}/driver/earnings`, {
+        return fetch(`${API_BASE_URL}/driver/earnings?period=${period}`, {
             method: 'GET',
             headers: getAuthHeaders(), credentials: "include"
         })
@@ -25,14 +25,26 @@ const EARNING_API = {
         })
         .then(data => {
             if (data.success) {
+                const e = data.data || {};
                 if (window.STATE) {
                     window.STATE.setState('wallet', {
-                        balance: data.data.walletBalance,
-                        transactions: data.data.transactions,
-                        pendingSettlement: data.data.pendingSettlement
+                        balance: e.totalEarnings || 0,
+                        transactions: e.transactions || [],
+                        pendingSettlement: e.pendingSettlement || 0
+                    });
+                    window.STATE.setState('earnings', {
+                        totalEarnings: e.totalEarnings || 0,
+                        totalTrips: e.totalTrips || 0,
+                        totalDistance: e.totalDistance || 0,
+                        totalDuration: e.totalDuration || 0,
+                        period: e.period || 'today'
                     });
                 }
-                return { success: true, earnings: data.data };
+                // Trigger dashboard KPI refresh if available
+                if (typeof window.updateMetricsValues === 'function') {
+                    window.updateMetricsValues();
+                }
+                return { success: true, earnings: e };
             } else {
                 throw new Error(data.message || 'Earnings fetch failed.');
             }

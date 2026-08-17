@@ -19,9 +19,14 @@ document.addEventListener('DOMContentLoaded', () => {
     simulateInitialSkeletons();
 
     // Fetch real backend data to populate dashboard cards
-    if (window.EARNING_API && window.EARNING_API.getEarnings) {
-        window.EARNING_API.getEarnings().catch(console.error);
+    function fetchEarnings() {
+        if (window.EARNING_API && window.EARNING_API.getEarnings) {
+            window.EARNING_API.getEarnings().catch(console.error);
+        }
     }
+    fetchEarnings();
+    setInterval(fetchEarnings, 15000); // refresh earnings every 15s
+
     function fetchTrips() {
     console.trace("TRIP_API.getTrips() - dashboard.js");
     window.TRIP_API.getTrips()
@@ -102,22 +107,25 @@ function updateMetricsValues() {
     const completedTrips = document.getElementById('completedTripsVal');
     const dutyHours = document.getElementById('dutyHoursVal');
 
-    const wallet = window.STATE.getState('wallet');
-    const driver = window.STATE.getState('currentDriver');
+    const earnings = window.STATE.getState('earnings') || {};
     const trips = window.STATE.getState('trips') || [];
 
+    // Total earnings from backend (real value)
+    const totalEarnings = earnings.totalEarnings || 0;
+    // Total trips assigned (all statuses)
+    const totalTripsCount = trips.length;
+    // Completed trips
     const completed = trips.filter(t => t.status === 'COMPLETED').length;
-    const todayDateStr = new Date().toISOString().split('T')[0];
-    const todayTripsCount = trips.filter(t => t.date === todayDateStr).length;
+    // Duty hours from backend total duration (minutes → hours)
+    const hours = earnings.totalDuration ? (earnings.totalDuration / 60).toFixed(1) : "0.0";
 
-    // Estimate duty hours based on completed trips (each takes ~25 mins on average)
-    const hours = trips.length > 0 ? (trips.length * 0.4).toFixed(1) : "0.0";
-
-    if (todayEarnings) todayEarnings.textContent = window.UTILS.formatCurrency(wallet.balance);
-    if (todayTrips) todayTrips.textContent = `${todayTripsCount} Trips`;
+    if (todayEarnings) todayEarnings.textContent = window.UTILS.formatCurrency(totalEarnings);
+    if (todayTrips) todayTrips.textContent = `${totalTripsCount} Trips`;
     if (completedTrips) completedTrips.textContent = completed;
     if (dutyHours) dutyHours.textContent = `${hours} Hrs`;
 }
+// Expose globally so earningApi can trigger a refresh
+window.updateMetricsValues = updateMetricsValues;
 
 // Display Booking Invitation Dialog overlay
 function showTripOfferModal(offer) {
