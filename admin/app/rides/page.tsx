@@ -19,6 +19,7 @@ const STATUS_COLORS: Record<string, { bg: string; fg: string }> = {
   COMPLETED: { bg: 'rgba(100,116,139,0.12)', fg: '#64748B' },
   CANCELLED: { bg: 'rgba(239,68,68,0.12)', fg: '#EF4444' },
   EXPIRED: { bg: 'rgba(239,68,68,0.12)', fg: '#EF4444' },
+  SHUTTLE: { bg: 'rgba(59,130,246,0.12)', fg: '#3B82F6' },
 };
 
 export default function RidesPage() {
@@ -207,6 +208,22 @@ export default function RidesPage() {
                     <p style={{ fontSize: '10px', color: 'var(--text-light)', marginBottom: '12px' }}>
                       <Users size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
                       Driver: {ride.acceptedDriverId.name || 'Assigned'}
+                    </p>
+                  )}
+
+                  {/* Shuttle / route info */}
+                  {ride.type === 'SHUTTLE' && (
+                    <div style={{ padding: '6px 10px', background: 'rgba(59,130,246,0.08)', borderRadius: '8px', marginBottom: '12px', fontSize: '10px' }}>
+                      <span style={{ fontWeight: 700, color: '#3B82F6' }}>🚐 SHUTTLE</span>
+                      {ride.routeName && <span style={{ marginLeft: '8px', color: 'var(--text-light)' }}>{ride.routeName}</span>}
+                      {ride.passengerCount && <span style={{ marginLeft: '8px', color: 'var(--text-main)', fontWeight: 600 }}>{ride.passengerCount} passengers</span>}
+                    </div>
+                  )}
+
+                  {/* Customer name */}
+                  {ride.customerName && !ride.type && (
+                    <p style={{ fontSize: '10px', color: 'var(--text-light)', marginBottom: '8px' }}>
+                      👤 {ride.customerName}
                     </p>
                   )}
 

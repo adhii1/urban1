@@ -76,20 +76,62 @@ router.post('/pause-requests/:id/reject', adminController.rejectPauseRequest);
 
 // Live Rides (REST fallback for admin panel)
 const RideRequest = require('../../models/RideRequest');
+const Trip = require('../../models/Trip');
 router.get('/rides', async (req, res) => {
   const { status } = req.query;
-  const filter = { isDeleted: false };
-  if (status) {
-    filter.status = status;
+  
+  // Get ride requests (on-demand rides)
+  const rideFilter = { isDeleted: false };
+  if (status && status !== 'ALL') {
+    rideFilter.status = status;
   } else {
-    filter.status = { $in: ['SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] };
+    rideFilter.status = { $in: ['SCHEDULED', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS'] };
   }
-  const rides = await RideRequest.find(filter)
+  const rides = await RideRequest.find(rideFilter)
     .populate('acceptedDriverId', 'name vehicleNumber')
     .sort({ createdAt: -1 })
     .limit(100)
     .lean();
-  res.json({ success: true, data: rides });
+
+  // Get scheduled shuttle trips (today and upcoming)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const tripFilter = { isDeleted: false, tripDate: { $gte: todayStart } };
+  if (status && status !== 'ALL') {
+    tripFilter.status = status;
+  } else {
+    tripFilter.status = { $in: ['SCHEDULED', 'IN_PROGRESS'] };
+  }
+  const trips = await Trip.find(tripFilter)
+    .populate('routeId', 'name startLocation endLocation')
+    .populate('driverId', 'name vehicleNumber')
+    .populate('manifest.customer', 'name')
+    .sort({ tripDate: -1 })
+    .limit(50)
+    .lean();
+
+  // Convert trips to a ride-like format so frontend can show them together
+  const tripAsRides = trips.map(t => ({
+    _id: t._id,
+    type: 'SHUTTLE',
+    status: t.status,
+    customerName: `${(t.manifest || []).length} passengers`,
+    pickupLocation: { address: t.routeId?.startLocation || 'Route start' },
+    dropLocation: { address: t.routeId?.endLocation || 'Route end' },
+    acceptedDriverId: t.driverId,
+    routeName: t.routeId?.name,
+    tripDate: t.tripDate,
+    manifest: t.manifest,
+    passengerCount: (t.manifest || []).length,
+    createdAt: t.createdAt,
+    requestedAt: t.tripDate,
+  }));
+
+  const all = [...rides, ...tripAsRides].sort((a, b) => 
+    new Date(b.createdAt || b.requestedAt).getTime() - new Date(a.createdAt || a.requestedAt).getTime()
+  );
+
+  res.json({ success: true, data: all });
 });
 
 module.exports = router;
