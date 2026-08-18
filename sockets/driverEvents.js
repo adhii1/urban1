@@ -259,7 +259,12 @@ function registerDriverEvents(io) {
         const pendingRide = await RideRequest.findOne({
           _id: rideRequestId,
           status: 'PENDING',
-          'matchedDrivers.response': { $ne: 'ACCEPTED' },
+          matchedDrivers: {
+            $elemMatch: {
+              driverId: driver._id,
+              response: { $ne: 'ACCEPTED' },
+            },
+          },
         }).lean();
 
         if (!pendingRide) {
@@ -446,7 +451,12 @@ function registerDriverEvents(io) {
           {
             _id: rideRequestId,
             status: 'PENDING',
-            'matchedDrivers.response': { $ne: 'ACCEPTED' },
+            matchedDrivers: {
+              $elemMatch: {
+                driverId: driver._id,
+                response: { $ne: 'ACCEPTED' },
+              },
+            },
           },
           {
             $set: {

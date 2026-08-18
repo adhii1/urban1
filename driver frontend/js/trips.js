@@ -28,7 +28,7 @@ function renderTripsGrid() {
     // Filter by tab
     let list = activeTripsList;
     if (currentFilterTab === 'UPCOMING') {
-        list = activeTripsList.filter(t => t.status === 'AVAILABLE');
+        list = activeTripsList.filter(t => ['AVAILABLE', 'PENDING'].includes(t.status));
     } else if (currentFilterTab === 'COMPLETED') {
         list = activeTripsList.filter(t => t.status === 'COMPLETED');
     } else if (currentFilterTab === 'CANCELLED') {
@@ -63,7 +63,10 @@ function renderTripsGrid() {
         else if (t.status === 'CANCELLED') badgeClass = 'badge-danger';
         else if (t.status === 'AVAILABLE') {
             badgeClass = 'badge-warning';
-            statusLabel = 'Upcoming';
+            statusLabel = 'Scheduled';
+        } else if (t.status === 'PENDING') {
+            badgeClass = 'badge-warning';
+            statusLabel = 'Pending offer';
         }
 
         return `

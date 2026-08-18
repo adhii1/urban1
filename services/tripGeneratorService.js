@@ -130,11 +130,13 @@ async function generateTripsForToday() {
         continue;
       }
 
-      // Find the driver assigned to this route
-      const driver = await Driver.findOne({ routeId, status: 'ACTIVE', isDeleted: false });
+      // Prefer the route's explicitly assigned driver. The fallback preserves
+      // existing routes created before assignedDriver was introduced.
       const route = await Route.findById(routeId);
-
       if (!route) continue;
+      const driver = route.assignedDriver
+        ? await Driver.findOne({ _id: route.assignedDriver, status: 'ACTIVE', isDeleted: false })
+        : await Driver.findOne({ routeId, status: 'ACTIVE', isDeleted: false });
 
       // Build manifest
       const manifest = subs.map(sub => {

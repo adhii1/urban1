@@ -70,10 +70,51 @@ const seedDatabase = async (env) => {
       driverProfile = await Driver.findOne({ userId: driverUser._id });
     }
 
-    let customerUser = await User.findOne({ phone: '7019268918' });
+    // Convert the former demo customer account into the requested driver account.
+    // This is idempotent so it also repairs an existing development database.
+    const requestedDriverPhone = '7019268918';
+    let requestedDriverUser = await User.findOne({ phone: requestedDriverPhone });
+    if (!requestedDriverUser) {
+      requestedDriverUser = await User.create({
+        phone: requestedDriverPhone,
+        password: hashedPassword,
+        role: 'Driver',
+        status: 'ACTIVE',
+        hasCustomPassword: true,
+      });
+    } else if (requestedDriverUser.role !== 'Driver') {
+      const formerCustomer = await Customer.findOne({ userId: requestedDriverUser._id });
+      if (formerCustomer) {
+        await Subscription.deleteMany({ customerId: formerCustomer._id });
+        await Customer.deleteOne({ _id: formerCustomer._id });
+      }
+      requestedDriverUser.role = 'Driver';
+      requestedDriverUser.status = 'ACTIVE';
+      requestedDriverUser.hasCustomPassword = true;
+      await requestedDriverUser.save();
+    }
+
+    let requestedDriverProfile = await Driver.findOne({ userId: requestedDriverUser._id });
+    if (!requestedDriverProfile) {
+      requestedDriverProfile = await Driver.create({
+        userId: requestedDriverUser._id,
+        name: 'Driver 7019268918',
+        vehicleNumber: 'KA01AB7019',
+        vehicleModel: 'Maruti Swift',
+        vehicleCapacity: 4,
+        licenseNumber: 'KA-DL-701926',
+        routeId: route._id,
+        status: 'ACTIVE',
+        isOnline: false,
+        isAvailable: false,
+      });
+    }
+    logger.info(`Seeded Driver: ${requestedDriverPhone} / password123`);
+
+    let customerUser = await User.findOne({ phone: '7019268917' });
     let customerProfile = null;
     if (!customerUser) {
-      customerUser = await User.create({ phone: '7019268918', password: hashedPassword, role: 'Customer', status: 'ACTIVE', hasCustomPassword: true });
+      customerUser = await User.create({ phone: '7019268917', password: hashedPassword, role: 'Customer', status: 'ACTIVE', hasCustomPassword: true });
       customerProfile = await Customer.create({
         userId: customerUser._id,
         name: 'Ravi Kumar',
@@ -100,7 +141,7 @@ const seedDatabase = async (env) => {
       } else {
         console.log('Could not seed subscription: missing plan or route');
       }
-      logger.info('Default Customer seeded: 7019268918 / password123');
+      logger.info('Default Customer seeded: 7019268917 / password123');
     } else {
       customerProfile = await Customer.findOne({ userId: customerUser._id });
     }

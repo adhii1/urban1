@@ -340,6 +340,7 @@ async function runRecoveryJob() {
     const staleRides = await RideRequest.find({
       status: 'PENDING',
       isBundled: false,
+      dispatchPolicy: { $ne: 'RAJU_KUMAR_ONLY' },
       requestedAt: { $lt: cutoffTime },
       isDeleted: false
     }).lean();

@@ -13,11 +13,19 @@ function getAuthHeaders() {
 }
 
 const TRIP_API = {
-    getTrips: () => {
-        console.log("🔌 [API] Calling GET /api/v1/driver/trips");
-        return fetch(`${API_BASE_URL}/driver/trips`, {
+    getTrips: (scope = 'all') => {
+        const token = localStorage.getItem('driverToken');
+        if (!token) {
+            return Promise.reject(new Error('Driver session expired. Please sign in again.'));
+        }
+
+        console.log(`🔌 [API] Calling GET /api/v1/driver/trips?scope=${scope}`);
+        return fetch(`${API_BASE_URL}/driver/trips?scope=${encodeURIComponent(scope)}`, {
             method: 'GET',
-            headers: getAuthHeaders(), credentials: "include"
+            headers: getAuthHeaders(),
+            // The driver portal must use its own Bearer token, never a shared
+            // browser cookie from an admin or customer session.
+            credentials: 'omit'
         })
         .then(res => {
             if (!res.ok) {
@@ -38,6 +46,7 @@ const TRIP_API = {
                         status: t.status === 'SCHEDULED' ? 'AVAILABLE' : t.status,
                         date: tripDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
                         time: tripDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                        startsAt: tripDate.toISOString(),
                         pickup,
                         drop,
                         earnings: t.fare?.estimated || t.fare?.final || 0,
@@ -57,7 +66,8 @@ const TRIP_API = {
         console.log(`🔌 [API] Calling PUT /api/v1/driver/trips/status to: ${status} for ID: ${tripId}`);
         return fetch(`${API_BASE_URL}/driver/trips/status`, {
             method: 'PUT',
-            headers: getAuthHeaders(), credentials: "include",
+            headers: getAuthHeaders(),
+            credentials: 'omit',
             body: JSON.stringify({ tripId, status })
         })
         .then(res => {
@@ -91,7 +101,8 @@ const TRIP_API = {
         console.log(`🔌 [API] Calling POST /api/v1/driver/trips/rate-passenger for: ${tripId} with rating: ${rating}`);
         return fetch(`${API_BASE_URL}/driver/trips/rate-passenger`, {
             method: 'POST',
-            headers: getAuthHeaders(), credentials: "include",
+            headers: getAuthHeaders(),
+            credentials: 'omit',
             body: JSON.stringify({ tripId, rating, comment })
         })
         .then(res => {

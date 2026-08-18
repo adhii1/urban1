@@ -143,6 +143,14 @@ const rideRequestSchema = new mongoose.Schema(
     deletedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
     isBundled: { type: Boolean, default: false },
     bundleId: { type: String, index: true },
+    // A server-assigned dispatch constraint for controlled demo rides.
+    // It is never supplied by a client and prevents fallback matching.
+    dispatchPolicy: {
+      type: String,
+      enum: ['STANDARD', 'RAJU_KUMAR_ONLY'],
+      default: 'STANDARD',
+      index: true,
+    },
     // Set when the ride reaches a terminal state (EXPIRED, CANCELLED, COMPLETED).
     // Used by the TTL index below to auto-delete old records. Independent of
     // updatedAt so subsequent saves do not reset the expiry clock.

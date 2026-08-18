@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(res => {
             if (res.success && res.trips) {
                 window.STATE.setState('trips', res.trips);
+                renderDriverSchedule(res.trips);
                 // Identify and restore active trip state if any trip is in progress
                 const activeTrip = res.trips.find(t => ['ACCEPTED', 'ARRIVED', 'STARTED', 'DRIVER_ASSIGNED', 'DRIVER_ARRIVED', 'TRIP_STARTED'].includes(t.status));
                 if (activeTrip) {
@@ -124,6 +125,48 @@ function updateMetricsValues() {
     if (completedTrips) completedTrips.textContent = completed;
     if (dutyHours) dutyHours.textContent = `${hours} Hrs`;
 }
+
+function escapeScheduleHtml(value) {
+    return String(value ?? '').replace(/[&<>'"]/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        "'": '&#39;',
+        '"': '&quot;'
+    })[character]);
+}
+
+function renderDriverSchedule(trips) {
+    const timeline = document.getElementById('driverScheduleTimeline');
+    if (!timeline) return;
+
+    const scheduledStatuses = new Set(['AVAILABLE', 'PENDING', 'ACCEPTED', 'DRIVER_ARRIVING', 'IN_PROGRESS']);
+    const schedules = trips
+        .filter(trip => scheduledStatuses.has(trip.status))
+        .sort((first, second) => new Date(first.startsAt) - new Date(second.startsAt));
+
+    if (schedules.length === 0) {
+        timeline.innerHTML = '<div style="padding: 12px 0; color: var(--text-light); font-size: 12px;">No assigned or pending shifts.</div>';
+        return;
+    }
+
+    timeline.innerHTML = schedules.map(trip => {
+        const isPending = trip.status === 'PENDING';
+        const label = isPending ? 'Pending offer' : trip.status === 'AVAILABLE' ? 'Scheduled' : trip.status.replaceAll('_', ' ');
+        const route = `${escapeScheduleHtml(trip.pickup)} to ${escapeScheduleHtml(trip.drop)}`;
+        return `
+            <div class="timeline-item upcoming">
+                <span class="timeline-time">${escapeScheduleHtml(trip.time)}</span>
+                <div class="timeline-node"></div>
+                <div class="timeline-content">
+                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">${isPending ? 'Pending Shift Offer' : 'Scheduled Shift Allocation'}</h3>
+                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">${route}</p>
+                    <span class="badge ${isPending ? 'badge-warning' : 'badge-info'}" style="font-size:8px; padding:1px 4px; margin-top:4px; display:inline-flex;">${escapeScheduleHtml(label)}</span>
+                </div>
+            </div>`;
+    }).join('');
+}
+
 // Expose globally so earningApi can trigger a refresh
 window.updateMetricsValues = updateMetricsValues;
 

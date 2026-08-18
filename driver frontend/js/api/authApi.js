@@ -2,6 +2,27 @@
 
 var API_BASE_URL = 'http://localhost:4000/api/v1';
 
+function clearDriverSession() {
+    ['driverToken', 'driverRefreshToken', 'driverName', 'driverPhone', 'driverStatus', 'driverUserId', 'torqq_driver_online']
+        .forEach(key => localStorage.removeItem(key));
+}
+
+function saveDriverSession(data) {
+    const user = data?.user;
+    if (!data?.accessToken || user?.role !== 'Driver') {
+        clearDriverSession();
+        throw new Error('This account is not registered as a driver. Please use the correct portal.');
+    }
+
+    localStorage.setItem('driverToken', data.accessToken);
+    localStorage.setItem('driverRefreshToken', data.refreshToken || '');
+    localStorage.setItem('driverName', user.name);
+    localStorage.setItem('driverPhone', user.phone);
+    localStorage.setItem('driverStatus', user.status || 'ACTIVE');
+    localStorage.setItem('driverUserId', user.id || user._id);
+    return user;
+}
+
 const AUTH_API = {
     // Authenticate credentials against backend Driver Login endpoint
     login: (phone, password) => {
@@ -20,25 +41,20 @@ const AUTH_API = {
         })
         .then(data => {
             if (data.success && data.data) {
-                localStorage.setItem('driverToken', data.data.accessToken);
-                localStorage.setItem('driverRefreshToken', data.data.refreshToken);
-                localStorage.setItem('driverName', data.data.user.name);
-                localStorage.setItem('driverPhone', data.data.user.phone);
-                localStorage.setItem('driverStatus', data.data.user.status);
-                localStorage.setItem('driverUserId', data.data.user.id || data.data.user._id);
-                
+                const driver = saveDriverSession(data.data);
+
                 // Set application state for driver panel UI
                 if (window.STATE) {
                     window.STATE.setState('currentDriver', {
-                        name: data.data.user.name,
-                        phone: data.data.user.phone,
-                        status: data.data.user.status,
-                        rating: data.data.user.rating || 5.0,
-                        avatar: data.data.user.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
-                        vehicle: data.data.user.vehicle || { number: '', model: '' }
+                        name: driver.name,
+                        phone: driver.phone,
+                        status: driver.status || 'ACTIVE',
+                        rating: driver.rating || 5.0,
+                        avatar: driver.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+                        vehicle: driver.vehicle || { number: '', model: '' }
                     });
                 }
-                return { success: true, token: data.data.accessToken, driver: data.data.user };
+                return { success: true, token: data.data.accessToken, driver };
             } else {
                 throw new Error(data.message || 'Login failed.');
             }
@@ -108,13 +124,8 @@ const AUTH_API = {
         })
         .then(data => {
             if (data.success) {
-                if (data.data && data.data.accessToken) {
-                    localStorage.setItem('driverToken', data.data.accessToken);
-                    localStorage.setItem('driverRefreshToken', data.data.refreshToken);
-                    localStorage.setItem('driverName', data.data.user.name);
-                    localStorage.setItem('driverPhone', data.data.user.phone);
-                    localStorage.setItem('driverStatus', data.data.user.status);
-                    localStorage.setItem('driverUserId', data.data.user.id || data.data.user._id);
+                if (data.data?.accessToken) {
+                    saveDriverSession(data.data);
                 }
                 return { success: true, message: data.message || "OTP verified successfully!" };
             } else {

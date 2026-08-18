@@ -7,6 +7,111 @@ const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 const logger = require('../utils/logger');
+const User = require('../models/User');
+const Driver = require('../models/Driver');
+const Trip = require('../models/Trip');
+
+const DEMO_DRIVER_PHONE = '9876543210';
+const SCHEDULED_TRIP_HOUR = 8;
+
+function isRecurringTripDay(subscription, plan, date) {
+  const dayOfWeek = date.getDay();
+  if (plan.tier === 'Weekday') return [1, 2, 3, 4, 5].includes(dayOfWeek);
+  if (plan.tier === 'Hybrid') return (subscription.selectedWeekdays || []).includes(dayOfWeek);
+  return plan.bookingRules?.isSharedRide === true;
+}
+
+function getTripDate(date) {
+  const tripDate = new Date(date);
+  tripDate.setHours(SCHEDULED_TRIP_HOUR, 0, 0, 0);
+  return tripDate;
+}
+
+async function scheduleRecurringTrips(subscription, plan, route, customer) {
+  const rajuUser = await User.findOne({
+    phone: DEMO_DRIVER_PHONE,
+    role: 'Driver',
+    status: 'ACTIVE',
+  }).select('_id');
+  const raju = rajuUser && await Driver.findOne({
+    userId: rajuUser._id,
+    status: 'ACTIVE',
+  }).select('_id name');
+  if (!raju) throw new ValidationError('Raju Kumar is not available for route assignments.');
+
+  if (!route.assignedDriver || route.assignedDriver.toString() !== raju._id.toString()) {
+    route.assignedDriver = raju._id;
+    await route.save();
+  }
+
+  const pickupStop = route.stops?.[subscription.pickupStopIndex] || route.stops?.[0];
+  const dropStop = route.stops?.[subscription.dropStopIndex] || route.stops?.[route.stops.length - 1];
+  const manifestEntry = {
+    customer: customer._id,
+    pickupStop: pickupStop && {
+      stopName: pickupStop.stopName,
+      sequenceOrder: pickupStop.sequenceOrder,
+      location: pickupStop.location,
+    },
+    dropStop: dropStop && {
+      stopName: dropStop.stopName,
+      sequenceOrder: dropStop.sequenceOrder,
+      location: dropStop.location,
+    },
+    status: 'PENDING',
+  };
+
+  const startDate = new Date(subscription.startDate);
+  startDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(subscription.endDate);
+  endDate.setHours(0, 0, 0, 0);
+  let scheduledTripCount = 0;
+
+  for (const date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+    if (!isRecurringTripDay(subscription, plan, date)) continue;
+
+    const tripDate = getTripDate(date);
+    const dayStart = new Date(tripDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    let trip = await Trip.findOne({
+      routeId: route._id,
+      tripDate: { $gte: dayStart, $lt: dayEnd },
+      status: 'SCHEDULED',
+      isDeleted: false,
+    });
+
+    if (!trip) {
+      trip = await Trip.create({
+        routeId: route._id,
+        driverId: raju._id,
+        tripDate,
+        manifest: [manifestEntry],
+        status: 'SCHEDULED',
+      });
+      scheduledTripCount += 1;
+      continue;
+    }
+
+    if (!trip.driverId || trip.driverId.toString() !== raju._id.toString()) {
+      trip.driverId = raju._id;
+    }
+    const alreadyAssigned = trip.manifest.some(entry => entry.customer.toString() === customer._id.toString());
+    if (!alreadyAssigned) {
+      trip.manifest.push(manifestEntry);
+      scheduledTripCount += 1;
+    }
+    await trip.save();
+  }
+
+  logger.info(`[RecurringTrips] Scheduled ${scheduledTripCount} future trip entries for ${customer.name} with Raju Kumar`, {
+    subscriptionId: subscription._id,
+    routeId: route._id,
+  });
+  return scheduledTripCount;
+}
 
 /**
  * GET /api/v1/customer/plans
@@ -201,104 +306,25 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
   // Link to customer
   await Customer.findByIdAndUpdate(customer._id, { subscriptionId: subscription._id });
 
-  // Immediately create a ride request so it shows on admin + driver gets notified
+  // Shared recurring plans create future driver-assigned trips. They are
+  // preallocated shuttle work, so the driver does not receive an accept offer.
   const plan = await Plan.findById(subscription.planId);
-  const route = await Route.findById(subscription.routeId).populate('assignedDriver');
-
+  const route = await Route.findById(subscription.routeId);
+  let scheduledTripCount = 0;
   if (plan && route && plan.bookingRules?.isSharedRide) {
-    const RideRequest = require('../models/RideRequest');
-    const Driver = require('../models/Driver');
-    const Notification = require('../models/Notification');
-    const { emitToUser, getIO } = require('../config/socket');
-
-    const pickupStop = route.stops?.[subscription.pickupStopIndex] || route.stops?.[0];
-    const dropStop = route.stops?.[subscription.dropStopIndex] || route.stops?.[route.stops.length - 1];
-
-    // Create ride request for today
-    const rideRequest = await RideRequest.create({
-      customerId: req.user.id,
-      customerName: customer.name,
-      pickupLocation: {
-        address: pickupStop?.stopName || route.startLocation,
-        type: 'Point',
-        coordinates: pickupStop?.location?.coordinates || [77.6309, 12.9279],
-      },
-      dropLocation: {
-        address: dropStop?.stopName || route.endLocation,
-        type: 'Point',
-        coordinates: dropStop?.location?.coordinates || [77.6683, 12.8489],
-      },
-      status: 'PENDING',
-      fare: { estimated: Math.round(plan.price / 30) }, // daily fare estimate
-      matchedDrivers: route.assignedDriver ? [{ driverId: route.assignedDriver._id, notifiedAt: new Date() }] : [],
-    });
-
-    const io = getIO();
-
-    // Notify admin in real-time
-    io.of('/sockets/admin').emit('ride:new', {
-      _id: rideRequest._id,
-      rideRequestId: rideRequest._id,
-      customerId: req.user.id,
-      customerName: customer.name,
-      status: 'PENDING',
-      pickupLocation: rideRequest.pickupLocation,
-      dropLocation: rideRequest.dropLocation,
-      requestedAt: rideRequest.requestedAt,
-      fareEstimate: rideRequest.fare?.estimated,
-      type: 'SHUTTLE',
-      planName: plan.name,
-      routeName: route.name,
-    });
-
-    // If this route has a driver assigned by admin, send the offer DIRECTLY
-    // to that driver instead of generic geo-matching. This is the correct
-    // behavior for Hybrid/Weekday/Stop-to-Stop shuttle plans — the admin
-    // has already placed a specific driver on this route/area.
-    if (route.assignedDriver && route.assignedDriver.userId) {
-      const driverUserId = route.assignedDriver.userId.toString();
-
-      // Persisted notification record (shows on driver's Notifications page)
-      await Notification.create({
-        userId: driverUserId,
-        title: 'New Shuttle Passenger',
-        body: `${customer.name} booked ${plan.name} on your route "${route.name}". Pickup: ${rideRequest.pickupLocation.address}`,
-        type: 'RIDE',
-        metadata: { rideRequestId: rideRequest._id, routeId: route._id, planName: plan.name },
-      });
-
-      // Real-time socket push straight to the assigned driver
-      emitToUser('driver', driverUserId, 'ride:new-request', {
-        rideRequestId: rideRequest._id,
-        pickup: rideRequest.pickupLocation,
-        drop: rideRequest.dropLocation,
-        passengers: [{ rideRequestId: rideRequest._id, customerName: customer.name, pickup: rideRequest.pickupLocation, drop: rideRequest.dropLocation, isPrimary: true }],
-        passengerCount: 1,
-        fareEstimate: rideRequest.fare.estimated,
-        routeName: route.name,
-        planName: plan.name,
-        isShuttleAssignment: true,
-      });
-
-      logger.info(`Shuttle ride ${rideRequest._id} sent directly to assigned driver ${route.assignedDriver.name} (route: ${route.name})`);
-    } else {
-      // No driver assigned to this route yet — fall back to generic geo-matching
-      const bundleEngine = require('../services/BundleMatchingEngine');
-      bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
-        logger.error('Failed to dispatch subscription ride', { error: err.message });
-      });
-      logger.info(`No driver assigned to route ${route.name}; falling back to BundleMatchingEngine for ride ${rideRequest._id}`);
-    }
+    scheduledTripCount = await scheduleRecurringTrips(subscription, plan, route, customer);
   }
 
   logger.info(`Subscription activated for customer ${customer._id}`, {
     subscriptionId: subscription._id,
     paymentId,
+    scheduledTripCount,
   });
 
   return res.status(200).json(formatResponse('Payment verified. Subscription activated!', {
     subscriptionId: subscription._id,
     status: 'ACTIVE',
+    scheduledTripCount,
     startDate: subscription.startDate,
     endDate: subscription.endDate,
   }));

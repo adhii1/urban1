@@ -12,9 +12,68 @@ const { reject, rateLimited } = require('./socketHelpers');
 const { estimateFare, calculateCancellationFee } = require('../services/fareService');
 const { estimateTripDuration } = require('../utils/geoHelper');
 const shuttleService = require('../services/shuttleService');
+const Notification = require('../models/Notification');
+
+const DEMO_DRIVER_PHONE = '9876543210';
+const DEMO_DISPATCH_POLICY = 'RAJU_KUMAR_ONLY';
 
 const validateRideRequest = validateSocketEvent(schemas.rideRequest);
 const validateRideCancel = validateSocketEvent(schemas.rideCancel);
+
+async function dispatchScheduledDemoRide(rideRequest) {
+  const targetUser = await User.findOne({
+    phone: DEMO_DRIVER_PHONE,
+    role: 'Driver',
+    status: 'ACTIVE',
+  }).select('_id').lean();
+  const targetDriver = targetUser && await Driver.findOne({
+    userId: targetUser._id,
+    status: 'ACTIVE',
+  }).select('_id name').lean();
+
+  if (!targetUser || !targetDriver) {
+    logger.error('[DemoDispatch] Raju Kumar driver account is unavailable', { rideRequestId: rideRequest._id });
+    return { assigned: false };
+  }
+
+  rideRequest.status = 'PENDING';
+  rideRequest.dispatchPolicy = DEMO_DISPATCH_POLICY;
+  rideRequest.requestedAt = new Date();
+  rideRequest.expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  rideRequest.matchedDrivers = [{ driverId: targetDriver._id, notifiedAt: new Date() }];
+  await rideRequest.save();
+
+  const offer = {
+    rideRequestId: rideRequest._id,
+    pickup: rideRequest.pickupLocation,
+    drop: rideRequest.dropLocation,
+    passengers: [{ rideRequestId: rideRequest._id, customerName: rideRequest.customerName, pickup: rideRequest.pickupLocation, drop: rideRequest.dropLocation, isPrimary: true }],
+    passengerCount: 1,
+    fareEstimate: rideRequest.fare?.estimated,
+    scheduledPickupTime: rideRequest.scheduledPickupTime,
+    isDemoAssignedRide: true,
+  };
+
+  try {
+    await Notification.create({
+      userId: targetUser._id,
+      title: 'New Scheduled Ride',
+      body: `${rideRequest.customerName || 'Customer'} scheduled a ride: ${rideRequest.pickupLocation.address} → ${rideRequest.dropLocation.address}`,
+      type: 'RIDE',
+      metadata: { rideRequestId: rideRequest._id.toString(), dispatchPolicy: DEMO_DISPATCH_POLICY },
+    });
+  } catch (error) {
+    logger.error('[DemoDispatch] Failed to persist Raju notification', { rideRequestId: rideRequest._id, error: error.message });
+  }
+
+  const delivered = emitToUser('driver', targetUser._id.toString(), 'ride:new-request', offer);
+  logger.info('[DemoDispatch] Scheduled ride offered exclusively to Raju Kumar', {
+    rideRequestId: rideRequest._id,
+    driverId: targetDriver._id,
+    delivered,
+  });
+  return { assigned: true, delivered };
+}
 
 function registerCustomerEvents(io) {
   const customerNamespace = io.of('/sockets/customer');
@@ -117,27 +176,18 @@ function registerCustomerEvents(io) {
           ScheduledPickupTime: scheduledPickupTime || null,
         });
 
-        // For scheduled rides (Flexi advance booking), don't dispatch immediately.
-        // The scheduledDispatchService will pick them up 40min before pickup time.
-        if (!scheduledPickupTime) {
-          // Delegate matching to the BundleMatchingEngine
-          const bundleEngine = require('../services/BundleMatchingEngine');
-          logger.info('[BUNDLE_DEBUG] Triggering BundleMatchingEngine', {
-            RideRequestId: rideRequest._id
-          });
-          bundleEngine.processNewRideRequest(rideRequest._id).catch(err => {
-            logger.error('Failed to trigger bundle evaluation', { error: err.message });
-          });
-        } else {
-          logger.info(`[ScheduledDispatch] Ride ${rideRequest._id} scheduled for ${scheduledPickupTime}. Will dispatch ~40min before.`);
-        }
+        // Demo rides are offered immediately and exclusively to Raju Kumar,
+        // regardless of whether the customer selected a pickup time.
+        const demoDispatch = await dispatchScheduledDemoRide(rideRequest);
 
         socket.emit('ride:request:ack', {
           success: true,
           rideRequestId: rideRequest._id,
-          message: scheduledPickupTime
-            ? `Ride scheduled for ${new Date(scheduledPickupTime).toLocaleTimeString()}. We'll find a driver closer to your pickup time.`
-            : `Searching for drivers... Your request is being evaluated for carpooling.`,
+          message: demoDispatch.assigned
+            ? scheduledPickupTime
+              ? `Ride scheduled for ${new Date(scheduledPickupTime).toLocaleTimeString()}. Raju Kumar has been notified.`
+              : 'Ride request sent to Raju Kumar.'
+            : 'Ride created, but Raju Kumar is currently unavailable.',
           fareEstimate: fareEstimate.estimated,
           fareBreakdown: fareEstimate.breakdown,
           tripDuration: tripDuration.durationMinutes,
