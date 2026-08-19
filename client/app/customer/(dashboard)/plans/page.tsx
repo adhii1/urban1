@@ -58,6 +58,10 @@ export default function PlansPage() {
   }, []);
 
   const handleSelectPlan = (plan: PlanDetail) => {
+    if (plan.tier === 'Flexy') {
+      window.location.href = '/customer/book-ride';
+      return;
+    }
     setSelectedPlan(plan);
     setSelectedRoute(null);
     setSelectedWeekdays([]);

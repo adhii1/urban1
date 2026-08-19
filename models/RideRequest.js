@@ -86,6 +86,15 @@ const rideRequestSchema = new mongoose.Schema(
       ref: 'ShuttleSession',
       index: true,
     },
+    // Authoritative per-passenger lifecycle for bundled rides. This is kept
+    // distinct from the aggregate ShuttleSession status so a passenger can
+    // never be advanced by an action targeting a different ride request.
+    passengerLifecycle: {
+      type: String,
+      enum: ['PENDING', 'BOARDED', 'DROPPED'],
+      default: 'PENDING',
+      index: true,
+    },
     otp: {
       code: { type: String },
       expiresAt: { type: Date },
@@ -110,8 +119,17 @@ const rideRequestSchema = new mongoose.Schema(
       },
     },
     requestedAt: { type: Date, default: Date.now },
-    // Flexi: when the customer wants to be picked up (advance booking)
-    scheduledPickupTime: { type: Date, index: true },
+    // Flexy booking contract: every request records whether pickup is now or
+    // at an explicitly requested future time. The API rejects a timestamp for
+    // IMMEDIATE requests and requires one for SCHEDULED requests.
+    pickupIntent: {
+      type: String,
+      enum: ['IMMEDIATE', 'SCHEDULED'],
+      required: true,
+      default: 'IMMEDIATE',
+      index: true,
+    },
+    scheduledPickupAt: { type: Date, index: true },
     acceptedAt: { type: Date },
     pickupAt: { type: Date },
     completedAt: { type: Date },
@@ -163,6 +181,8 @@ rideRequestSchema.index({ status: 1, expiresAt: 1 });
 rideRequestSchema.index({ pickupLocation: '2dsphere' });
 rideRequestSchema.index({ dropLocation: '2dsphere' });
 rideRequestSchema.index({ customerId: 1, status: 1 });
+// Supports ownership- and predecessor-state-scoped passenger transitions.
+rideRequestSchema.index({ shuttleSessionId: 1, acceptedDriverId: 1, passengerLifecycle: 1 });
 
 // Auto-delete rides 7 days after they reach a terminal state (EXPIRED, CANCELLED, COMPLETED).
 // We index `ttlAt` (not `updatedAt`) so any later administrative save does not

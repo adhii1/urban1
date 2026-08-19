@@ -31,10 +31,10 @@ export default function DriverCurrentTripPage() {
   const isInProgress = activeTripFromList?.status === 'IN_PROGRESS';
 
   const { data: tripDetail, isLoading: detailLoading } = useDriverTrip(
-    isInProgress && activeTripId ? activeTripId : '',
+    activeTripId || '',
   );
 
-  const currentTrip = isInProgress && tripDetail ? tripDetail : activeTripFromList;
+  const currentTrip = tripDetail || activeTripFromList;
 
   const stops: StopLike[] = useMemo(
     () => (currentTrip ? currentTrip.route?.stops || currentTrip.routeId?.stops || [] : []),
@@ -158,7 +158,7 @@ export default function DriverCurrentTripPage() {
         )}
       </div>
 
-      {currentTrip.status === 'IN_PROGRESS' && manifest.length > 0 && (
+      {manifest.length > 0 && (
         <div style={{
           background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px',
           border: '1px solid rgba(255,255,255,0.08)', marginBottom: '16px',
@@ -210,7 +210,7 @@ export default function DriverCurrentTripPage() {
                 }}>
                   {entry.status}
                 </div>
-                {entry.status === 'PENDING' && phase === 'PICKUP' && (
+                {isInProgress && entry.status === 'PENDING' && phase === 'PICKUP' && (
                   <div style={{ display: 'flex', gap: '6px' }}>
                     <button
                       disabled={isActing}
@@ -237,7 +237,7 @@ export default function DriverCurrentTripPage() {
                     </button>
                   </div>
                 )}
-                {entry.status === 'BOARDED' && phase === 'DROP' && (
+                {isInProgress && entry.status === 'BOARDED' && phase === 'DROP' && (
                   <button
                     disabled={isActing}
                     onClick={() => updateManifestMutation.mutate({ tripId: currentTrip._id, customerId, action: 'drop' })}

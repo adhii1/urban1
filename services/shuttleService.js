@@ -51,41 +51,14 @@ async function getActiveShuttleById(shuttleSessionId, driverId) {
 }
 
 async function createShuttleSession(driverId, rideRequestIds, driverLocation) {
-  const rides = await RideRequest.find({
-    _id: { $in: rideRequestIds },
-    status: 'PENDING',
-    isDeleted: false,
-  }).lean();
-
-  if (rides.length === 0) {
-    throw new Error('No valid rides found to create shuttle');
-  }
-
-  const sequence = await buildSequence(rides, driverLocation);
-  const navigationUrl = buildNavigationUrl(sequence);
-
-  const shuttleSession = await ShuttleSession.create({
+  // Keep the legacy call signature used by existing socket handlers while
+  // routing all new acceptance through the transactional lifecycle service.
+  const lifecycle = require('./shuttleLifecycleService');
+  const { shuttleSession } = await lifecycle.acceptBundle({
     driverId,
-    rideRequestIds: rides.map((r) => r._id),
-    status: 'ACCEPTED',
-    sequence,
-    navigationUrl,
-    totalRides: rides.length,
-    completedRides: 0,
+    rideRequestIds,
+    driverLocation,
   });
-
-  await RideRequest.updateMany(
-    { _id: { $in: rideRequestIds } },
-    {
-      $set: {
-        shuttleSessionId: shuttleSession._id,
-        acceptedDriverId: driverId,
-        status: 'ACCEPTED',
-        acceptedAt: new Date(),
-      },
-    }
-  );
-
   return shuttleSession;
 }
 
@@ -217,31 +190,21 @@ async function completeShuttleSession(shuttleSessionId) {
     throw new Error('Shuttle session not found');
   }
 
-  // Guard: never allow the shuttle to be marked COMPLETED while any
-  // passenger still has a pending pickup or drop in the sequence. Without
-  // this check, a premature or duplicate 'shuttle:complete' call would
-  // force-complete passengers who were never actually picked up/dropped —
-  // a silent data-integrity bug where dropping one passenger (or a stray
-  // completion call) completes everyone.
-  const pendingStops = (shuttle.sequence || []).filter((s) => s.status !== 'COMPLETED');
-  if (pendingStops.length > 0) {
-    throw new Error('Cannot complete shuttle: passengers still have pending pickups or drops');
+  // The RideRequest lifecycle is authoritative. Sequence entries are a
+  // routing projection and must never allow a premature session completion.
+  const remainingPassengers = await RideRequest.countDocuments({
+    _id: { $in: shuttle.rideRequestIds },
+    shuttleSessionId: shuttle._id,
+    passengerLifecycle: { $ne: 'DROPPED' },
+    isDeleted: false,
+  });
+  if (remainingPassengers > 0) {
+    throw new Error('Cannot complete shuttle: passengers have not all been dropped');
   }
 
   shuttle.status = 'COMPLETED';
   shuttle.completedAt = new Date();
   await shuttle.save();
-
-  await RideRequest.updateMany(
-    { shuttleSessionId, status: { $ne: 'COMPLETED' } },
-    {
-      $set: {
-        status: 'COMPLETED',
-        completedAt: new Date(),
-        ttlAt: new Date(),
-      },
-    }
-  );
 
   return shuttle;
 }

@@ -307,14 +307,20 @@ function showTripOfferModal(offer) {
         const onAck = (res) => {
             window.SOCKET.off('ride:accept:ack', onAck);
             window.SOCKET.off('ride:accept:error', onErr);
-            // Persist the accepted ride data so current-trip.html can restore it
+            // Keep the server acknowledgement as the passenger source of truth.
+            // In particular, never rebuild or advance a shuttle passenger from
+            // an offer-list position: cards are keyed by ride/passenger ID.
+            const authoritativePassengers = window.DRIVER_PASSENGER_CARDS
+                ? window.DRIVER_PASSENGER_CARDS.getPassengers()
+                : (res.passengers || []);
             const tripData = {
-                id: rideRequestId,
+                id: res.tripId || rideRequestId,
+                tripId: res.tripId || null,
                 rideRequestId: rideRequestId,
                 status: 'ACCEPTED',
                 pickup: offer.pickup?.address || pickupOrder,
                 drop: offer.drop?.address || dropOrder,
-                passengers: passengersList.length > 0 ? passengersList : [{ id: 'PSG-1', name: offer.passengers?.[0]?.customerName || 'Customer', pickup: offer.pickup?.address, drop: offer.drop?.address, pickupStatus: 'Waiting', dropStatus: 'Pending' }],
+                passengers: authoritativePassengers,
                 estimatedEarnings: estimatedFare,
                 shuttleSessionId: res.shuttleSessionId || null,
             };
@@ -362,11 +368,10 @@ function renderActiveTripCard(trip) {
     if (normalizedStatus === 'TRIP_STARTED') normalizedStatus = 'STARTED';
     if (normalizedStatus === 'TRIP_COMPLETED') normalizedStatus = 'COMPLETED';
 
-    const passengers = trip.passengers || [
-        { id: 'PSG-541', name: 'Aarav Sharma', phone: '+91 98234 56789', pickup: 'Silk Board Junction', drop: 'Electronic City Phase 1', seat: 'Seat #1', verificationCode: 'AB4K', pickupStatus: 'Waiting', dropStatus: 'Pending', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150' },
-        { id: 'PSG-542', name: 'Priya Patel', phone: '+91 98765 43210', pickup: 'Agara Lake Flyover Stop', drop: 'Bellandur EcoSpace Corridor Stop', seat: 'Seat #2', verificationCode: 'TR8M', pickupStatus: 'Waiting', dropStatus: 'Pending', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150' }
-    ];
-    trip.passengers = passengers;
+    // Passenger lifecycle state is rendered only by DRIVER_PASSENGER_CARDS.
+    // This legacy trip-status panel must never invent passengers or carry a
+    // second mutable copy of their pickup/drop lifecycle.
+    const passengers = [];
 
     switch (normalizedStatus) {
         case 'ACCEPTED':

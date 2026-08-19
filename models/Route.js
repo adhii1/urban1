@@ -1,8 +1,16 @@
-
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 
 const stopSchema = new mongoose.Schema(
   {
+    // This identifier belongs to the route stop, rather than the array position.
+    // It remains stable when administrators reorder stops.
+    stopId: {
+      type: String,
+      required: true,
+      immutable: true,
+      default: () => crypto.randomUUID(),
+    },
     stopName: {
       type: String,
       required: true,
@@ -64,16 +72,37 @@ const routeSchema = new mongoose.Schema(
   }
 );
 
-routeSchema.pre(/^find/, function (next) {
+routeSchema.pre('validate', function validateStableStops(next) {
+  const stopIds = new Set();
+  const sequenceOrders = new Set();
+
+  for (const stop of this.stops || []) {
+    if (!stop.stopId || stopIds.has(stop.stopId)) {
+      this.invalidate('stops', 'Every route stop must have a unique stable stopId.');
+      break;
+    }
+    stopIds.add(stop.stopId);
+
+    if (sequenceOrders.has(stop.sequenceOrder)) {
+      this.invalidate('stops', 'Every route stop must have a unique sequenceOrder.');
+      break;
+    }
+    sequenceOrders.add(stop.sequenceOrder);
+  }
+  next();
+});
+
+routeSchema.pre(/^find/, function excludeDeleted(next) {
   this.where({ isDeleted: false });
   next();
 });
 
-routeSchema.pre('findOneAndUpdate', function (next) {
+routeSchema.pre('findOneAndUpdate', function excludeDeletedFromUpdates(next) {
   this.where({ isDeleted: false });
   next();
 });
 
 routeSchema.index({ 'stops.location': '2dsphere' });
+routeSchema.index({ status: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Route', routeSchema);

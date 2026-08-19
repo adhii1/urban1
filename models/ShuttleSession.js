@@ -50,6 +50,13 @@ const shuttleSessionSchema = new mongoose.Schema(
           enum: ['PENDING', 'COMPLETED'],
           default: 'PENDING',
         },
+        // Pickup and drop sequence entries retain their execution state;
+        // RideRequest.passengerLifecycle is the authoritative passenger state.
+        passengerLifecycle: {
+          type: String,
+          enum: ['PENDING', 'BOARDED', 'DROPPED'],
+          default: 'PENDING',
+        },
         completedAt: { type: Date },
         otpVerified: { type: Boolean, default: false },
         sequenceOrder: { type: Number },
@@ -58,6 +65,7 @@ const shuttleSessionSchema = new mongoose.Schema(
     navigationUrl: { type: String },
     totalRides: { type: Number, default: 0 },
     completedRides: { type: Number, default: 0 },
+    completedAt: { type: Date },
     isDeleted: { type: Boolean, default: false },
     deletedAt: { type: Date },
   },

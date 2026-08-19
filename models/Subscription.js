@@ -17,6 +17,7 @@ const subscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Route',
       required: true,
+      index: true,
     },
     startDate: {
       type: Date,
@@ -36,8 +37,6 @@ const subscriptionSchema = new mongoose.Schema(
       default: 'PENDING_PAYMENT',
       index: true,
     },
-
-    // --- Payment tracking ---
     payment: {
       orderId: { type: String },
       paymentId: { type: String },
@@ -50,16 +49,12 @@ const subscriptionSchema = new mongoose.Schema(
       },
       paidAt: { type: Date },
     },
-
-    // --- Booking schedule (for Hybrid plans - customer picks days) ---
-    // Which weekdays (0-6) the customer has chosen for Hybrid plans
+    // ISO weekday values are normalized by the subscription policy service.
     selectedWeekdays: [{
       type: Number,
       min: 0,
       max: 6,
     }],
-
-    // Track days used this week (reset weekly) for hybrid/alternate plans
     bookingsThisWeek: {
       type: Number,
       default: 0,
@@ -68,14 +63,31 @@ const subscriptionSchema = new mongoose.Schema(
       type: Date,
     },
 
-    // Pickup/drop stop selection for managed routes
+    // Durable managed-stop selections. The sequence copies permit conflict
+    // detection even after a route's ordering changes.
+    pickupStopId: {
+      type: String,
+      index: true,
+    },
+    dropStopId: {
+      type: String,
+      index: true,
+    },
+    pickupStopSequence: {
+      type: Number,
+    },
+    dropStopSequence: {
+      type: Number,
+    },
+
+    // Legacy position fields are deliberately retained for read compatibility
+    // while scripts/migrations/backfillDurableStops.js is rolled out.
     pickupStopIndex: {
       type: Number,
     },
     dropStopIndex: {
       type: Number,
     },
-
     isDeleted: {
       type: Boolean,
       default: false,
@@ -87,9 +99,39 @@ const subscriptionSchema = new mongoose.Schema(
   }
 );
 
-subscriptionSchema.pre(/^find/, function (next) {
+// New writes from legacy clients may still carry indexes until all clients
+// deploy durable IDs. Resolve them at persistence time without discarding the
+// legacy values that older readers require.
+subscriptionSchema.pre('validate', async function backfillLegacyStopSelection() {
+  const needsPickup = !this.pickupStopId && Number.isInteger(this.pickupStopIndex);
+  const needsDrop = !this.dropStopId && Number.isInteger(this.dropStopIndex);
+  const needsSequence = this.pickupStopSequence == null || this.dropStopSequence == null;
+  if (!this.routeId || (!needsPickup && !needsDrop && !needsSequence)) return;
+
+  const Route = require('./Route');
+  const route = await Route.findById(this.routeId).select('stops').lean();
+  if (!route) return;
+  const pickupStop = route.stops.find((stop) => stop.stopId === this.pickupStopId)
+    || route.stops[this.pickupStopIndex];
+  const dropStop = route.stops.find((stop) => stop.stopId === this.dropStopId)
+    || route.stops[this.dropStopIndex];
+
+  if (pickupStop) {
+    this.pickupStopId ||= pickupStop.stopId;
+    this.pickupStopSequence ??= pickupStop.sequenceOrder;
+  }
+  if (dropStop) {
+    this.dropStopId ||= dropStop.stopId;
+    this.dropStopSequence ??= dropStop.sequenceOrder;
+  }
+});
+
+subscriptionSchema.pre(/^find/, function excludeDeleted(next) {
   this.where({ isDeleted: false });
   next();
 });
+
+subscriptionSchema.index({ routeId: 1, status: 1, isDeleted: 1 });
+subscriptionSchema.index({ routeId: 1, pickupStopId: 1, dropStopId: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Subscription', subscriptionSchema);

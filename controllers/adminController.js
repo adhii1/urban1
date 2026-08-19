@@ -8,6 +8,12 @@ const Subscription = require('../models/Subscription');
 const PauseRequest = require('../models/PauseRequest');
 const Admin = require('../models/Admin');
 const Settings = require('../models/Settings');
+const OperationalException = require('../models/OperationalException');
+const {
+  applyDriverChange,
+  reconcileStopChange,
+  resolveManifestConflict,
+} = require('../services/routeReconciliationService');
 const { hashPassword } = require('../utils/passwordHelper');
 const { buildTripManifest } = require('../utils/geoHelper');
 const formatResponse = require('../utils/responseFormatter');
@@ -196,10 +202,23 @@ const banCustomer = asyncWrapper(async (req, res) => {
 
 // Trips CRUD
 const getTrips = asyncWrapper(async (req, res) => {
-  const trips = await Trip.find()
+  const filter = {};
+  if (req.query.future === 'true') {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    // Legacy trips do not have serviceDate; retain their planned-date view.
+    filter.$or = [
+      { serviceDate: { $gte: today } },
+      { serviceDate: { $exists: false }, tripDate: { $gte: today } },
+    ];
+  }
+  if (req.query.status) filter.status = req.query.status;
+
+  const trips = await Trip.find(filter)
     .populate('routeId', 'name')
     .populate('driverId', 'name')
-    .populate('manifest.customer', 'name');
+    .populate('manifest.customer', 'name')
+    .sort({ serviceDate: 1, tripDate: 1 });
   return res.status(200).json(formatResponse('Trips listed successfully.', trips));
 });
 
@@ -325,17 +344,26 @@ const updateRoute = asyncWrapper(async (req, res) => {
   const route = await Route.findById(req.params.id);
   if (!route) throw new NotFoundError('Route');
 
+  const previousRoute = route.toObject();
+  const driverChanged = assignedDriver !== undefined
+    && String(route.assignedDriver || '') !== String(assignedDriver || '');
+
+  // A configured route driver must be active before the route or any future
+  // trip is updated. Clearing the assignment remains supported.
+  if (driverChanged && assignedDriver) {
+    const nextDriver = await Driver.findOne({ _id: assignedDriver, status: 'ACTIVE' });
+    if (!nextDriver) throw new ValidationError('The assigned route driver must be active.');
+  }
+
   if (name !== undefined) route.name = name;
   if (startLocation !== undefined) route.startLocation = startLocation;
   if (endLocation !== undefined) route.endLocation = endLocation;
   if (stops !== undefined) route.stops = stops;
-  if (assignedDriver !== undefined) {
-    // Unlink previous driver from this route
-    if (route.assignedDriver && route.assignedDriver.toString() !== assignedDriver) {
+  if (driverChanged) {
+    if (route.assignedDriver) {
       await Driver.findByIdAndUpdate(route.assignedDriver, { $unset: { routeId: 1 } });
     }
     route.assignedDriver = assignedDriver || null;
-    // Link new driver to this route
     if (assignedDriver) {
       await Driver.findByIdAndUpdate(assignedDriver, { routeId: route._id });
     }
@@ -343,6 +371,14 @@ const updateRoute = asyncWrapper(async (req, res) => {
   if (status !== undefined) route.status = status;
 
   await route.save();
+
+  if (driverChanged) {
+    await applyDriverChange(route._id, route.assignedDriver);
+  }
+  if (stops !== undefined || status !== undefined) {
+    await reconcileStopChange(route._id, { route: route.toObject(), previousRoute });
+  }
+
   return res.status(200).json(formatResponse('Route updated successfully.', route));
 });
 
@@ -352,8 +388,69 @@ const deleteRoute = asyncWrapper(async (req, res) => {
 
   route.isDeleted = true;
   await route.save();
+  await reconcileStopChange(route._id, { route: route.toObject() });
 
   return res.status(200).json(formatResponse('Route deleted successfully.'));
+});
+
+function buildReplacementStopOptions(route) {
+  if (!route || route.status !== 'ACTIVE' || route.isDeleted) return null;
+
+  const stops = [...(route.stops || [])]
+    .filter((stop) => stop.stopId)
+    .sort((left, right) => left.sequenceOrder - right.sequenceOrder)
+    .map((stop) => ({
+      stopId: stop.stopId,
+      stopName: stop.stopName,
+      sequenceOrder: stop.sequenceOrder,
+    }));
+
+  return {
+    pickupStops: stops.filter((pickupStop) => stops.some(
+      (dropStop) => pickupStop.sequenceOrder < dropStop.sequenceOrder
+    )),
+    dropStopsByPickupStopId: Object.fromEntries(stops.map((pickupStop) => [
+      pickupStop.stopId,
+      stops.filter((dropStop) => pickupStop.sequenceOrder < dropStop.sequenceOrder),
+    ])),
+  };
+}
+
+const getOperationalExceptions = asyncWrapper(async (req, res) => {
+  const filter = {};
+  if (req.query.status) filter.status = req.query.status;
+  else filter.status = 'OPEN';
+  if (req.query.type) filter.type = req.query.type;
+  if (req.query.routeId) filter.routeId = req.query.routeId;
+
+  const exceptions = await OperationalException.find(filter)
+    .populate('routeId', 'name status isDeleted stops')
+    .populate('tripId', 'serviceDate tripDate status')
+    .populate('subscriptionId', 'pickupStopId dropStopId status')
+    .sort({ serviceDate: 1, createdAt: -1 })
+    .lean();
+
+  const observableExceptions = exceptions.map((exception) => ({
+    ...exception,
+    // The console receives only choices that are currently active, distinct,
+    // and in forward route order. Resolution remains validated server-side.
+    replacementStopOptions: exception.type === 'ROUTE_CHANGE_CONFLICT'
+      ? buildReplacementStopOptions(exception.routeId)
+      : null,
+  }));
+  return res.status(200).json(formatResponse('Operational exceptions listed successfully.', observableExceptions));
+});
+
+const resolveOperationalException = asyncWrapper(async (req, res) => {
+  const result = await resolveManifestConflict({
+    exceptionId: req.params.id,
+    pickupStopId: req.body.pickupStopId,
+    dropStopId: req.body.dropStopId,
+    effectiveDate: req.body.effectiveDate,
+    notes: req.body.notes,
+    resolvedBy: req.user.id,
+  });
+  return res.status(200).json(formatResponse('Route-change conflict resolved successfully.', result));
 });
 
 // Subscriptions
@@ -680,42 +777,6 @@ const getAnalytics = asyncWrapper(async (req, res) => {
   }));
 });
 
-module.exports = {
-  getAnalytics,
-  getDashboard,
-  getDrivers,
-  getDriverById,
-  createDriver,
-  updateDriver,
-  deleteDriver,
-  getCustomers,
-  getCustomerById,
-  createCustomer,
-  updateCustomer,
-  deleteCustomer,
-  banCustomer,
-  getTrips,
-  getTripById,
-  createTrip,
-  updateTrip,
-  deleteTrip,
-  reassignTrip,
-  getRoutes,
-  createRoute,
-  updateRoute,
-  deleteRoute,
-  getPlans,
-  createPlan,
-  updatePlan,
-  deletePlan,
-  getSubscriptions,
-  createSubscription,
-  updateSubscription,
-  pauseSubscription,
-  resumeSubscription,
-  cancelSubscription,
-};
-
 // --- Settings ---
 const getSettings = asyncWrapper(async (req, res) => {
   const settings = await Settings.getSettings();
@@ -854,6 +915,8 @@ module.exports = {
   createRoute,
   updateRoute,
   deleteRoute,
+  getOperationalExceptions,
+  resolveOperationalException,
   getPlans,
   createPlan,
   updatePlan,

@@ -111,6 +111,7 @@ async function generateTripsForToday() {
 
             existingTrip.manifest.push({
               customer: sub.customerId._id,
+              subscriptionId: sub._id,
               pickupStop: pickupStop ? {
                 stopName: pickupStop.stopName,
                 sequenceOrder: pickupStop.sequenceOrder,
@@ -145,6 +146,7 @@ async function generateTripsForToday() {
 
         return {
           customer: sub.customerId._id,
+          subscriptionId: sub._id,
           pickupStop: pickupStop ? {
             stopName: pickupStop.stopName,
             sequenceOrder: pickupStop.sequenceOrder,

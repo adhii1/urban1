@@ -11,69 +11,11 @@ const { rideRequestLimiter, rideActionLimiter } = require('../utils/socketRateLi
 const { reject, rateLimited } = require('./socketHelpers');
 const { estimateFare, calculateCancellationFee } = require('../services/fareService');
 const { estimateTripDuration } = require('../utils/geoHelper');
+const { createFlexyRide } = require('../services/flexyService');
 const shuttleService = require('../services/shuttleService');
-const Notification = require('../models/Notification');
-
-const DEMO_DRIVER_PHONE = '9876543210';
-const DEMO_DISPATCH_POLICY = 'RAJU_KUMAR_ONLY';
 
 const validateRideRequest = validateSocketEvent(schemas.rideRequest);
 const validateRideCancel = validateSocketEvent(schemas.rideCancel);
-
-async function dispatchScheduledDemoRide(rideRequest) {
-  const targetUser = await User.findOne({
-    phone: DEMO_DRIVER_PHONE,
-    role: 'Driver',
-    status: 'ACTIVE',
-  }).select('_id').lean();
-  const targetDriver = targetUser && await Driver.findOne({
-    userId: targetUser._id,
-    status: 'ACTIVE',
-  }).select('_id name').lean();
-
-  if (!targetUser || !targetDriver) {
-    logger.error('[DemoDispatch] Raju Kumar driver account is unavailable', { rideRequestId: rideRequest._id });
-    return { assigned: false };
-  }
-
-  rideRequest.status = 'PENDING';
-  rideRequest.dispatchPolicy = DEMO_DISPATCH_POLICY;
-  rideRequest.requestedAt = new Date();
-  rideRequest.expiresAt = new Date(Date.now() + 10 * 60 * 1000);
-  rideRequest.matchedDrivers = [{ driverId: targetDriver._id, notifiedAt: new Date() }];
-  await rideRequest.save();
-
-  const offer = {
-    rideRequestId: rideRequest._id,
-    pickup: rideRequest.pickupLocation,
-    drop: rideRequest.dropLocation,
-    passengers: [{ rideRequestId: rideRequest._id, customerName: rideRequest.customerName, pickup: rideRequest.pickupLocation, drop: rideRequest.dropLocation, isPrimary: true }],
-    passengerCount: 1,
-    fareEstimate: rideRequest.fare?.estimated,
-    scheduledPickupTime: rideRequest.scheduledPickupTime,
-    isDemoAssignedRide: true,
-  };
-
-  try {
-    await Notification.create({
-      userId: targetUser._id,
-      title: 'New Scheduled Ride',
-      body: `${rideRequest.customerName || 'Customer'} scheduled a ride: ${rideRequest.pickupLocation.address} → ${rideRequest.dropLocation.address}`,
-      type: 'RIDE',
-      metadata: { rideRequestId: rideRequest._id.toString(), dispatchPolicy: DEMO_DISPATCH_POLICY },
-    });
-  } catch (error) {
-    logger.error('[DemoDispatch] Failed to persist Raju notification', { rideRequestId: rideRequest._id, error: error.message });
-  }
-
-  const delivered = emitToUser('driver', targetUser._id.toString(), 'ride:new-request', offer);
-  logger.info('[DemoDispatch] Scheduled ride offered exclusively to Raju Kumar', {
-    rideRequestId: rideRequest._id,
-    driverId: targetDriver._id,
-    delivered,
-  });
-  return { assigned: true, delivered };
-}
 
 function registerCustomerEvents(io) {
   const customerNamespace = io.of('/sockets/customer');
@@ -86,7 +28,7 @@ function registerCustomerEvents(io) {
         if (rateLimited(socket, 'ride:request', rideRequestLimiter, 'ride:request:error', 'Please wait before requesting another ride')) return;
         const v = validateRideRequest(data);
         if (!v.valid) return reject(socket, 'ride:request:error', v.error, 'Invalid ride payload');
-        const { pickup, drop, stops, scheduledPickupTime } = v.value;
+        const { pickup, drop, stops, pickupIntent, scheduledPickupAt } = v.value;
 
         // Resolve customer name if the connection handler hasn't set it yet
         // (async race on initial connect).
@@ -128,6 +70,10 @@ function registerCustomerEvents(io) {
           }
         }
 
+        // The Joi contract ensures SCHEDULED requests have a future Date and
+        // IMMEDIATE requests cannot carry a scheduled timestamp.
+        const scheduledDate = pickupIntent === 'SCHEDULED' ? scheduledPickupAt : null;
+
         // Calculate fare estimate and trip duration
         const fareEstimate = await estimateFare(
           pickup.coordinates,
@@ -138,7 +84,7 @@ function registerCustomerEvents(io) {
         );
         const tripDuration = estimateTripDuration(pickup.coordinates, drop.coordinates);
 
-        const rideRequest = await RideRequest.create({
+        const rideRequest = await createFlexyRide({
           customerId: userId,
           customerName: socket.customerName,
           customerPhone: socket.customerPhone,
@@ -158,8 +104,8 @@ function registerCustomerEvents(io) {
             coordinates: s.coordinates,
             sequenceOrder: i + 1,
           })),
-          status: scheduledPickupTime ? 'SCHEDULED' : 'PENDING',
-          scheduledPickupTime: scheduledPickupTime ? new Date(scheduledPickupTime) : undefined,
+          pickupIntent,
+          scheduledPickupAt: scheduledDate || undefined,
           fare: {
             estimated: fareEstimate.estimated,
             breakdown: fareEstimate.breakdown,
@@ -173,21 +119,26 @@ function registerCustomerEvents(io) {
           PickupCoordinates: pickup.coordinates,
           DropCoordinates: drop.coordinates,
           RequestedAt: rideRequest.requestedAt || new Date(),
-          ScheduledPickupTime: scheduledPickupTime || null,
+          PickupIntent: pickupIntent,
+          ScheduledPickupAt: scheduledPickupAt || null,
         });
 
-        // Demo rides are offered immediately and exclusively to Raju Kumar,
-        // regardless of whether the customer selected a pickup time.
-        const demoDispatch = await dispatchScheduledDemoRide(rideRequest);
+        if (scheduledDate) {
+          logger.info(`[ScheduledDispatch] Ride ${rideRequest._id} scheduled for ${scheduledDate.toISOString()}.`);
+        } else {
+          const bundleEngine = require('../services/BundleMatchingEngine');
+          bundleEngine.processNewRideRequest(rideRequest._id).catch(error => {
+            logger.error('Failed to start immediate Flexy matching', { rideRequestId: rideRequest._id, error: error.message });
+          });
+        }
 
         socket.emit('ride:request:ack', {
           success: true,
           rideRequestId: rideRequest._id,
-          message: demoDispatch.assigned
-            ? scheduledPickupTime
-              ? `Ride scheduled for ${new Date(scheduledPickupTime).toLocaleTimeString()}. Raju Kumar has been notified.`
-              : 'Ride request sent to Raju Kumar.'
-            : 'Ride created, but Raju Kumar is currently unavailable.',
+          status: rideRequest.status,
+          message: scheduledDate
+            ? `Ride scheduled for ${scheduledDate.toLocaleTimeString()}. We will match a nearby driver closer to pickup.`
+            : 'Searching for nearby drivers...',
           fareEstimate: fareEstimate.estimated,
           fareBreakdown: fareEstimate.breakdown,
           tripDuration: tripDuration.durationMinutes,
@@ -196,8 +147,9 @@ function registerCustomerEvents(io) {
             multiplier: fareEstimate.details.surgeMultiplier,
             label: fareEstimate.details.surgeLabel,
           } : null,
-          scheduled: !!scheduledPickupTime,
-          scheduledPickupTime: scheduledPickupTime || null,
+          scheduled: pickupIntent === 'SCHEDULED',
+          pickupIntent,
+          scheduledPickupAt: scheduledPickupAt || null,
         });
 
         io.of('/sockets/admin').emit('ride:new', {
@@ -211,7 +163,8 @@ function registerCustomerEvents(io) {
           pickupLocation: { address: pickup.address, coordinates: pickup.coordinates },
           dropLocation: { address: drop.address, coordinates: drop.coordinates },
           requestedAt: rideRequest.requestedAt,
-          scheduledPickupTime: scheduledPickupTime || null,
+          pickupIntent,
+          scheduledPickupAt: scheduledPickupAt || null,
           fareEstimate: fareEstimate.estimated,
         });
       } catch (err) {

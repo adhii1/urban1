@@ -15,6 +15,148 @@ const {
   otpVerifyLimiter,
 } = require('../utils/socketRateLimiter');
 const { reject, rateLimited } = require('./socketHelpers');
+const shuttleLifecycleService = require('../services/shuttleLifecycleService');
+
+function lifecycleErrorPayload(error, context = {}) {
+  return {
+    success: false,
+    code: error?.code || 'SHUTTLE_OPERATION_FAILED',
+    message: error?.message || 'Shuttle operation could not be completed',
+    ...context,
+  };
+}
+
+function emitLifecycleError(socket, event, error, context) {
+  logger.warn(`${event} rejected`, { code: error?.code, error: error?.message, ...context });
+  socket.emit(`${event}:error`, lifecycleErrorPayload(error, context));
+}
+
+async function handleShuttleAccept(socket, io, userId, data, event = 'shuttle:accept') {
+  const v = validateShuttleAccept(data);
+  if (!v.valid) return emitLifecycleError(socket, event, { code: 'INVALID_PAYLOAD', message: 'A non-empty bundle of ride request identifiers is required' });
+  if (rateLimited(socket, event, rideActionLimiter, `${event}:error`, 'Too many requests')) return;
+
+  try {
+    const { rideRequestIds } = v.value;
+    const driver = await Driver.findOne({ userId }).select('_id isAvailable vehicleCapacity currentLocation name vehicleNumber vehicleModel userId').lean();
+    if (!driver) return emitLifecycleError(socket, event, { code: 'DRIVER_NOT_FOUND', message: 'Driver profile not found' });
+    if (!driver.isAvailable) return emitLifecycleError(socket, event, { code: 'DRIVER_UNAVAILABLE', message: 'Driver is not available to accept rides' });
+    if (rideRequestIds.length > (driver.vehicleCapacity || 6)) {
+      return emitLifecycleError(socket, event, { code: 'CAPACITY_EXCEEDED', message: 'Requested rides exceed vehicle capacity' });
+    }
+
+    const existingShuttle = await shuttleService.getActiveShuttleForDriver(driver._id);
+    if (existingShuttle) {
+      return emitLifecycleError(socket, event, { code: 'SHUTTLE_ALREADY_ACTIVE', message: 'Driver already has an active shuttle session' });
+    }
+
+    const result = await shuttleLifecycleService.acceptBundle({
+      driverId: driver._id,
+      rideRequestIds,
+      driverLocation: driver.currentLocation,
+    });
+    await Driver.findByIdAndUpdate(driver._id, { $set: { isAvailable: false } });
+
+    for (const ride of result.acceptedRides) {
+      await ridePairing.setPairing(driver._id.toString(), ride.customerId.toString());
+      emitToUser('customer', ride.customerId.toString(), 'ride:accepted', {
+        rideRequestId: ride._id,
+        shuttleSessionId: result.shuttleSession._id,
+        isShuttle: true,
+        driver: { id: driver._id, name: driver.name, vehicleNumber: driver.vehicleNumber, vehicleModel: driver.vehicleModel },
+        otp: ride.otp?.code,
+        pickup: ride.pickupLocation,
+        drop: ride.dropLocation,
+      });
+    }
+
+    io.of('/sockets/admin').emit('shuttle:new', {
+      shuttleSessionId: result.shuttleSession._id,
+      driverId: driver._id,
+      rideCount: result.passengers.length,
+    });
+
+    // Preserve the established driver-client contract while keeping the
+    // lifecycle service's durable ShuttleSession and per-passenger projection
+    // authoritative. The legacy client cannot retain an accepted shuttle
+    // without `shuttle` and `rides`, while newer clients consume the explicit
+    // `shuttleSession` and `passengers` fields.
+    const rides = result.passengers.map((passenger) => ({
+      ...passenger,
+      customerName: passenger.passengerName,
+      stops: [],
+    }));
+    socket.emit(`${event}:ack`, {
+      success: true,
+      shuttleSessionId: result.shuttleSession._id.toString(),
+      shuttleSession: result.shuttleSession,
+      shuttle: result.shuttleSession,
+      passengers: result.passengers,
+      rides,
+      passengerCount: result.passengers.length,
+      navigationUrl: result.shuttleSession.navigationUrl,
+    });
+  } catch (error) {
+    emitLifecycleError(socket, event, error);
+  }
+}
+
+async function handleShuttlePickupVerify(socket, io, userId, data, event = 'shuttle:pickup-verify') {
+  const v = validateShuttlePickupVerify(data);
+  if (!v.valid) return emitLifecycleError(socket, event, { code: 'INVALID_PAYLOAD', message: 'shuttleSessionId, rideRequestId, and OTP are required' });
+  if (rateLimited(socket, event, otpVerifyLimiter, `${event}:error`, 'Too many OTP attempts')) return;
+
+  const { shuttleSessionId, rideRequestId, otp } = v.value;
+  try {
+    const driver = await Driver.findOne({ userId }).select('_id').lean();
+    if (!driver) return emitLifecycleError(socket, event, { code: 'DRIVER_NOT_FOUND', message: 'Driver profile not found' }, { shuttleSessionId, rideRequestId });
+    const result = await shuttleLifecycleService.verifyPassengerPickup({ driverId: driver._id, shuttleSessionId, rideRequestId, otp });
+    const passengers = await shuttleLifecycleService.getDriverPassengerProjection({ driverId: driver._id, shuttleSessionId });
+
+    emitToUser('customer', result.passenger.customerId, 'ride:started', { rideRequestId, shuttleSessionId, message: 'You have been picked up! Ride in progress.' });
+    io.of('/sockets/admin').emit('ride:update', { rideRequestId, status: 'IN_PROGRESS' });
+    socket.emit(`${event}:ack`, { success: true, shuttleSessionId, rideRequestId, passenger: result.passenger, passengers });
+  } catch (error) {
+    emitLifecycleError(socket, event, error, { shuttleSessionId, rideRequestId });
+  }
+}
+
+async function handleShuttleCompleteDrop(socket, io, userId, data, event = 'shuttle:complete-drop') {
+  const v = validateShuttleCompleteDrop(data);
+  if (!v.valid) return emitLifecycleError(socket, event, { code: 'INVALID_PAYLOAD', message: 'shuttleSessionId and rideRequestId are required' });
+  if (rateLimited(socket, event, rideActionLimiter, `${event}:error`, 'Too many requests')) return;
+
+  const { shuttleSessionId, rideRequestId } = v.value;
+  try {
+    const driver = await Driver.findOne({ userId }).select('_id').lean();
+    if (!driver) return emitLifecycleError(socket, event, { code: 'DRIVER_NOT_FOUND', message: 'Driver profile not found' }, { shuttleSessionId, rideRequestId });
+    const result = await shuttleLifecycleService.completePassengerDrop({ driverId: driver._id, shuttleSessionId, rideRequestId });
+    const passengers = await shuttleLifecycleService.getDriverPassengerProjection({ driverId: driver._id, shuttleSessionId });
+
+    ridePairing.clearPairing(driver._id.toString(), result.passenger.customerId);
+    emitToUser('customer', result.passenger.customerId, 'ride:completed', { rideRequestId, shuttleSessionId, message: 'You have reached your destination!' });
+    io.of('/sockets/admin').emit('ride:update', { rideRequestId, status: 'COMPLETED' });
+    if (result.allDropped) await Driver.findByIdAndUpdate(driver._id, { $set: { isAvailable: true } });
+    const acknowledgement = {
+      success: true,
+      shuttleSessionId,
+      rideRequestId,
+      passenger: result.passenger,
+      passengers,
+      allDropped: result.allDropped,
+      // Legacy driver clients use this spelling to determine whether to
+      // release their active shuttle UI after the final passenger drop.
+      allDropsCompleted: result.allDropped,
+      shuttleStatus: result.shuttleSession.status,
+    };
+    socket.emit(`${event}:ack`, acknowledgement);
+    if (result.allDropped && event === 'shuttle:complete-drop') {
+      socket.emit('shuttle:complete:ack', { success: true, allDropsCompleted: true, shuttleSessionId });
+    }
+  } catch (error) {
+    emitLifecycleError(socket, event, error, { shuttleSessionId, rideRequestId });
+  }
+}
 
 const validateRideAccept = validateSocketEvent(schemas.rideAccept);
 const validateRideHeadToPickup = validateSocketEvent(schemas.rideHeadToPickup);
@@ -35,6 +177,10 @@ function registerDriverEvents(io) {
   const driverNamespace = io.of('/sockets/driver');
 
   driverNamespace.on('connection', (socket) => {
+    socket.on('driver:shuttle:accept', (data) => handleShuttleAccept(socket, io, socket.userId, data, 'driver:shuttle:accept'));
+    socket.on('driver:shuttle:pickup-verify', (data) => handleShuttlePickupVerify(socket, io, socket.userId, data, 'driver:shuttle:pickup-verify'));
+    socket.on('driver:shuttle:complete-drop', (data) => handleShuttleCompleteDrop(socket, io, socket.userId, data, 'driver:shuttle:complete-drop'));
+
     socket.on('driver:online', async (data) => {
       const userId = socket.userId;
       try {
@@ -238,6 +384,45 @@ function registerDriverEvents(io) {
         if (!driver) {
           socket.emit('ride:accept:error', { message: 'Driver profile not found' });
           return;
+        }
+
+        // Bundled offers must enter through the transactional lifecycle
+        // service before this legacy single-ride path locks or mutates state.
+        // The service returns the same `ride:accept:*` event contract, with
+        // a durable session and authoritative passenger projection.
+        const offeredRide = await RideRequest.findOne({
+          _id: rideRequestId,
+          status: 'PENDING',
+          isDeleted: false,
+          matchedDrivers: {
+            $elemMatch: {
+              driverId: driver._id,
+              response: { $ne: 'ACCEPTED' },
+            },
+          },
+        }).select('_id isBundled bundleId').lean();
+        if (offeredRide?.isBundled) {
+          if (!offeredRide.bundleId) {
+            socket.emit('ride:accept:error', { success: false, code: 'INVALID_BUNDLE', message: 'Bundled ride is missing its bundle identifier' });
+            return;
+          }
+          const bundle = await RideRequest.find({
+            bundleId: offeredRide.bundleId,
+            status: 'PENDING',
+            isDeleted: false,
+            shuttleSessionId: { $exists: false },
+          }).select('_id').lean();
+          if (bundle.length === 0) {
+            socket.emit('ride:accept:error', { success: false, code: 'RIDES_UNAVAILABLE', message: 'Bundle is no longer available' });
+            return;
+          }
+          return handleShuttleAccept(
+            socket,
+            io,
+            userId,
+            { rideRequestIds: bundle.map((ride) => ride._id.toString()) },
+            'ride:accept'
+          );
         }
 
         // Step 1: Atomically lock the driver as unavailable. If another
@@ -1199,6 +1384,7 @@ function registerDriverEvents(io) {
 
     socket.on('shuttle:accept', async (data) => {
       const userId = socket.userId;
+      return handleShuttleAccept(socket, io, userId, data);
       try {
         if (rateLimited(socket, 'shuttle:accept', rideActionLimiter, 'shuttle:accept:error', 'Too many requests')) return;
         const v = validateShuttleAccept(data);
@@ -1460,6 +1646,7 @@ function registerDriverEvents(io) {
 
     socket.on('shuttle:pickup-verify', async (data) => {
       const userId = socket.userId;
+      return handleShuttlePickupVerify(socket, io, userId, data);
       try {
         if (rateLimited(socket, 'shuttle:pickup-verify', otpVerifyLimiter, 'shuttle:pickup-verify:error', 'Too many OTP attempts')) return;
         const v = validateShuttlePickupVerify(data);
@@ -1584,6 +1771,7 @@ function registerDriverEvents(io) {
 
     socket.on('shuttle:complete-drop', async (data) => {
       const userId = socket.userId;
+      return handleShuttleCompleteDrop(socket, io, userId, data);
       try {
         if (rateLimited(socket, 'shuttle:complete-drop', rideActionLimiter, 'shuttle:complete-drop:error', 'Too many requests')) return;
         const v = validateShuttleCompleteDrop(data);

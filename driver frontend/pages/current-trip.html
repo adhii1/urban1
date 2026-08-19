@@ -199,6 +199,11 @@
                         <button id="cancelTripBtn" class="btn btn-danger" style="width:100%; border-radius:var(--border-radius-md); justify-content:center; gap:8px; margin-top:12px;"><i class="lucide-ban"></i> Cancel Ride (Demo)</button>
                     </div>
 
+                    <section class="glass-card" style="padding:18px;">
+                        <h2 style="font-size:14px;font-weight:700;color:var(--text-main);margin-bottom:12px;">Assigned passengers</h2>
+                        <div data-driver-passenger-cards style="display:flex;flex-direction:column;gap:10px;"></div>
+                    </section>
+
                     <!-- Simulator controls -->
                     <div class="glass-card" style="padding: 16px; border: 1px dashed var(--color-primary);">
                         <h3 style="font-size: 13px; font-weight:700; color:var(--color-primary); margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
@@ -246,6 +251,7 @@
     <script src="../js/state.js"></script>
     <script src="../js/utils.js"></script>
     <script src="../js/socket.js"></script>
+    <script src="../js/passenger-cards.js"></script>
     
     <!-- Decoupled Services -->
     <script src="../js/services/gpsService.js"></script>

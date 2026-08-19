@@ -9,8 +9,8 @@ const rideExpiry = require('./services/rideExpiryService');
 const ridePairing = require('./services/ridePairingService');
 const bundleEngine = require('./services/BundleMatchingEngine');
 const subscriptionExpiry = require('./services/subscriptionExpiryService');
-const scheduledDispatch = require('./services/scheduledDispatchService');
-const tripGenerator = require('./services/tripGeneratorService');
+const promoteScheduledFlexyRides = require('./jobs/promoteScheduledFlexyRides');
+const generateDailyTrips = require('./jobs/generateDailyTrips');
 const logger = require('./utils/logger');
 
 const server = http.createServer(app);
@@ -30,8 +30,8 @@ const startServer = async () => {
     rideExpiry.start();
     bundleEngine.startRecoveryJob();
     subscriptionExpiry.start();
-    scheduledDispatch.start();
-    tripGenerator.start();
+    promoteScheduledFlexyRides.start();
+    generateDailyTrips.start();
   });
 };
 
@@ -45,8 +45,8 @@ const shutdownGracefully = async (signal) => {
   ridePairing.stopPeriodicRefresh();
   bundleEngine.stopRecoveryJob();
   subscriptionExpiry.stop();
-  scheduledDispatch.stop();
-  tripGenerator.stop();
+  promoteScheduledFlexyRides.stop();
+  generateDailyTrips.stop();
 
   // Close Socket.IO so connected clients see a clean disconnect.
   try {

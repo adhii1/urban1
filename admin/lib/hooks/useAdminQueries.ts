@@ -127,6 +127,28 @@ export function useReassignTrip() {
   });
 }
 
+// --- Operational exceptions ---
+export function useOperationalExceptions(params?: string) {
+  const isAuthed = !!useAuthState();
+  return useQuery({
+    queryKey: ['operational-exceptions', params],
+    queryFn: () => adminApi.getOperationalExceptions(params),
+    enabled: isAuthed,
+  });
+}
+
+export function useResolveOperationalException() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => adminApi.resolveOperationalException(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['operational-exceptions'] });
+      qc.invalidateQueries({ queryKey: ['trips'] });
+      qc.invalidateQueries({ queryKey: ['subscriptions'] });
+    },
+  });
+}
+
 // --- Routes ---
 export function useRoutes() {
   const isAuthed = !!useAuthState();

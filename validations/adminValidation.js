@@ -65,7 +65,10 @@ const updateRoute = Joi.object({
   name: Joi.string().trim().min(1).max(200).optional(),
   startLocation: Joi.string().trim().max(200).optional(),
   endLocation: Joi.string().trim().max(200).optional(),
+  // Existing stops must retain their durable identifier when edited or
+  // reordered; omitted IDs explicitly represent removed/new stops.
   stops: Joi.array().items(Joi.object({
+    stopId: Joi.string().trim().max(100).optional(),
     stopName: Joi.string().trim().max(200).required(),
     sequenceOrder: Joi.number().integer().min(0).required(),
     location: Joi.object({
@@ -75,6 +78,13 @@ const updateRoute = Joi.object({
   })).min(1).optional(),
   assignedDriver: Joi.string().hex().length(24).optional().allow(null, ''),
   status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+});
+
+const resolveOperationalException = Joi.object({
+  pickupStopId: Joi.string().trim().max(100).required(),
+  dropStopId: Joi.string().trim().max(100).required(),
+  effectiveDate: Joi.date().iso().optional(),
+  notes: Joi.string().trim().max(1000).optional().allow(''),
 });
 
 const createTrip = Joi.object({
@@ -154,4 +164,5 @@ module.exports = {
   reassignTrip,
   pauseSubscription,
   resumeSubscription,
+  resolveOperationalException,
 };

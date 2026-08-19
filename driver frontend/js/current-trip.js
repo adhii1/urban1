@@ -65,13 +65,18 @@ document.addEventListener('DOMContentLoaded', () => {
         isTripStarted = ['STARTED', 'TRIP_STARTED'].includes(trip.status);
         bookingIdDisplay.textContent = `Booking ID: ${trip.id}`;
         
-        // Customer details
-        const customer = trip.passengers && trip.passengers[0] ? trip.passengers[0] : { name: "Ravi Kumar", phone: "98765 43210" };
-        customerName.textContent = customer.name;
-        customerPhone.textContent = customer.phone;
-        
-        pickupAddress.textContent = trip.pickup;
-        destinationAddress.textContent = trip.drop;
+        // The structured passenger cards own passenger identity and lifecycle.
+        // This navigation summary may show one real passenger, but never a
+        // placeholder that could be mistaken for an assigned rider.
+        const customer = trip.passengers && trip.passengers[0] ? trip.passengers[0] : null;
+        customerName.textContent = customer?.passengerName || customer?.name || 'See assigned passenger cards';
+        customerPhone.textContent = customer?.phone || customer?.customerPhone || '—';
+
+        const addressOf = (location) => typeof location === 'string'
+            ? location
+            : location?.address || location?.stopName || '—';
+        pickupAddress.textContent = addressOf(trip.pickup || customer?.pickup);
+        destinationAddress.textContent = addressOf(trip.drop || customer?.drop);
 
         // Initialize sync service
         LocationService.init(trip.id);

@@ -6,6 +6,7 @@ const authenticate = require('../../middleware/authMiddleware');
 const authorize = require('../../middleware/roleMiddleware');
 const validateRequest = require('../../middleware/validationMiddleware');
 const adminValidation = require('../../validations/adminValidation');
+const tripGenerationController = require('../../controllers/tripGenerationController');
 
 router.use(authenticate);
 router.use(authorize('Admin'));
@@ -40,12 +41,22 @@ router.post('/trips', validateRequest(adminValidation.createTrip), adminControll
 router.patch('/trips/:id', validateRequest(adminValidation.updateTrip), adminController.updateTrip);
 router.delete('/trips/:id', adminController.deleteTrip);
 router.post('/trips/:id/reassign', validateRequest(adminValidation.reassignTrip), adminController.reassignTrip);
+// Bounded, authenticated recovery reruns for recurring-service generation.
+router.post('/trips/generate', tripGenerationController.generateRecoveryTrips);
 
 // Routes
 router.get('/routes', adminController.getRoutes);
 router.post('/routes', validateRequest(adminValidation.createRoute), adminController.createRoute);
 router.patch('/routes/:id', validateRequest(adminValidation.updateRoute), adminController.updateRoute);
 router.delete('/routes/:id', adminController.deleteRoute);
+
+// Operational exceptions from trip generation and route reconciliation.
+router.get('/operations/exceptions', adminController.getOperationalExceptions);
+router.patch(
+  '/operations/exceptions/:id/resolve',
+  validateRequest(adminValidation.resolveOperationalException),
+  adminController.resolveOperationalException
+);
 
 // Plans
 router.get('/plans', adminController.getPlans);

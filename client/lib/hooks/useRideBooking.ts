@@ -23,6 +23,8 @@ export interface FareBreakdown {
 export interface RideRequest {
   _id: string;
   status: string;
+  pickupIntent?: 'IMMEDIATE' | 'SCHEDULED';
+  scheduledPickupAt?: string;
   pickupLocation: { address: string; coordinates: [number, number] };
   dropLocation: { address: string; coordinates: [number, number] };
   stops?: Array<{ address: string; coordinates: [number, number]; sequenceOrder: number }>;
@@ -92,10 +94,13 @@ export function useRideBooking() {
     socket.on('disconnect', () => setIsConnected(false));
 
     socket.on('ride:request:ack', (data) => {
-      setIsSearching(true);
+      const status = data.status || (data.pickupIntent === 'SCHEDULED' ? 'SCHEDULED' : 'PENDING');
+      setIsSearching(status === 'PENDING');
       setActiveRide({
         _id: data.rideRequestId,
-        status: 'PENDING',
+        status,
+        pickupIntent: data.pickupIntent,
+        scheduledPickupAt: data.scheduledPickupAt || undefined,
         pickupLocation: { address: '', coordinates: [0, 0] },
         dropLocation: { address: '', coordinates: [0, 0] },
         createdAt: new Date().toISOString(),
@@ -249,9 +254,14 @@ export function useRideBooking() {
     return () => clearInterval(interval);
   }, [activeRide?.status, activeRide?.pickupEtaMinutes]);
 
-  const requestRide = useCallback((pickup: SelectedLocation, drop: SelectedLocation, stops?: Array<{ address: string; coordinates: [number, number]; sequenceOrder: number }>) => {
+  const requestRide = useCallback((
+    pickup: SelectedLocation,
+    drop: SelectedLocation,
+    stops?: Array<{ address: string; coordinates: [number, number]; sequenceOrder: number }>,
+    booking: { pickupIntent: 'IMMEDIATE' | 'SCHEDULED'; scheduledPickupAt?: string } = { pickupIntent: 'IMMEDIATE' },
+  ) => {
     if (!socketRef.current) return;
-    socketRef.current.emit('ride:request', { pickup, drop, stops });
+    socketRef.current.emit('ride:request', { pickup, drop, stops, ...booking });
   }, []);
 
   const cancelRide = useCallback((rideRequestId: string, reason?: string) => {

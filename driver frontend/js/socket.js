@@ -99,6 +99,15 @@ class SocketBroker {
         this.socket.on('ride:verify-otp:error', (data) => this.triggerEvent('ride:verify-otp:error', data));
         this.socket.on('ride:complete:ack', (data) => this.triggerEvent('ride:complete:ack', data));
         this.socket.on('ride:complete:error', (data) => this.triggerEvent('ride:complete:error', data));
+        // These acknowledgements carry the ShuttleLifecycleService passenger projection.
+        // The UI consumes them as the source of truth instead of applying local lifecycle guesses.
+        this.socket.on('driver:assignment', (data) => this.triggerEvent('driver:assignment', data));
+        this.socket.on('driver:shuttle:accept:ack', (data) => this.triggerEvent('driver:shuttle:accept:ack', data));
+        this.socket.on('driver:shuttle:accept:error', (data) => this.triggerEvent('driver:shuttle:accept:error', data));
+        this.socket.on('driver:shuttle:pickup-verify:ack', (data) => this.triggerEvent('driver:shuttle:pickup-verify:ack', data));
+        this.socket.on('driver:shuttle:pickup-verify:error', (data) => this.triggerEvent('driver:shuttle:pickup-verify:error', data));
+        this.socket.on('driver:shuttle:complete-drop:ack', (data) => this.triggerEvent('driver:shuttle:complete-drop:ack', data));
+        this.socket.on('driver:shuttle:complete-drop:error', (data) => this.triggerEvent('driver:shuttle:complete-drop:error', data));
         this.socket.on('driver:suspended', (data) => this.triggerEvent('driver:suspended', data));
     }
 

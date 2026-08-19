@@ -480,9 +480,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                 const [h, m] = bookingData.time.split(':');
                                 const scheduled = new Date();
                                 scheduled.setHours(parseInt(h), parseInt(m), 0, 0);
-                                if (scheduled.getTime() > Date.now() + 30 * 60 * 1000) {
-                                    scheduledTime = scheduled.toISOString();
+                                if (scheduled.getTime() < Date.now() + 120 * 60 * 1000) {
+                                    throw new Error('Flexy scheduled rides must be booked at least 2 hours in advance.');
                                 }
+                                scheduledTime = scheduled.toISOString();
                             }
                             
                             RIDE_SOCKET.requestRide(pickup, drop, scheduledTime);

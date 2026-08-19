@@ -5,6 +5,8 @@ const subscriptionController = require('../../controllers/subscriptionController
 const ratingController = require('../../controllers/ratingController');
 const authenticate = require('../../middleware/authMiddleware');
 const authorize = require('../../middleware/roleMiddleware');
+const validateRequest = require('../../middleware/validationMiddleware');
+const subscriptionValidation = require('../../validations/subscriptionValidation');
 
 router.use(authenticate);
 router.use(authorize('Customer'));
@@ -19,7 +21,11 @@ router.post('/pause-request', customerController.requestPause);
 // Subscription purchase flow
 router.get('/plans', subscriptionController.browsePlans);
 router.get('/plans/:id/routes', subscriptionController.getRoutesForPlan);
-router.post('/subscriptions/purchase', subscriptionController.initiatePurchase);
+router.post(
+  '/subscriptions/purchase',
+  validateRequest(subscriptionValidation.purchaseSubscription, 'body', 'INVALID_SUBSCRIPTION_PURCHASE_REQUEST'),
+  subscriptionController.initiatePurchase
+);
 router.post('/subscriptions/verify-payment', subscriptionController.verifySubscriptionPayment);
 router.post('/subscriptions/cancel', subscriptionController.cancelSubscription);
 router.get('/subscriptions/booking-eligibility', subscriptionController.checkBookingEligibility);

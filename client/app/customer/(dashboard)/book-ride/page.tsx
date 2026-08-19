@@ -65,6 +65,8 @@ export default function BookRidePage() {
   const [pickup, setPickup] = useState<SelectedLocation | null>(null);
   const [drop, setDrop] = useState<SelectedLocation | null>(null);
   const [stops, setStops] = useState<(SelectedLocation | null)[]>([]);
+  const [pickupIntent, setPickupIntent] = useState<'IMMEDIATE' | 'SCHEDULED'>('IMMEDIATE');
+  const [scheduledPickupAt, setScheduledPickupAt] = useState('');
   const [locationPicker, setLocationPicker] = useState<'pickup' | 'drop' | number | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelInput, setShowCancelInput] = useState(false);
@@ -111,8 +113,22 @@ export default function BookRidePage() {
 
   const handleRequestRide = () => {
     if (!pickup || !drop) return;
+    if (pickupIntent === 'SCHEDULED' && !scheduledPickupAt) {
+      addToast('Choose a future pickup time for your scheduled ride.', 'error');
+      return;
+    }
     const mappedStops = validStops.map((s, i) => ({ address: s.address, coordinates: s.coordinates, sequenceOrder: i + 1 }));
-    requestRide(pickup, drop, mappedStops.length > 0 ? mappedStops : undefined);
+    requestRide(
+      pickup,
+      drop,
+      mappedStops.length > 0 ? mappedStops : undefined,
+      {
+        pickupIntent,
+        scheduledPickupAt: pickupIntent === 'SCHEDULED'
+          ? new Date(scheduledPickupAt).toISOString()
+          : undefined,
+      },
+    );
   };
 
   const handleCancelRide = () => {
@@ -653,6 +669,37 @@ export default function BookRidePage() {
             </div>
           </div>
 
+          {/* Flexy pickup timing */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, marginBottom: '8px' }}>WHEN SHOULD WE PICK YOU UP?</div>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: pickupIntent === 'SCHEDULED' ? '10px' : 0 }}>
+              {(['IMMEDIATE', 'SCHEDULED'] as const).map((intent) => (
+                <button
+                  key={intent}
+                  type="button"
+                  onClick={() => setPickupIntent(intent)}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
+                    border: `1.5px solid ${pickupIntent === intent ? '#16C15D' : '#E2E8F0'}`,
+                    background: pickupIntent === intent ? '#F0FDF4' : '#FFF',
+                    color: pickupIntent === intent ? '#15803D' : '#475569',
+                  }}
+                >
+                  {intent === 'IMMEDIATE' ? 'Now' : 'Schedule for later'}
+                </button>
+              ))}
+            </div>
+            {pickupIntent === 'SCHEDULED' && (
+              <input
+                type="datetime-local"
+                aria-label="Scheduled pickup time"
+                value={scheduledPickupAt}
+                onChange={(event) => setScheduledPickupAt(event.target.value)}
+                style={{ width: '100%', padding: '10px', border: '1px solid #CBD5E1', borderRadius: '10px', fontSize: '12px', boxSizing: 'border-box' }}
+              />
+            )}
+          </div>
+
           {/* Pre-booking fare estimate */}
           {previewEstimate && (
             <div style={{
@@ -694,10 +741,10 @@ export default function BookRidePage() {
           )}
 
           {/* Request button */}
-          <button onClick={handleRequestRide} disabled={!pickup || !drop} style={{
+          <button onClick={handleRequestRide} disabled={!pickup || !drop || (pickupIntent === 'SCHEDULED' && !scheduledPickupAt)} style={{
             width: '100%', padding: '14px', border: 'none', borderRadius: '12px',
-            background: pickup && drop ? '#16C15D' : '#CBD5E1', color: '#FFF', fontSize: '14px', fontWeight: 700,
-            cursor: pickup && drop ? 'pointer' : 'not-allowed',
+            background: pickup && drop && (pickupIntent === 'IMMEDIATE' || scheduledPickupAt) ? '#16C15D' : '#CBD5E1', color: '#FFF', fontSize: '14px', fontWeight: 700,
+            cursor: pickup && drop && (pickupIntent === 'IMMEDIATE' || scheduledPickupAt) ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
           }}>
             <Car size={16} /> Request Ride

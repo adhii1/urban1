@@ -7,110 +7,34 @@ const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 const logger = require('../utils/logger');
-const User = require('../models/User');
-const Driver = require('../models/Driver');
-const Trip = require('../models/Trip');
+const subscriptionPolicyService = require('../services/subscriptionPolicyService');
+const { generateForServiceDate } = require('../services/tripGenerator');
 
-const DEMO_DRIVER_PHONE = '9876543210';
-const SCHEDULED_TRIP_HOUR = 8;
-
-function isRecurringTripDay(subscription, plan, date) {
-  const dayOfWeek = date.getDay();
-  if (plan.tier === 'Weekday') return [1, 2, 3, 4, 5].includes(dayOfWeek);
-  if (plan.tier === 'Hybrid') return (subscription.selectedWeekdays || []).includes(dayOfWeek);
-  return plan.bookingRules?.isSharedRide === true;
-}
-
-function getTripDate(date) {
-  const tripDate = new Date(date);
-  tripDate.setHours(SCHEDULED_TRIP_HOUR, 0, 0, 0);
-  return tripDate;
-}
-
-async function scheduleRecurringTrips(subscription, plan, route, customer) {
-  const rajuUser = await User.findOne({
-    phone: DEMO_DRIVER_PHONE,
-    role: 'Driver',
-    status: 'ACTIVE',
-  }).select('_id');
-  const raju = rajuUser && await Driver.findOne({
-    userId: rajuUser._id,
-    status: 'ACTIVE',
-  }).select('_id name');
-  if (!raju) throw new ValidationError('Raju Kumar is not available for route assignments.');
-
-  if (!route.assignedDriver || route.assignedDriver.toString() !== raju._id.toString()) {
-    route.assignedDriver = raju._id;
-    await route.save();
-  }
-
-  const pickupStop = route.stops?.[subscription.pickupStopIndex] || route.stops?.[0];
-  const dropStop = route.stops?.[subscription.dropStopIndex] || route.stops?.[route.stops.length - 1];
-  const manifestEntry = {
-    customer: customer._id,
-    pickupStop: pickupStop && {
-      stopName: pickupStop.stopName,
-      sequenceOrder: pickupStop.sequenceOrder,
-      location: pickupStop.location,
-    },
-    dropStop: dropStop && {
-      stopName: dropStop.stopName,
-      sequenceOrder: dropStop.sequenceOrder,
-      location: dropStop.location,
-    },
-    status: 'PENDING',
-  };
-
+/**
+ * Build activation-time recurring service exclusively through the canonical
+ * generator. This preserves route/date idempotency and operational exception
+ * behavior (including unassigned routes and assignment failures).
+ */
+async function scheduleRecurringTrips(subscription) {
   const startDate = new Date(subscription.startDate);
   startDate.setHours(0, 0, 0, 0);
   const endDate = new Date(subscription.endDate);
   endDate.setHours(0, 0, 0, 0);
-  let scheduledTripCount = 0;
+  let manifestEntries = 0;
 
-  for (const date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-    if (!isRecurringTripDay(subscription, plan, date)) continue;
-
-    const tripDate = getTripDate(date);
-    const dayStart = new Date(tripDate);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart);
-    dayEnd.setDate(dayEnd.getDate() + 1);
-
-    let trip = await Trip.findOne({
-      routeId: route._id,
-      tripDate: { $gte: dayStart, $lt: dayEnd },
-      status: 'SCHEDULED',
-      isDeleted: false,
+  for (const serviceDate = new Date(startDate); serviceDate <= endDate; serviceDate.setDate(serviceDate.getDate() + 1)) {
+    const summary = await generateForServiceDate(new Date(serviceDate), {
+      routeIds: [subscription.routeId.toString()],
     });
-
-    if (!trip) {
-      trip = await Trip.create({
-        routeId: route._id,
-        driverId: raju._id,
-        tripDate,
-        manifest: [manifestEntry],
-        status: 'SCHEDULED',
-      });
-      scheduledTripCount += 1;
-      continue;
-    }
-
-    if (!trip.driverId || trip.driverId.toString() !== raju._id.toString()) {
-      trip.driverId = raju._id;
-    }
-    const alreadyAssigned = trip.manifest.some(entry => entry.customer.toString() === customer._id.toString());
-    if (!alreadyAssigned) {
-      trip.manifest.push(manifestEntry);
-      scheduledTripCount += 1;
-    }
-    await trip.save();
+    manifestEntries += summary.manifestEntries;
   }
 
-  logger.info(`[RecurringTrips] Scheduled ${scheduledTripCount} future trip entries for ${customer.name} with Raju Kumar`, {
+  logger.info('[RecurringTrips] Generated activation-time recurring service', {
     subscriptionId: subscription._id,
-    routeId: route._id,
+    routeId: subscription.routeId,
+    manifestEntries,
   });
-  return scheduledTripCount;
+  return manifestEntries;
 }
 
 /**
@@ -153,15 +77,22 @@ const initiatePurchase = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
   if (!customer) throw new NotFoundError('Customer');
 
-  const { planId, routeId, startDate, selectedWeekdays, pickupStopIndex, dropStopIndex } = req.body;
+  const {
+    planId,
+    routeId,
+    startDate,
+    selectedWeekdays,
+    pickupStopId,
+    dropStopId,
+    pickupStopIndex,
+    dropStopIndex,
+  } = req.body;
 
-  // Validate plan
+  // Load the complete records; active-route and recurring-plan acceptance is
+  // centrally enforced by SubscriptionPolicyService below.
   const plan = await Plan.findOne({ _id: planId, isActive: true, isDeleted: false });
   if (!plan) throw new NotFoundError('Plan');
-
-  // Validate route
-  const route = await Route.findOne({ _id: routeId, status: 'ACTIVE', isDeleted: false });
-  if (!route) throw new NotFoundError('Route');
+  const route = await Route.findById(routeId);
 
   // Check no existing active subscription OF THE SAME TIER
   const existingSub = await Subscription.findOne({
@@ -171,40 +102,36 @@ const initiatePurchase = asyncWrapper(async (req, res) => {
     isDeleted: false,
   });
   if (existingSub) {
-    throw new ValidationError('You already have an active subscription for this plan type.');
+    throw new ValidationError('You already have an active subscription for this plan type.', {
+      code: 'DUPLICATE_SUBSCRIPTION',
+    });
   }
 
-  // Validate booking rules
-  if (plan.tier === 'Hybrid') {
-    if (!selectedWeekdays || selectedWeekdays.length !== (plan.bookingRules?.allowedDaysPerWeek || 3)) {
-      throw new ValidationError(
-        `Hybrid plan requires exactly ${plan.bookingRules?.allowedDaysPerWeek || 3} weekdays to be selected.`
-      );
-    }
-    // Validate weekday values
-    for (const day of selectedWeekdays) {
-      if (day < 0 || day > 6) throw new ValidationError('Invalid weekday value.');
-    }
+  const start = new Date(startDate);
+  if (Number.isNaN(start.getTime())) {
+    throw new ValidationError('A valid subscription start date is required.', { code: 'INVALID_SUBSCRIPTION_START_DATE' });
+  }
+  start.setHours(0, 0, 0, 0);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (start < today) {
+    throw new ValidationError('Subscription start date cannot be in the past.', { code: 'SUBSCRIPTION_START_DATE_IN_PAST' });
   }
 
-  // Validate stop selection for managed-stop plans
-  if (plan.bookingRules?.useManagedStops) {
-    if (pickupStopIndex === undefined || dropStopIndex === undefined) {
-      throw new ValidationError('Please select pickup and drop stops for this plan.');
-    }
-    if (pickupStopIndex < 0 || pickupStopIndex >= route.stops.length) {
-      throw new ValidationError('Invalid pickup stop selection.');
-    }
-    if (dropStopIndex < 0 || dropStopIndex >= route.stops.length) {
-      throw new ValidationError('Invalid drop stop selection.');
-    }
-    if (pickupStopIndex === dropStopIndex) {
-      throw new ValidationError('Pickup and drop stops must be different.');
-    }
-  }
+  // This must complete before a pending subscription or payment order is
+  // created. The returned selection is the only source for durable stop data.
+  const policy = subscriptionPolicyService.validateRecurringSubscription({
+    customer,
+    plan,
+    route,
+    selectedWeekdays,
+    pickupStopId,
+    dropStopId,
+    pickupStopIndex,
+    dropStopIndex,
+  });
 
   // Calculate end date
-  const start = new Date(startDate);
   const endDate = new Date(start);
   endDate.setDate(endDate.getDate() + plan.durationDays);
 
@@ -217,7 +144,13 @@ const initiatePurchase = asyncWrapper(async (req, res) => {
     endDate,
     remainingPauseDays: plan.pauseDaysAllowed,
     status: 'PENDING_PAYMENT',
-    selectedWeekdays: plan.tier === 'Hybrid' ? selectedWeekdays : (plan.bookingRules?.allowedWeekdays || []),
+    selectedWeekdays: policy.normalizedWeekdays,
+    pickupStopId: policy.pickupStopId,
+    dropStopId: policy.dropStopId,
+    pickupStopSequence: policy.pickupStopSequence,
+    dropStopSequence: policy.dropStopSequence,
+    // Retain legacy indexes only when supplied by an older caller. New writes
+    // always have authoritative durable stop IDs and sequence snapshots.
     pickupStopIndex,
     dropStopIndex,
     payment: {
@@ -351,6 +284,21 @@ const cancelSubscription = asyncWrapper(async (req, res) => {
   subscription.status = 'CANCELLED';
   await subscription.save();
 
+  // Remove future recurring assignments created for this subscription. A trip
+  // that becomes empty is cancelled; shared trips retain other passengers.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const futureTrips = await Trip.find({
+    'manifest.subscriptionId': subscription._id,
+    tripDate: { $gte: today },
+    status: 'SCHEDULED',
+  });
+  for (const trip of futureTrips) {
+    trip.manifest = trip.manifest.filter(entry => !entry.subscriptionId || entry.subscriptionId.toString() !== subscription._id.toString());
+    if (trip.manifest.length === 0) trip.status = 'CANCELLED';
+    await trip.save();
+  }
+
   await Customer.findByIdAndUpdate(customer._id, { $unset: { subscriptionId: 1 } });
 
   return res.status(200).json(formatResponse('Subscription cancelled.', {
@@ -383,30 +331,24 @@ const checkBookingEligibility = asyncWrapper(async (req, res) => {
   }
 
   const now = new Date();
-  const today = now.getDay(); // 0=Sun...6=Sat
   const rules = plan.bookingRules || {};
+  const selectedDays = subscription.selectedWeekdays || [];
 
-  // Check if today is an allowed weekday
-  if (plan.tier === 'Weekday') {
-    // Weekday: Mon-Fri only
-    if (today === 0 || today === 6) {
-      return res.status(200).json(formatResponse('Not eligible today.', {
-        eligible: false,
-        reason: 'Weekday plan: rides available Monday-Friday only.',
-      }));
-    }
-  } else if (plan.tier === 'Hybrid') {
-    // Hybrid: only on selected weekdays
-    const selectedDays = subscription.selectedWeekdays || [];
-    if (!selectedDays.includes(today)) {
-      return res.status(200).json(formatResponse('Not eligible today.', {
-        eligible: false,
-        reason: `Hybrid plan: you can ride on ${selectedDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')} only.`,
-        selectedWeekdays: selectedDays,
-      }));
-    }
+  if (!subscriptionPolicyService.isEligibleOnServiceDate({
+    subscription,
+    plan,
+    serviceDate: now,
+  })) {
+    return res.status(200).json(formatResponse('Not eligible today.', {
+      eligible: false,
+      reason: plan.tier === 'Weekday'
+        ? 'Weekday plan: rides are available Monday-Friday only within the subscription service dates.'
+        : 'This subscription is not scheduled for the current service date.',
+      selectedWeekdays: plan.tier === 'Hybrid' ? selectedDays : undefined,
+    }));
+  }
 
-    // Check weekly booking limit
+  if (plan.tier === 'Hybrid') {
     const maxPerWeek = rules.allowedDaysPerWeek || 3;
     if (subscription.bookingsThisWeek >= maxPerWeek) {
       return res.status(200).json(formatResponse('Weekly limit reached.', {
@@ -444,6 +386,12 @@ const checkBookingEligibility = asyncWrapper(async (req, res) => {
       minAdvanceBookingMinutes: minAdvanceMinutes,
     },
     subscription: {
+      pickupStopId: subscription.pickupStopId,
+      dropStopId: subscription.dropStopId,
+      pickupStopSequence: subscription.pickupStopSequence,
+      dropStopSequence: subscription.dropStopSequence,
+      // Deprecated index fields remain visible only for legacy clients during
+      // the durable-stop migration.
       pickupStopIndex: subscription.pickupStopIndex,
       dropStopIndex: subscription.dropStopIndex,
       bookingsThisWeek: subscription.bookingsThisWeek,

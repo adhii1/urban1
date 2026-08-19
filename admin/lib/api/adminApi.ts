@@ -86,6 +86,12 @@ export const adminApi = {
   reassignTrip: (id: string, data: any) =>
     apiFetch(`/admin/trips/${id}/reassign`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // Operational exceptions
+  getOperationalExceptions: (params?: string) =>
+    apiFetch(`/admin/operations/exceptions${params ? `?${params}` : ''}`),
+  resolveOperationalException: (id: string, data: any) =>
+    apiFetch(`/admin/operations/exceptions/${id}/resolve`, { method: 'PATCH', body: JSON.stringify(data) }),
+
   // Routes
   getRoutes: () => apiFetch('/admin/routes'),
   getRoute: (id: string) => apiFetch(`/admin/routes/${id}`),

@@ -38,8 +38,35 @@ const TRIP_API = {
                 // Transform backend format to frontend expected format
                 const trips = (data.data || []).map(t => {
                     const routeName = t.routeId?.name || '';
-                    const pickup = t.pickup?.address || t.pickupLocation?.address || routeName.split('→')[0]?.trim() || t.routeId?.startLocation || 'Pickup';
-                    const drop = t.drop?.address || t.dropLocation?.address || routeName.split('→')[1]?.trim() || t.routeId?.endLocation || 'Drop';
+                    const rawManifest = Array.isArray(t.manifest) ? t.manifest : [];
+                    const passengers = rawManifest.map((entry, index) => {
+                        const customer = entry.customer || {};
+                        const pickupStop = entry.pickupStop || t.pickup || t.pickupLocation;
+                        const dropStop = entry.dropStop || t.drop || t.dropLocation;
+                        return {
+                            id: customer._id || customer.id || entry._id || `${t._id}-${index}`,
+                            passengerId: customer._id || customer.id || entry._id || `${t._id}-${index}`,
+                            tripId: t._id,
+                            manifestEntryId: entry._id,
+                            name: customer.name || t.customerName || 'Customer',
+                            passengerName: customer.name || t.customerName || 'Customer',
+                            phone: customer.userId?.phone || customer.phone || t.customerPhone || '',
+                            pickup: pickupStop?.stopName || pickupStop?.address || customer.pickupLocation?.address || t.routeId?.startLocation || 'Pickup',
+                            drop: dropStop?.stopName || dropStop?.address || customer.dropLocation?.address || t.routeId?.endLocation || 'Drop',
+                            pickupLocation: pickupStop?.location || pickupStop || customer.pickupLocation,
+                            dropLocation: dropStop?.location || dropStop || customer.dropLocation,
+                            lifecycle: entry.status || 'PENDING',
+                            permittedAction: entry.permittedAction || 'NONE',
+                            pickupStatus: entry.status === 'BOARDED' || entry.status === 'DROPPED' ? 'Picked Up' : 'Waiting',
+                            dropStatus: entry.status === 'DROPPED' ? 'Dropped Successfully' : 'Pending',
+                            status: entry.status || 'PENDING',
+                            seat: `Passenger ${index + 1}`,
+                        };
+                    });
+                    const firstPassenger = passengers[0];
+                    const lastPassenger = passengers[passengers.length - 1];
+                    const pickup = t.pickup?.address || t.pickupLocation?.address || firstPassenger?.pickup || routeName.split('→')[0]?.trim() || t.routeId?.startLocation || 'Pickup';
+                    const drop = t.drop?.address || t.dropLocation?.address || lastPassenger?.drop || routeName.split('→')[1]?.trim() || t.routeId?.endLocation || 'Drop';
                     const tripDate = new Date(t.tripDate || t.createdAt || Date.now());
                     return {
                         id: t._id,
@@ -49,9 +76,11 @@ const TRIP_API = {
                         startsAt: tripDate.toISOString(),
                         pickup,
                         drop,
+                        pickupLocation: firstPassenger?.pickupLocation || t.pickup || t.pickupLocation,
+                        dropLocation: lastPassenger?.dropLocation || t.drop || t.dropLocation,
                         earnings: t.fare?.estimated || t.fare?.final || 0,
-                        passengers: (t.manifest || []).length || 1,
-                        customerName: t.customerName || (t.manifest?.[0]?.customer?.name) || 'Customer',
+                        passengers,
+                        customerName: t.customerName || firstPassenger?.name || 'Customer',
                         type: t.type || 'TRIP',
                     };
                 });

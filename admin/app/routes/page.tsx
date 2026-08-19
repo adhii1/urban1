@@ -7,7 +7,7 @@ import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, X, Crosshair } from 'lucide-react';
 import StopMapPicker, { type PickerStop } from '../../components/StopMapPicker';
 
-type FormStop = PickerStop;
+type FormStop = PickerStop & { stopId?: string };
 
 const emptyForm = {
   name: '',
@@ -57,6 +57,7 @@ export default function RoutesPage() {
     return route.stops.map((s: any) => {
       const coords = s.location?.coordinates || s.coordinates || [];
       return {
+        stopId: s.stopId,
         name: s.stopName || s.name || '',
         lat: typeof coords[1] === 'number' ? coords[1] : null,
         lng: typeof coords[0] === 'number' ? coords[0] : null,
@@ -127,6 +128,7 @@ export default function RoutesPage() {
       endLocation: form.endLocation,
       assignedDriver: form.assignedDriver || undefined,
       stops: validStops.map((s, i) => ({
+        ...(s.stopId ? { stopId: s.stopId } : {}),
         stopName: s.name.trim(),
         sequenceOrder: i + 1,
         location: {
@@ -206,8 +208,8 @@ export default function RoutesPage() {
                   <td style={{ padding: '12px 18px', fontSize: '13px', fontWeight: 600, color: 'var(--text-main)' }}>{Array.isArray(r.stops) ? r.stops.length : (r.stops || 0)} stops</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{r.assignedDriver?.name || r.assignedDriver || '-'}</td>
                   <td style={{ padding: '12px 18px' }}>
-                    <span className={`badge ${r.isActive !== false ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
-                      {r.isActive !== false ? 'Active' : 'Inactive'}
+                    <span className={`badge ${r.status === 'ACTIVE' ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
+                      {r.status === 'ACTIVE' ? 'Active' : 'Inactive'}
                     </span>
                   </td>
                   <td style={{ padding: '12px 18px' }}>
