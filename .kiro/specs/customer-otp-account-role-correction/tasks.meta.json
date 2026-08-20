@@ -1,0 +1,80 @@
+{
+  "pbtResults": {
+    "1. Write the expected-failure bug-condition exploration test before implementing the fix": {
+      "status": "passed",
+      "failingExample": "Property 1 expected-behavior counterexamples on unfixed seed (each fast-check run: path \"0\", endOnFailure true):\n1. Counterexample [{\"kind\":\"fresh\",\"hasCustomerData\":false}] (seed 1196358024): role=Driver (expected Customer); visible Customer profile missing; visible Driver profile present; LOGIN OTP rejected: \"Please use password login for this account.\" (400).\n2. Counterexample [{\"kind\":\"driver\",\"hasCustomerData\":false}] (seed 1149020898): role=Driver; visible Customer profile missing; visible Driver profile present; LOGIN OTP rejected: \"Please use password login for this account.\" (400).\n3. Counterexample [{\"kind\":\"customer\",\"hasCustomerData\":true}] (seed -582000989): role=Driver; visible Customer profile missing; visible Driver profile present; pre-existing Customer profile fields not retained; pre-existing subscription not retained; LOGIN OTP rejected: \"Please use password login for this account.\" (400).\n4. Counterexample [{\"kind\":\"conflicting-profiles\",\"hasCustomerData\":true}] (seed -198661598): role=Driver; visible Customer profile missing; visible Driver profile present; pre-existing Customer profile fields not retained; pre-existing subscription not retained; LOGIN OTP rejected: \"Please use password login for this account.\" (400).\nAll four cases preserved 9876543210 as Driver with the same Driver profile ID and kept the HSR trip's driverId equal to that profile ID.",
+      "lastRunTimestamp": 1787170272539
+    },
+    "2. Write preservation baseline property tests before implementing the fix": {
+      "status": "failed",
+      "failingExample": "Property failed after 1 tests\n{ seed: 453096678, path: \"0\", endOnFailure: true }\nCounterexample: [undefined]\nShrunk 0 time(s)\nGot AssertionError [ERR_ASSERTION]: first seed must preserve the already-correct target Customer state\nActual: user 7019268918 role 'Driver'; customer null; subscriptions []; visibleDriverIds ['6a860eaffef0c6f40535a8e4'].\nExpected: role 'Customer'; retained Customer profile 'Already Correct Target' (id 6a860eaffef0c6f40535a8d2); retained subscription id 6a860eaffef0c6f40535a8d4; visibleDriverIds [].",
+      "lastRunTimestamp": 1787170487661
+    }
+  },
+  "executionHistory": {
+    "1. Write the expected-failure bug-condition exploration test before implementing the fix": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134054
+      },
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170154297
+      },
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170314305
+      }
+    ],
+    "2. Write preservation baseline property tests before implementing the fix": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134141
+      },
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170328228
+      }
+    ],
+    "3.1 Reconcile only the exact target account in `seedDatabase(env)`": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134172
+      }
+    ],
+    "3.2 Preserve the independent Driver seed, HSR trip association, and OTP authorization": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134207
+      }
+    ],
+    "3.3 Verify the bug-condition exploration test now passes": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134235
+      }
+    ],
+    "3.4 Verify the preservation baseline tests still pass": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134272
+      }
+    ],
+    "4. Checkpoint - ensure all tests pass": [
+      {
+        "executionId": "c1dd0c76-b0ff-4f41-a5e0-01ae353c615c",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787170134325
+      }
+    ]
+  }
+}

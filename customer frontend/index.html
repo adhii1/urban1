@@ -340,6 +340,17 @@
                 <p class="modal-subtitle" id="modalSubtitle">Smart Daily Commute</p>
             </div>
 
+            <div class="login-method-choice" role="group" aria-label="Choose a sign-in method">
+                <button type="button" class="login-method-button is-active" id="btnUseOTP" data-login-method="otp"
+                    aria-controls="stepMobile" aria-pressed="true">
+                    Continue with OTP
+                </button>
+                <button type="button" class="login-method-button" id="btnUsePassword" data-login-method="password"
+                    aria-controls="stepPassword" aria-pressed="false">
+                    Sign in with password
+                </button>
+            </div>
+
             <!-- Step 1: Mobile & Name Input -->
             <div class="modal-step active" id="stepMobile">
                 <form id="mobileForm" class="modal-form">
@@ -382,6 +393,40 @@
                     <div class="resend-container">
                         <span class="resend-text">Didn't receive code?</span>
                         <button type="button" class="btn-text btn-resend" id="btnResendOTP">Resend OTP</button>
+                    </div>
+
+                    <div class="login-method-switch">
+                        <span>Have a password?</span>
+                        <button type="button" class="btn-text btn-switch-method" id="btnSwitchToPassword"
+                            aria-controls="stepPassword">Sign in with password</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 3: Password Login -->
+            <div class="modal-step" id="stepPassword">
+                <form id="passwordForm" class="modal-form" novalidate>
+                    <div class="form-group">
+                        <label for="passwordMobileNumber">Mobile Number</label>
+                        <div class="input-with-prefix">
+                            <span class="prefix">+91</span>
+                            <input type="tel" id="passwordMobileNumber" placeholder="Enter 10-digit number"
+                                pattern="[0-9]{10}" required autocomplete="tel">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter your password" required
+                            autocomplete="current-password" aria-describedby="passwordError">
+                    </div>
+                    <p class="form-error" id="passwordError" role="alert" aria-live="polite" hidden></p>
+                    <button type="submit" class="btn-primary modal-btn-full" id="btnPasswordLogin"
+                        data-loading-label="Signing in...">Sign in</button>
+
+                    <div class="login-method-switch">
+                        <span>Prefer a one-time password?</span>
+                        <button type="button" class="btn-text btn-switch-method" id="btnSwitchToOTP"
+                            aria-controls="stepMobile">Continue with OTP</button>
                     </div>
                 </form>
             </div>

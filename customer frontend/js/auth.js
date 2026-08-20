@@ -6,19 +6,28 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Elements ---
     const authModal = document.getElementById('authModal');
     const modalCloseBtn = document.getElementById('modalCloseBtn');
-    
+
     const stepMobile = document.getElementById('stepMobile');
     const stepOTP = document.getElementById('stepOTP');
-    
+    const stepPassword = document.getElementById('stepPassword');
+
     const mobileForm = document.getElementById('mobileForm');
     const otpForm = document.getElementById('otpForm');
-    
+    const passwordForm = document.getElementById('passwordForm');
+
     const nameGroup = document.getElementById('nameGroup');
     const fullNameInput = document.getElementById('fullName');
     const mobileNumberInput = document.getElementById('mobileNumber');
-    
+    const passwordMobileNumberInput = document.getElementById('passwordMobileNumber');
+    const passwordInput = document.getElementById('password');
+    const passwordError = document.getElementById('passwordError');
+
     const otpSentNumber = document.getElementById('otpSentNumber');
     const btnChangeNumber = document.getElementById('btnChangeNumber');
+    const btnUseOTP = document.getElementById('btnUseOTP');
+    const btnUsePassword = document.getElementById('btnUsePassword');
+    const btnSwitchToOTP = document.getElementById('btnSwitchToOTP');
+    const btnSwitchToPassword = document.getElementById('btnSwitchToPassword');
     const otpBoxes = document.querySelectorAll('.otp-box');
 
     let currentMobile = '';
@@ -33,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
 
     authRequiredButtons.forEach(btn => {
-        if(btn) {
+        if (btn) {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 checkAuthAndProceed();
@@ -61,16 +70,81 @@ document.addEventListener('DOMContentLoaded', () => {
         authModal.classList.remove('show');
     }
 
+    function updateLoginMethod(method) {
+        const isOtp = method === 'otp';
+        if (btnUseOTP) {
+            btnUseOTP.classList.toggle('is-active', isOtp);
+            btnUseOTP.setAttribute('aria-pressed', String(isOtp));
+        }
+        if (btnUsePassword) {
+            btnUsePassword.classList.toggle('is-active', !isOtp);
+            btnUsePassword.setAttribute('aria-pressed', String(!isOtp));
+        }
+    }
+
+    function clearPasswordError() {
+        if (passwordError) {
+            passwordError.textContent = '';
+            passwordError.hidden = true;
+        }
+    }
+
+    function showPasswordError(message) {
+        if (passwordError) {
+            passwordError.textContent = message;
+            passwordError.hidden = false;
+        } else {
+            alert(message);
+        }
+    }
+
+    function showPasswordStep(message = '') {
+        const mobile = currentMobile || mobileNumberInput.value.trim();
+        currentMobile = mobile;
+
+        stepMobile.classList.remove('active');
+        stepOTP.classList.remove('active');
+        if (stepPassword) stepPassword.classList.add('active');
+        otpForm.reset();
+        sessionStorage.removeItem('pendingName');
+
+        if (passwordMobileNumberInput) passwordMobileNumberInput.value = mobile;
+        if (passwordInput) passwordInput.value = '';
+        updateLoginMethod('password');
+        clearPasswordError();
+
+        if (message) showPasswordError(message);
+        if (passwordMobileNumberInput) passwordMobileNumberInput.focus();
+    }
+
+    function showOtpStep() {
+        const mobile = passwordMobileNumberInput ? passwordMobileNumberInput.value.trim() : '';
+        if (mobile) mobileNumberInput.value = mobile;
+
+        if (stepPassword) stepPassword.classList.remove('active');
+        stepOTP.classList.remove('active');
+        stepMobile.classList.add('active');
+        if (passwordForm) passwordForm.reset();
+        clearPasswordError();
+        updateLoginMethod('otp');
+        mobileNumberInput.focus();
+    }
+
     function resetModalState() {
         stepMobile.classList.add('active');
         stepOTP.classList.remove('active');
+        if (stepPassword) stepPassword.classList.remove('active');
         mobileForm.reset();
         otpForm.reset();
-        
+        if (passwordForm) passwordForm.reset();
+        clearPasswordError();
+        updateLoginMethod('otp');
+        currentMobile = '';
+
         // Check if we have a saved user to determine returning user flow
         const savedName = localStorage.getItem('userName');
         const savedMobile = localStorage.getItem('mobileNumber');
-        
+
         if (savedMobile) {
             isReturningUser = true;
             nameGroup.style.display = 'none'; // Hide name field
@@ -87,12 +161,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     var API_BASE_URL = 'http://localhost:4000/api/v1';
-    var FETCH_OPTS = { credentials: 'include' };
+
+    function completeLegacyLogin(data) {
+        const loginData = data && data.data;
+        const user = loginData && loginData.user;
+
+        if (!data || !data.success || !loginData || !loginData.accessToken || !user) {
+            return false;
+        }
+
+        if (user.role !== 'Customer') {
+            return false;
+        }
+
+        localStorage.setItem('accessToken', loginData.accessToken);
+        if (loginData.refreshToken) {
+            localStorage.setItem('refreshToken', loginData.refreshToken);
+        } else {
+            localStorage.removeItem('refreshToken');
+        }
+        localStorage.setItem('userName', user.name);
+        localStorage.setItem('mobileNumber', user.phone);
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userRole', user.role);
+        localStorage.setItem('userId', user.id || user._id);
+
+        closeModal();
+        window.location.href = 'dashboard.html';
+        return true;
+    }
+
+    function isPasswordLoginDirection(data) {
+        return Boolean(data && /use password login/i.test(data.message || ''));
+    }
 
     // --- Step 1: Mobile Form Submit ---
     mobileForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
         if (!isReturningUser && !fullNameInput.value.trim()) {
             alert('Please enter your full name');
             return;
@@ -103,28 +209,28 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionStorage.setItem('pendingName', pendingName);
 
         console.log(`Sending OTP to +91 ${currentMobile}...`);
-        
+
         fetch(`${API_BASE_URL}/auth/send-otp`, {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: currentMobile, purpose: 'LOGIN' })
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                // Transition to OTP Step
-                otpSentNumber.textContent = `+91 ${currentMobile}`;
-                stepMobile.classList.remove('active');
-                stepOTP.classList.add('active');
-                otpBoxes[0].focus();
-            } else {
-                alert(data.message || 'Failed to send OTP. Please try again.');
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Failed to connect to backend server. Make sure it is running on port 5000.');
-        });
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Transition to OTP Step
+                    otpSentNumber.textContent = `+91 ${currentMobile}`;
+                    stepMobile.classList.remove('active');
+                    stepOTP.classList.add('active');
+                    otpBoxes[0].focus();
+                } else {
+                    alert(data.message || 'Failed to send OTP. Please try again.');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Failed to connect to backend server. Make sure it is running on port 5000.');
+            });
     });
 
     // --- Step 2: OTP Form Logic ---
@@ -137,7 +243,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-        
+
         box.addEventListener('keydown', (e) => {
             if (e.key === 'Backspace' && e.target.value === '') {
                 if (index > 0) {
@@ -160,23 +266,23 @@ document.addEventListener('DOMContentLoaded', () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone: currentMobile, purpose: 'LOGIN' })
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                alert('OTP Resent!');
-            } else {
-                alert(data.message || 'Failed to resend OTP.');
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Failed to resend OTP. Server connection error.');
-        });
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    alert('OTP Resent!');
+                } else {
+                    alert(data.message || 'Failed to resend OTP.');
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Failed to resend OTP. Server connection error.');
+            });
     });
 
     otpForm.addEventListener('submit', (e) => {
         e.preventDefault();
-        
+
         const otpValue = Array.from(otpBoxes).map(box => box.value).join('');
         if (otpValue.length !== 6) {
             alert('Please enter complete OTP');
@@ -195,43 +301,75 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: pendingName
             })
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.data && data.data.accessToken) {
-                // Save to LocalStorage
-                localStorage.setItem('accessToken', data.data.accessToken);
-                localStorage.setItem('refreshToken', data.data.refreshToken);
-                localStorage.setItem('userName', data.data.user.name);
-                localStorage.setItem('mobileNumber', data.data.user.phone);
-                localStorage.setItem('isLoggedIn', 'true');
-                localStorage.setItem('userRole', data.data.user.role);
-                localStorage.setItem('userId', data.data.user.id || data.data.user._id);
-                
-                closeModal();
-                
-                // Redirect to dashboard
-                window.location.href = 'dashboard.html';
-            } else {
+            .then(res => res.json())
+            .then(data => {
+                if (completeLegacyLogin(data)) {
+                    return;
+                }
+
+                if (isPasswordLoginDirection(data)) {
+                    showPasswordStep(data.message);
+                    return;
+                }
+
                 alert(data.message || 'Invalid OTP code.');
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert('Verification connection error.');
-        });
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Verification connection error.');
+            });
     });
 
-    function loginSuccess() {
-        // Save to LocalStorage
-        if (!isReturningUser) {
-            localStorage.setItem('userName', fullNameInput.value.trim());
-        }
-        localStorage.setItem('mobileNumber', currentMobile);
-        localStorage.setItem('isLoggedIn', 'true');
-        
-        closeModal();
-        
-        // Redirect to dashboard
-        window.location.href = 'dashboard.html';
+    // --- Password Login ---
+    if (btnUsePassword) btnUsePassword.addEventListener('click', () => showPasswordStep());
+    if (btnSwitchToPassword) btnSwitchToPassword.addEventListener('click', () => showPasswordStep());
+    if (btnUseOTP) btnUseOTP.addEventListener('click', showOtpStep);
+    if (btnSwitchToOTP) btnSwitchToOTP.addEventListener('click', showOtpStep);
+
+    if (passwordForm) {
+        passwordForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const phone = passwordMobileNumberInput.value.trim();
+            const password = passwordInput.value;
+            clearPasswordError();
+
+            if (!/^\d{10}$/.test(phone)) {
+                showPasswordError('Please enter a valid 10-digit mobile number.');
+                passwordMobileNumberInput.focus();
+                return;
+            }
+
+            if (!password) {
+                showPasswordError('Please enter your password.');
+                passwordInput.focus();
+                return;
+            }
+
+            currentMobile = phone;
+            fetch(`${API_BASE_URL}/auth/login`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone, password })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.success && data.data && data.data.user && data.data.user.role !== 'Customer') {
+                        showPasswordError('This account cannot access the customer portal.');
+                        return;
+                    }
+
+                    if (completeLegacyLogin(data)) {
+                        return;
+                    }
+
+                    showPasswordError(data.message || 'Unable to sign in. Please check your credentials.');
+                })
+                .catch(err => {
+                    console.error(err);
+                    showPasswordError('Unable to connect to the server. Please try again.');
+                });
+        });
     }
 });

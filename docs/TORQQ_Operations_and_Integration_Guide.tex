@@ -1,0 +1,369 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.82in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+\renewcommand{\arraystretch}{1.18}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{TORQQ Platform}}
+\fancyhead[R]{Operations, Integration \& Data Mapping Guide}
+\fancyfoot[C]{\thepage}
+\newcommand{\status}[1]{\textbf{#1}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}p{0.28\textwidth}}
+\newcolumntype{Z}{>{\raggedright\arraybackslash}p{0.64\textwidth}}
+
+\title{\textbf{TORQQ Platform --- Operations, Integration \& Data Mapping Guide}\\[0.35em]\large Version 1.0}
+\author{Implementation and Integration Status Document}
+\date{August 19, 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{center}
+\fbox{\parbox{0.91\textwidth}{\small\textbf{Purpose and limitation.} This is an implementation and integration status document based on the current TORQQ backend repository. It is not a production certification, payment-provider approval, security attestation, or service-level commitment. Production enablement remains subject to deployment configuration, provider approval, reconciliation controls, operational readiness, and acceptance testing.}}
+\end{center}
+
+\tableofcontents
+\newpage
+
+\section{Executive summary}
+TORQQ supports recurring commute service and on-demand Flexy operations with Node.js/Express, MongoDB/Mongoose, and real-time driver workflows. Current recurring service uses plans, subscriptions, routes, daily route/date trips, and passenger manifests. Current on-demand service uses ride requests and, when rides are bundled, a ShuttleSession with passenger-specific lifecycle state.
+
+\textbf{Payment status at a glance.} The backend supports Razorpay order creation, Razorpay signature verification, and Razorpay refunds for the implemented purchase and completed-ride flows. UPI is \status{Provider-configured}: it is available only when Razorpay Checkout and the merchant's Razorpay account/dashboard configuration permit it. TORQQ does not independently implement or guarantee UPI availability.
+
+\textbf{Wallet and Store Balance status.} They are \status{Not implemented} as stored-value payment methods. Current wallet routes expose reward, referral, and refund information only. This repository has no stored-value wallet/Store Balance ledger and no debit, top-up, settlement, or reconciliation API. Customers therefore cannot select Wallet or Store Balance as a payment method today.
+
+\begin{longtable}{Y Z}
+\toprule
+\textbf{Area} & \textbf{Current status and client implication} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Area} & \textbf{Current status and client implication} \\
+\midrule
+\endhead
+Razorpay payments & \status{Operational backend capability}, subject to configured Razorpay credentials. The service creates orders, verifies Razorpay HMAC signatures, and calls Razorpay refunds. In the absence of configured credentials or SDK availability, the service has development/mock behavior; this is not production payment readiness. \\
+UPI & \status{Provider-configured}. UPI is a Razorpay Checkout/provider method, not a separately implemented TORQQ server payment rail. It requires merchant account/dashboard enablement and applicable Checkout configuration. \\
+Wallet information & \status{Operational information endpoints only}. Authenticated routes expose \code{GET /api/v1/wallet/rewards}, \code{/wallet/referrals}, and \code{/wallet/refunds}. They do not create a balance, debit a balance, top up funds, or settle a payment. \\
+Wallet / Store Balance payment & \status{Not implemented}. There is no customer-selectable payment option, balance ledger, ledger transaction model, top-up, debit, hold, reversal, settlement, or reconciliation capability in this repository. \\
+Recurring commute & \status{Operational backend capability}. Subscription validation, payment activation, route/date trip generation, idempotency, route reconciliation, and operational exceptions are implemented in the described backend scope. \\
+Flexy & \status{Operational backend capability}. Immediate requests enter \code{PENDING}; valid future requests enter \code{SCHEDULED}; the due-time job promotes due requests to \code{PENDING} before normal matching. \\
+\bottomrule
+\end{longtable}
+
+\section{Payment-method status and backend enablement scope}
+\subsection{Status taxonomy}
+\begin{longtable}{Y Z}
+\toprule
+\textbf{Label} & \textbf{Meaning in this guide} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Label} & \textbf{Meaning in this guide} \\
+\midrule
+\endhead
+\status{Operational} & Implemented backend behavior in the reviewed repository. Production use still requires deployment configuration and operational validation. \\
+\status{Provider-configured} & A capability governed by Razorpay account, dashboard, Checkout, compliance, and provider decisions; it is not independently switched on by TORQQ application code. \\
+\status{Feature-gated integration contract} & A proposed future interface. It is explicitly \textbf{not deployed}, \textbf{disabled by feature flag}, and requires ledger and reconciliation implementation before use. \\
+\status{Not implemented} & No current backend payment method or durable financial capability exists in this repository. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Operational Razorpay scope}
+The payment service initializes Razorpay only when the application has Razorpay key credentials. It creates INR orders, verifies the signature calculated over the order and payment identifiers, and requests refunds from Razorpay. The implemented customer payment surfaces are:
+
+\begin{longtable}{p{0.34\textwidth} Z}
+\toprule
+\textbf{Current contract} & \textbf{Behavior} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Current contract} & \textbf{Behavior} \\
+\midrule
+\endhead
+\code{POST /api/v1/customer/subscriptions/purchase} & Validates the recurring plan and route-stop selection before creating a pending subscription and Razorpay order. The response contains a subscription identifier, order identifier, INR amount in paise, and order context. \\
+\code{POST /api/v1/customer/subscriptions/verify-payment} & Verifies the submitted Razorpay order/payment/signature tuple. A verified payment activates the subscription and triggers recurring shared-trip generation when applicable. A failed verification marks the subscription payment failed and cancels that pending subscription. \\
+\code{POST /api/v1/payments/create-order} & For a completed customer ride with a recorded fare, creates a Razorpay order and records a pending payment on the RideRequest. \\
+\code{POST /api/v1/payments/verify} & Verifies the payment signature and marks the RideRequest payment completed or failed. \\
+\code{POST /api/v1/payments/refund} & For a qualifying cancelled or completed ride with a completed payment and no prior refund, requests a Razorpay refund and records refund details on the RideRequest. \\
+\code{GET /api/v1/payments/:rideId/status} & Returns the authenticated customer's fare and recorded payment object for that ride. \\
+\bottomrule
+\end{longtable}
+
+The payment routes are customer-authenticated and customer-authorized. The payment service also has an internal payment-status retrieval method, but the reviewed HTTP routes expose the ride payment status contract listed above.
+
+\subsection{UPI: provider-controlled, not a TORQQ-specific payment rail}
+UPI availability is controlled through Razorpay Checkout and requires the applicable merchant/account/dashboard enablement. The server-side order and signature verification capabilities are prerequisites for a Checkout flow, but they do not prove that UPI is enabled, visible to every customer, or approved for a production account. Validate UPI in the intended Razorpay account/dashboard and production Checkout configuration before communicating availability to customers.
+
+\subsection{Wallet and Store Balance: explicit non-implementation}
+The following current routes are informational only: \code{GET /api/v1/wallet/rewards}, \code{GET /api/v1/wallet/referrals}, and \code{GET /api/v1/wallet/refunds}. They must not be interpreted as a wallet, Store Balance, or payment instrument.
+
+\textbf{No stored-value financial capability is present in the reviewed repository:}
+\begin{itemize}
+  \item no wallet or Store Balance collection/model;
+  \item no immutable credit/debit ledger entries or balance calculation;
+  \item no top-up, payment debit, authorization hold, release, reversal, or refund-to-balance operation;
+  \item no settlement, provider reconciliation, idempotency-key, or financial audit workflow; and
+  \item no API that lets a customer select Wallet or Store Balance at checkout.
+\end{itemize}
+
+\subsection{Backend activation blueprint: Wallet / Store Balance (future only)}
+\textbf{Classification: Feature-gated integration contract --- not deployed / disabled by feature flag / requires ledger and reconciliation implementation.} The following is a proposed contract, not an existing TORQQ API and not a promise of availability.
+
+\begin{longtable}{p{0.35\textwidth} Z}
+\toprule
+\textbf{Proposed disabled contract} & \textbf{Required behavior before any enablement} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Proposed disabled contract} & \textbf{Required behavior before any enablement} \\
+\midrule
+\endhead
+\code{GET /api/v1/wallet/balance} & Return an available, held, and pending balance derived from an immutable ledger; do not persist a mutable balance as the sole financial record. \\
+\code{POST /api/v1/wallet/top-ups} & Create a top-up intent with a server-issued idempotency key and provider reference; credit only after verified provider settlement. \\
+\code{POST /api/v1/wallet/payments/authorize} & Place a bounded hold against an eligible balance for a subscription or ride reference. \\
+\code{POST /api/v1/wallet/payments/capture} & Debit or capture an existing hold exactly once after service/payment rules permit it. \\
+\code{POST /api/v1/wallet/payments/release} & Release an unused or expired hold with an auditable compensating ledger entry. \\
+\code{POST /api/v1/wallet/refunds} & Credit a refund only from a verified eligible source transaction, with original payment linkage and reversal controls. \\
+\code{GET /api/v1/admin/wallet/reconciliation} & Report ledger totals, provider top-up settlement state, unmatched items, and exception workflow for authorized finance operators. \\
+\bottomrule
+\end{longtable}
+
+\textbf{Mandatory backend activation prerequisites.} Before a feature flag can be enabled, implement an append-only double-entry or equivalently auditable ledger; monetary precision and currency policy; ownership and authorization checks; transaction and idempotency controls; balance/hold invariants; top-up verification; cancellation/refund/reversal rules; provider settlement matching; operations reconciliation and exception handling; audit retention; alerts; security review; finance approval; migration/backfill policy; and automated failure, concurrency, and recovery tests. The contract must remain disabled until those controls are implemented and accepted.
+
+\textbf{Frontend boundary.} No frontend changes are necessary merely to prepare backend contracts, feature flags, or ledger infrastructure. A frontend change \textbf{is required} before a customer can select Wallet or Store Balance as a payment method: the client must show a gated selector, disclose balance/hold behavior, submit the new payment contract, and surface success/failure/refund states. Until then, neither method is customer-selectable.
+
+\section{End-to-end operations}
+\subsection{Customer authentication and recurring subscription flow}
+\begin{enumerate}
+  \item The customer authenticates and accesses plans and eligible active routes.
+  \item For a recurring non-Flexy purchase, the customer supplies the plan, route, start date, required weekday choices, and pickup/drop stop selections.
+  \item The backend validates the plan/service model, active route, distinct forward-ordered managed stops, and policy rules. Hybrid requires exactly three distinct Monday--Friday selections. Managed Home-to-Office validation applies the server-side 5 km stop-distance threshold.
+  \item Only after policy acceptance does \code{POST /api/v1/customer/subscriptions/purchase} persist a \code{PENDING\_PAYMENT} Subscription and create a Razorpay order.
+  \item The customer completes Razorpay Checkout. The client submits the returned order identifier, payment identifier, and signature to \code{POST /api/v1/customer/subscriptions/verify-payment}.
+  \item On verified signature, the Subscription becomes \code{ACTIVE}, payment metadata is recorded, and the Customer's \code{subscriptionId} is linked. For shared recurring plans, route/date trips and manifest entries are generated.
+  \item The daily generator continues to prepare the next local service day. Eligibility respects subscription dates, active status, tier calendar rules, durable stops, and route state.
+\end{enumerate}
+
+\subsection{Flexy immediate and scheduled ride flow}
+\begin{enumerate}
+  \item A customer selecting a Flexy plan is directed to the on-demand booking path rather than a recurring Subscription purchase.
+  \item The server receives pickup and drop GeoJSON points and an explicit pickup intent.
+  \item A valid \code{IMMEDIATE} request is created as a RideRequest with status \code{PENDING}; matching may begin.
+  \item A valid future \code{SCHEDULED} request stores \code{scheduledPickupAt} and status \code{SCHEDULED}. A timestamp is required for scheduled requests and prohibited for immediate requests.
+  \item The scheduled Flexy promotion job runs on an interval. It conditionally promotes each due \code{SCHEDULED} request to \code{PENDING} once, then invokes ordinary matching for the rides it promoted.
+  \item The accepted ride advances through \code{ACCEPTED}, \code{DRIVER\_ARRIVING}, \code{IN\_PROGRESS}, and terminal \code{COMPLETED}, \code{CANCELLED}, or \code{EXPIRED} states as applicable. Bundled rides additionally use a ShuttleSession and passenger-specific lifecycle.
+\end{enumerate}
+
+\subsection{Ride payment and refund flow}
+\begin{enumerate}
+  \item After a ride is \code{COMPLETED} and has a final or estimated fare, the authenticated customer requests \code{POST /api/v1/payments/create-order}.
+  \item The backend creates an INR Razorpay order and records the order identifier, fare amount, and payment status \code{pending} on the RideRequest.
+  \item Razorpay Checkout returns the order identifier, payment identifier, and signature; the client submits them to \code{POST /api/v1/payments/verify}.
+  \item The backend verifies the signature. It records payment \code{completed} after successful verification or \code{failed} after an unsuccessful verification.
+  \item For an eligible completed or cancelled ride that has a completed payment and no earlier refund, the customer calls \code{POST /api/v1/payments/refund}. The backend requests the Razorpay refund and stores the refund identifier, status, amount, reason, and timestamp.
+  \item \code{GET /api/v1/payments/:rideId/status} returns the persisted fare and payment record. This is Razorpay-backed payment status, not wallet balance status.
+\end{enumerate}
+
+\subsection{Driver online, acceptance, and passenger lifecycle}
+\begin{enumerate}
+  \item An approved active Driver is assigned a User identity, vehicle/document record, route assignment where applicable, current GeoJSON location, and online/availability state.
+  \item For on-demand matching, drivers are identified using availability and location. A RideRequest retains the matched-driver responses and the accepted driver reference.
+  \item On acceptance of a bundled set, the backend creates one ShuttleSession and persists that \code{shuttleSessionId} on every accepted RideRequest before acknowledgement. The session is the aggregate work record; each RideRequest remains the authoritative passenger-specific lifecycle record.
+  \item Each passenger has a distinct OTP, pickup, drop, and \code{PENDING} passenger lifecycle. Driver pickup verification targets both the ShuttleSession and RideRequest, validates ownership and OTP/predecessor state, and advances only the selected passenger to \code{BOARDED}.
+  \item Driver drop completion similarly targets the same session and ride, advances only a \code{BOARDED} passenger to \code{DROPPED}, and records timing. The ShuttleSession becomes \code{COMPLETED} only when every passenger is dropped.
+  \item For recurring trips, drivers receive a route/date Trip with a manifest of customer, selected stop snapshots, and passenger lifecycle state; accepted shared recurring work is not an on-demand acceptance offer.
+\end{enumerate}
+
+\subsection{Scheduled commute-trip generation}
+\begin{enumerate}
+  \item The daily job computes the next local service date and invokes the trip generator.
+  \item The generator finds active, non-deleted, eligible recurring subscriptions and groups them by active route.
+  \item It creates or updates one \code{SCHEDULED} Trip for each route/service-date group and adds one \code{PENDING} manifest entry per eligible subscription.
+  \item The manifest copies the selected durable pickup/drop stop snapshots so the scheduled work remains traceable even when route arrays are later reordered.
+  \item A configured active route driver is copied to the Trip. If no active assigned driver exists, the Trip is unassigned and an \code{UNASSIGNED\_DRIVER} OperationalException is created. A configured-driver assignment failure is reported as \code{DRIVER\_ASSIGNMENT\_FAILED}.
+  \item Re-running the generator for the same active route and normalized service date preserves one Trip and one manifest entry per eligible subscription through route/date idempotency.
+\end{enumerate}
+
+\subsection{Admin route changes, reconciliation, and exceptions}
+\begin{enumerate}
+  \item An administrator manages plans, customers, drivers, routes, subscriptions, and trips according to their role and permissions.
+  \item A driver-only route change updates future non-terminal scheduled Trips. Completed and cancelled Trips are not changed.
+  \item Route deactivation, stop removal, or stop reordering is reconciled against durable stop identifiers and manifest snapshots. Affected future entries are marked \code{REQUIRES\_RESOLUTION}; no silent stop substitution is made.
+  \item The system records an OperationalException with route/trip/subscription references, service date, reason, status, and resolution information.
+  \item An administrator resolves a conflict only by selecting valid replacement forward stops. The replacement is propagated to the Subscription and future non-terminal Trip manifests.
+\end{enumerate}
+
+\section{Use-case matrices}
+\subsection{Customer}
+\begin{longtable}{p{0.26\textwidth} p{0.28\textwidth} Z}
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endhead
+Authenticate and manage profile & User, Customer & Role-based identity, profile locations, settings, and account state. \\
+Browse recurring options & Plan, Route & Views active plans and active route stops; eligibility remains server-enforced. \\
+Buy a commute subscription & Subscription, Plan, Route & Validated route/stops/schedule then Razorpay order; activates only after signature verification. \\
+Ride recurring commute & Trip, Trip.manifest & Appears on eligible service dates with durable stop snapshots and passenger status. \\
+Book Flexy now or later & RideRequest & Immediate \code{PENDING} or future \code{SCHEDULED}; scheduled promotion is backend-controlled. \\
+Pay for a completed ride & RideRequest.payment & Razorpay order/verify flow; no Wallet or Store Balance selection is available. \\
+Request an eligible refund & RideRequest.payment & Razorpay refund request and persisted provider refund details. \\
+View wallet-related information & Feature endpoint response & Rewards, referrals, and refund information only; not a stored-value balance. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Driver}
+\begin{longtable}{p{0.26\textwidth} p{0.28\textwidth} Z}
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endhead
+Maintain eligibility and availability & User, Driver & Status, documents, vehicle details, online/available flags, and location support assignment. \\
+Execute scheduled commute work & Route, Trip, Trip.manifest & Driver sees route/date work and passenger stop/lifecycle information. \\
+Accept on-demand work & RideRequest, ShuttleSession & Accepted driver is associated with the request; bundled acceptance persists one session across passengers. \\
+Verify pickup & RideRequest, ShuttleSession.sequence & OTP and session/ride/driver checks advance only the named passenger from \code{PENDING} to \code{BOARDED}. \\
+Complete drop & RideRequest, ShuttleSession & Only the named boarded passenger advances to \code{DROPPED}; session completes after all passengers are dropped. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Admin}
+\begin{longtable}{p{0.26\textwidth} p{0.28\textwidth} Z}
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Use case} & \textbf{Primary record(s)} & \textbf{Outcome / control} \\
+\midrule
+\endhead
+Operate master data & Admin, User, Customer, Driver, Plan, Route & Role/permission controlled operational administration. \\
+Assign route drivers & Route, Driver, Trip & Active driver assignment propagates to future non-terminal scheduled Trips. \\
+Monitor scheduled service & Trip, Subscription, Route & Views route/date state, driver or unassigned status, manifest passengers, and lifecycle timing. \\
+Resolve service exceptions & OperationalException, Trip, Subscription & Handles unassigned drivers, assignment failures, route conflicts, and generation failures. \\
+Reconcile route changes & Route, Subscription, Trip.manifest & Uses stable stop IDs and explicit valid replacement stops; terminal Trips are preserved. \\
+Manage payment operations & RideRequest.payment, Subscription.payment & Reviews application-recorded Razorpay payment/refund state; no internal Wallet/Store Balance settlement function exists. \\
+\bottomrule
+\end{longtable}
+
+\section{MongoDB schema and relationship mapping}
+\subsection{Relationship map}
+\begin{center}
+\fbox{\parbox{0.94\textwidth}{\small
+\textbf{Identity:} User $\longleftrightarrow$ Customer (1:0..1), User $\longleftrightarrow$ Driver (1:0..1), User $\longleftrightarrow$ Admin (1:0..1).\\
+\textbf{Recurring service:} Customer $\longrightarrow$ Subscription (1:0..N); Plan $\longrightarrow$ Subscription (1:0..N); Route $\longrightarrow$ Subscription (1:0..N); Route $\longrightarrow$ Trip (1:0..N); Driver $\longrightarrow$ Trip (0..1:0..N); Trip $\longrightarrow$ embedded manifest entries (1:0..N); each manifest entry references Customer and Subscription.\\
+\textbf{On-demand service:} User/Customer $\longrightarrow$ RideRequest (1:0..N); Driver $\longrightarrow$ accepted RideRequest (0..1:0..N); Driver $\longrightarrow$ ShuttleSession (1:0..N); ShuttleSession $\longleftrightarrow$ RideRequest (1:1..N when bundled).\\
+\textbf{Operations:} OperationalException optionally references Route, Trip, Subscription, and the resolving Admin.
+}} 
+\end{center}
+
+\begin{longtable}{p{0.28\textwidth} p{0.22\textwidth} p{0.12\textwidth} p{0.29\textwidth}}
+\toprule
+\textbf{Source field} & \textbf{Target model} & \textbf{Cardinality} & \textbf{Purpose} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Source field} & \textbf{Target model} & \textbf{Cardinality} & \textbf{Purpose} \\
+\midrule
+\endhead
+Customer.\code{userId} & User & 1:1 & Required, unique identity extension for a customer. \\
+Driver.\code{userId} & User & 1:1 & Required, unique identity extension for a driver. \\
+Admin.\code{userId} & User & 1:1 & Required, unique identity extension for an administrator. \\
+Customer.\code{subscriptionId} & Subscription & 0..1:1 & Current linked subscription reference; subscriptions also retain their owning customer. \\
+Customer.\code{deletedBy}; Driver.\code{deletedBy} & Admin & 0..1:0..N & Identifies the administrator that soft-deleted the record where supplied. \\
+Driver.\code{routeId} and Route.\code{assignedDriver} & Route / Driver & 0..1:0..N & Current route association and assigned operating driver. \\
+Subscription.\code{customerId} & Customer & N:1 & Owning commuter. \\
+Subscription.\code{planId} & Plan & N:1 & Purchased plan and rules. \\
+Subscription.\code{routeId} & Route & N:1 & Managed recurring route. \\
+Trip.\code{routeId} & Route & N:1 & Route operated on a normalized service date. \\
+Trip.\code{driverId} & Driver & 0..N:1 & Assigned driver, if active and available for route work. \\
+Trip.\code{manifest[].customer} & Customer & N:1 & Passenger in the scheduled route/date manifest. \\
+Trip.\code{manifest[].subscriptionId} & Subscription & N:1 & Source subscription for each manifest entry. \\
+RideRequest.\code{customerId} & User & N:1 & Requesting customer identity; the model stores customer name/phone as creation-time denormalized data. \\
+RideRequest.\code{acceptedDriverId} & Driver & 0..N:1 & Driver that accepted the on-demand ride. \\
+RideRequest.\code{tripId} & Trip & 0..N:1 & Optional related scheduled Trip reference. \\
+RideRequest.\code{shuttleSessionId} & ShuttleSession & 0..N:1 & Durable on-demand bundle/session membership. \\
+ShuttleSession.\code{driverId} & Driver & N:1 & Required session owner. \\
+ShuttleSession.\code{rideRequestIds[]} and \code{sequence[].rideRequestId} & RideRequest & N:N / embedded sequence & Session passenger membership and ordered pickup/drop work. \\
+ShuttleSession.\code{sequence[].customerId} & User & N:1 & Passenger identity for sequence projection. \\
+OperationalException.\code{routeId}, \code{tripId}, \code{subscriptionId} & Route, Trip, Subscription & Optional N:1 & Context for an actionable operational problem. \\
+OperationalException.\code{resolution.resolvedBy} & Admin & 0..N:1 & Administrator who resolved an exception. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Model catalog and key fields}
+\begin{longtable}{p{0.18\textwidth} p{0.76\textwidth}}
+\toprule
+\textbf{Model} & \textbf{Relevant mapping, state, and persistence details} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Model} & \textbf{Relevant mapping, state, and persistence details} \\
+\midrule
+\endhead
+User & Required unique/indexed \code{phone}; required/indexed \code{role} enum \code{Admin|Driver|Customer}; indexed \code{status} enum \code{ACTIVE|INACTIVE|SUSPENDED}; password/custom-password state; optional sparse indexed lowercase email; push subscriptions; timestamps. \code{isDeleted} is indexed and query middleware excludes soft-deleted records. \\
+Customer & Required unique/indexed \code{userId}; name; optional \code{subscriptionId}; home/pickup/drop locations; indexed status \code{ACTIVE|INACTIVE|SUSPENDED|BANNED}; notification/settings fields; deletion metadata. Pickup and drop are GeoJSON Points with coordinates ordered \code{[longitude, latitude]} and 2dsphere indexes. Find queries exclude \code{isDeleted}. \\
+Driver & Required unique/indexed \code{userId}; name; vehicle and license information; document verification metadata; indexed \code{routeId}; current GeoJSON Point; indexed \code{isOnline} and \code{isAvailable}; rating/cancellation/suspension fields; status \code{ACTIVE|INACTIVE|SUSPENDED|PENDING\_APPROVAL}; deletion metadata. A 2dsphere index supports near queries and a compound online/available/location index supports geo filtering. \\
+Admin & Required unique/indexed \code{userId}; name; permissions; indexed role \code{Super Admin|Operations Admin|Support Admin|Finance Admin}; indexed status \code{ACTIVE|INACTIVE}; timestamps. Soft-deleted records are excluded from finds. \\
+Plan & Name; required service type \code{Home-to-Office|Stop-to-Stop}; required tier \code{Flexy|Hybrid|Weekday|Standard}; price, duration, pause allowance, features, active state; booking rules for passenger limit, advance time, allowed days/weekdays, alternate day, shared ride, and managed stops. \code{isDeleted} is indexed and filtered by query middleware. \\
+Subscription & Required indexed customer, plan, and route references; start/end date; pause balance; indexed state \code{ACTIVE|PAUSED|EXPIRED|CANCELLED|PENDING\_PAYMENT}; embedded Razorpay-related order/payment/signature/amount/status/timestamp data; selected weekdays; booking counters; durable \code{pickupStopId}/\code{dropStopId} and sequence snapshots. Legacy stop indexes remain for compatibility while durable IDs are rolled out. Composite indexes support route/status and route/durable-stop queries. Soft-deleted records are filtered. \\
+Route & Name, endpoints, active/inactive status, assigned driver, and an embedded ordered \code{stops[]} array. Each stop has immutable unique \code{stopId}, unique \code{sequenceOrder}, name, and GeoJSON Point. Validation prevents duplicate stable stop IDs or sequence orders. Stop locations have a 2dsphere index; \code{status,isDeleted} is indexed. Soft-deleted routes are filtered. \\
+Trip & Required indexed route; optional indexed driver; required indexed normalized \code{serviceDate}; planned \code{tripDate}; state \code{SCHEDULED|IN\_PROGRESS|COMPLETED|CANCELLED}; embedded manifest, timing, cancellation, and deletion fields. The partial unique index on \code{routeId,serviceDate} for active/non-deleted records is the route/date idempotency guard. A manifest subscription/service-date index supports lookup. \\
+RideRequest & Required indexed customer User reference; denormalized customer name/phone; required pickup/drop GeoJSON Point; optional intermediate stops; request state \code{PENDING|SCHEDULED|ACCEPTED|RESERVED|DRIVER\_ARRIVING|IN\_PROGRESS|COMPLETED|CANCELLED|EXPIRED}; matched drivers; accepted driver; optional Trip and ShuttleSession references; passenger lifecycle \code{PENDING|BOARDED|DROPPED}; OTP; fare; explicit \code{IMMEDIATE|SCHEDULED} pickup intent; payment/refund fields; terminal TTL behavior; bundle/dispatch metadata. Geo, status/expiry, customer/status, and shuttle/driver/lifecycle indexes support operations. Terminal records are set to expire seven days after \code{ttlAt}; soft-deleted records are excluded. \\
+ShuttleSession & Required indexed driver; array of RideRequest references; state \code{PENDING|DISPATCHED|ACCEPTED|ARRIVING|PICKUP\_IN\_PROGRESS|IN\_PROGRESS|COMPLETED|CANCELLED}; ordered pickup/drop sequence; navigation and completion counts/timestamps; soft delete metadata. Each sequence item identifies the ride/customer, stores a GeoJSON Point, \code{PENDING|COMPLETED} step state, passenger lifecycle, OTP verification, and completion time. Index \code{driverId,status} supports driver session operations. \\
+OperationalException & Required indexed type \code{UNASSIGNED\_DRIVER|DRIVER\_ASSIGNMENT\_FAILED|ROUTE\_CHANGE\_CONFLICT|TRIP\_GENERATION\_FAILED}; optional route/trip/subscription references; required indexed service date; reason; state \code{OPEN|RESOLVED|DISMISSED}; and resolution timestamp, administrator, notes, and replacement stop IDs. Composite indexes support operational queues by status/service date, route/service date/status, and related trip/subscription. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Embedded structures and lifecycle controls}
+\textbf{Durable stops.} Route stops have a stable \code{stopId} rather than relying on array position. Subscriptions store durable selected IDs and sequence snapshots. Trip manifests preserve a stop snapshot containing ID, name, sequence order, and GeoJSON location. This makes route reconciliation deterministic when stops are reordered.
+
+\textbf{Trip manifest.} Each embedded manifest entry references the customer and subscription, carries pickup/drop stop snapshots, and has status \code{PENDING|BOARDED|DROPPED|NO\_SHOW}. A conflict subdocument records \code{NONE} or \code{REQUIRES\_RESOLUTION}, reason, and detection time. It also holds boarding/drop timestamps.
+
+\textbf{Soft delete.} User, Customer, Driver, Admin, Plan, Subscription, Route, Trip, RideRequest, and ShuttleSession use \code{isDeleted} fields in the reviewed models. Query middleware filters deleted records for the models where defined; operational workflows should preserve this behavior rather than relying on client filtering.
+
+\textbf{GeoJSON convention.} Customer locations, driver location, route-stop locations, RideRequest endpoints/stops, Trip stop snapshots, and ShuttleSession sequence locations use GeoJSON \code{Point} structures. Coordinates are ordered \code{[longitude, latitude]}, not latitude/longitude.
+
+\section{Operational controls and handover notes}
+\begin{itemize}
+  \item Treat a verified Razorpay signature as the application activation condition for a pending subscription; do not activate solely because a client reports success.
+  \item Monitor daily trip generation summaries and OperationalException records, especially unassigned routes, configured-driver assignment failures, and route conflicts.
+  \item Preserve route stop IDs during route maintenance. Reordering/deleting stops requires reconciliation; it must not silently remap subscriptions by array index.
+  \item Keep RideRequest passenger lifecycle authoritative for bundled rides. Session-level status does not replace the per-passenger state used for safe pickup/drop actions.
+  \item Do not expose payment provider credentials, OTP values, or payment signatures in logs or client support artifacts.
+  \item Before production payment launch, validate configured credentials, actual provider mode, error/retry policy, refunds, webhook/settlement needs, and account-specific UPI availability.
+\end{itemize}
+
+\section{Client FAQ}
+\textbf{Is Store Balance completed?} No. Store Balance is \status{Not implemented} in this repository. There is no ledger, top-up/debit/settlement API, or customer payment selection.
+
+\textbf{Is Wallet completed?} No, not as a payment method. The current backend exposes reward, referral, and refund information routes only. Those routes do not create or maintain a stored-value balance.
+
+\textbf{Is UPI completed?} TORQQ has backend Razorpay order creation and signature verification support. UPI itself is \status{Provider-configured} through Razorpay Checkout and requires merchant dashboard/account enablement and validation. It must not be represented as guaranteed until confirmed in the production provider configuration.
+
+\textbf{Can customers pay with Wallet or Store Balance now?} No. A customer-facing selection flow does not exist, and the required stored-value backend controls are not present.
+
+\textbf{Do we need frontend work now to prepare a future wallet?} No frontend change is needed merely to design backend contracts or keep the capability feature-gated. A frontend change is required before customers can select Wallet or Store Balance.
+
+\textbf{What payment operations are implemented now?} Razorpay-backed order creation, signature verification, and refunds for the implemented subscription and completed-ride flows, subject to configured credentials and normal production readiness checks.
+
+\textbf{Does this guide certify production readiness?} No. It documents implementation and integration status as of August 19, 2026; it is not a production certification.
+
+\end{document}

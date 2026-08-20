@@ -1,0 +1,139 @@
+{
+  "pbtResults": {
+    "1. Write bug-condition exploration test": {
+      "status": "passed",
+      "failingExample": "Property failed after 1 tests\n{ seed: -75140665, path: \"0\", endOnFailure: true }\nCounterexample: [\".btn-card\"]\nShrunk 0 time(s)\nGot AssertionError [ERR_ASSERTION]: .btn-card is a dead end for an OTP-directed account (Please use password login for this account.): rendered steps are stepMobile, stepOTP, with no reachable password control/form\nfalse !== true",
+      "lastRunTimestamp": 1787166770382
+    },
+    "2. Write preservation property tests (BEFORE implementing fix)": {
+      "status": "passed",
+      "lastRunTimestamp": 1787167029375
+    },
+    "3.3 Verify the bug-condition exploration test now passes": {
+      "status": "passed",
+      "lastRunTimestamp": 1787168619616
+    },
+    "3.4 Verify preservation tests still pass": {
+      "status": "passed",
+      "lastRunTimestamp": 1787168632150
+    }
+  },
+  "executionHistory": {
+    "1. Write bug-condition exploration test": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528084
+      },
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166537299
+      }
+    ],
+    "2. Write preservation property tests (BEFORE implementing fix)": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528159
+      },
+      {
+        "executionId": "3328d1bb-28ea-4999-8402-3927fa2501c5",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787167047453
+      }
+    ],
+    "3.1 Add the reachable legacy password-login modal UI": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528181
+      },
+      {
+        "executionId": "3328d1bb-28ea-4999-8402-3927fa2501c5",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787167056576
+      },
+      {
+        "executionId": "3328d1bb-28ea-4999-8402-3927fa2501c5",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787167183264
+      }
+    ],
+    "3.2 Integrate the password branch with the existing legacy success handoff": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528201
+      },
+      {
+        "executionId": "3328d1bb-28ea-4999-8402-3927fa2501c5",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787167193911
+      },
+      {
+        "executionId": "3328d1bb-28ea-4999-8402-3927fa2501c5",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787167409304
+      }
+    ],
+    "3.3 Verify the bug-condition exploration test now passes": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528223
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168265586
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168433523
+      }
+    ],
+    "3.4 Verify preservation tests still pass": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528243
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168443803
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168549096
+      }
+    ],
+    "4. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "af5baad2-c17c-4d25-8bcc-5567ab09a6b0",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787166528290
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168559516
+      },
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168700822
+      }
+    ],
+    "3. Fix the legacy customer password-login mismatch": [
+      {
+        "executionId": "6058cd2b-0341-4545-9073-98b97d2b6bec",
+        "chatSessionId": "sess_d8ec4085-e457-4882-90c7-e90f2fb23ffe",
+        "timestamp": 1787168549181
+      }
+    ]
+  }
+}
