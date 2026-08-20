@@ -223,6 +223,39 @@ const getTripCustomers = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Trip customers retrieved.', trip.manifest));
 });
 
+const emitTripLifecycle = async (trip, event, customerId) => {
+  const manifest = trip.manifest || [];
+  const customerIds = customerId
+    ? [customerId]
+    : manifest.map((entry) => entry.customer).filter(Boolean);
+
+  if (!customerIds.length) return;
+
+  try {
+    const customers = await Customer.find({ _id: { $in: customerIds } })
+      .select('_id userId')
+      .lean();
+    const basePayload = {
+      tripId: trip._id.toString(),
+      status: trip.status,
+      event,
+      updatedAt: new Date().toISOString(),
+    };
+    const { getIO, emitToUser } = require('../config/socket');
+
+    getIO().of('/sockets/admin').emit('trip:update', basePayload);
+    for (const customer of customers) {
+      const entry = manifest.find((item) => item.customer?.toString() === customer._id.toString());
+      emitToUser('customer', customer.userId.toString(), 'trip:update', {
+        ...basePayload,
+        passengerStatus: entry?.status,
+      });
+    }
+  } catch {
+    // Realtime delivery is best-effort; the persisted trip state remains authoritative.
+  }
+};
+
 const startTrip = asyncWrapper(async (req, res) => {
   const driver = await Driver.findOne({ userId: req.user.id });
   if (!driver) {
@@ -245,6 +278,7 @@ const startTrip = asyncWrapper(async (req, res) => {
   trip.status = 'IN_PROGRESS';
   trip.startedAt = new Date();
   await trip.save();
+  await emitTripLifecycle(trip, 'STARTED');
 
   return res.status(200).json(formatResponse('Trip started.', trip));
 });
@@ -273,7 +307,6 @@ const completeTrip = asyncWrapper(async (req, res) => {
     throw new ValidationError('All boarded passengers must be dropped off before completing the trip.');
   }
 
-  // Mark any remaining PENDING passengers as NO_SHOW
   for (const entry of trip.manifest || []) {
     if (entry.status === 'PENDING') {
       entry.status = 'NO_SHOW';
@@ -283,6 +316,7 @@ const completeTrip = asyncWrapper(async (req, res) => {
   trip.status = 'COMPLETED';
   trip.completedAt = new Date();
   await trip.save();
+  await emitTripLifecycle(trip, 'COMPLETED');
 
   return res.status(200).json(formatResponse('Trip completed.', trip));
 });
@@ -337,6 +371,7 @@ const updateManifestStatus = asyncWrapper(async (req, res) => {
   }
 
   await trip.save();
+  await emitTripLifecycle(trip, `PASSENGER_${transition.to}`, entry.customer);
 
   const updated = await Trip.findById(trip._id)
     .populate('routeId', 'name startLocation endLocation stops')

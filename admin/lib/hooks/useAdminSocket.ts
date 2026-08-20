@@ -71,6 +71,14 @@ export function useAdminSocket() {
       );
     });
 
+    socket.on('trip:update', (data: { tripId: string; status: string; event: string; updatedAt?: string }) => {
+      setActiveRides((prev) => {
+        const existing = prev.find((ride) => (ride._id || ride.tripId) === data.tripId);
+        if (existing) return prev.map((ride) => (ride._id || ride.tripId) === data.tripId ? { ...ride, ...data } : ride);
+        return [{ _id: data.tripId, type: 'SHUTTLE', ...data }, ...prev];
+      });
+    });
+
     socket.on('admin:shuttles:active:response', (data: { shuttles: any[] }) => {
       setActiveShuttles(data.shuttles || []);
     });

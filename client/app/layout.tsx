@@ -8,6 +8,7 @@ import './css/tracking.css';
 import './css/wallet.css';
 import './css/settings.css';
 import './css/digital-pass.css';
+import './css/driver.css';
 import { QueryProvider } from '@/lib/api/QueryProvider';
 import ToastContainer from '@/components/shared/ToastContainer';
 

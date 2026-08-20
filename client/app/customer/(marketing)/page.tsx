@@ -2,289 +2,73 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Bus, Check, ChevronRight, CircleUserRound, Clock3, Headphones, House, MapPin, ShieldCheck, Ticket, X } from 'lucide-react';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useToast } from '@/stores/toastStore';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api/v1';
+const stopFeatures = ['Fixed pickup & drop points', 'Lower fares', 'High occupancy shared rides', 'Ideal for daily office commute'];
+const homeFeatures = ['Doorstep pickup & drop', 'More comfort & convenience', 'Premium experience', 'Ideal for hassle-free commute'];
+const highlights = [
+  { title: 'Women Safety First', description: 'Women Only Rides & SOS Support', icon: ShieldCheck },
+  { title: 'Live Tracking', description: 'Track your ride in real-time', icon: MapPin },
+  { title: 'Fixed Timings', description: 'On-time pickups and drops', icon: Clock3 },
+  { title: 'Affordable Passes', description: 'Monthly passes with best pricing', icon: Ticket },
+  { title: '24x7 Support', description: "We're here to help you anytime", icon: Headphones },
+];
+
+type LoginMode = 'otp' | 'password';
+type AuthStep = 'phone' | 'otp';
 
 export default function CustomerHomePage() {
   const router = useRouter();
-  const { isLoggedIn } = useCustomerStore();
+  const isLoggedIn = useCustomerStore((state) => state.isLoggedIn);
   const { showToast } = useToast();
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [loginMode, setLoginMode] = useState<'otp' | 'password'>('otp');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [loginMode, setLoginMode] = useState<LoginMode>('otp');
+  const [step, setStep] = useState<AuthStep>('phone');
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
 
-  const handleAuthClick = () => {
-    if (isLoggedIn) {
-      router.push('/customer/dashboard');
-    } else {
-      setShowAuthModal(true);
-    }
+  const openAuth = () => {
+    if (isLoggedIn) { router.push('/customer/dashboard'); return; }
+    setModalOpen(true);
   };
-
-  const storeAuthAndRedirect = (data: any) => {
-    useCustomerStore.getState().setAuth({
-      userName: data.user?.name || '',
-      mobileNumber: data.user?.phone || phone,
-      userRole: data.user?.role || 'customer',
-      userId: data.user?.id || data.user?._id || '',
-      accessToken: data.accessToken,
-      hasCustomPassword: data.user?.hasCustomPassword || false,
-    });
-    showToast('Welcome to TORQQ!', 'success');
-    setShowAuthModal(false);
-    router.push('/customer/dashboard');
+  const closeAuth = () => { setModalOpen(false); setLoginMode('otp'); setStep('phone'); setName(''); setPhone(''); setPassword(''); setOtp(['', '', '', '', '', '']); };
+  const authenticate = (payload: { user?: { name?: string; phone?: string; role?: string; id?: string; _id?: string; hasCustomPassword?: boolean }; accessToken?: string }) => {
+    const role = String(payload.user?.role || '').toLowerCase();
+    if (role && role !== 'customer') { showToast('This account is registered as a driver. Use the Driver sign-in.', 'error'); return; }
+    useCustomerStore.getState().setAuth({ userName: payload.user?.name || name || 'Rider', mobileNumber: payload.user?.phone || phone, userRole: payload.user?.role || 'Customer', userId: payload.user?.id || payload.user?._id || '', accessToken: payload.accessToken, hasCustomPassword: payload.user?.hasCustomPassword || false });
+    closeAuth(); router.push('/customer/dashboard');
   };
-
-  const sendOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone || phone.length !== 10) {
-      showToast('Please enter a valid 10-digit number', 'error');
-      return;
-    }
+  const sendOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!/^\d{10}$/.test(phone)) { showToast('Please enter a valid 10-digit number.', 'error'); return; }
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone, purpose: 'LOGIN' }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setStep('otp');
-        showToast('OTP sent successfully', 'success');
-      } else {
-        showToast(data.message || 'Failed to send OTP', 'error');
-      }
-    } catch {
-      showToast('Server connection error', 'error');
-    } finally {
-      setLoading(false);
-    }
+    try { const response = await fetch(`${API_BASE_URL}/auth/send-otp`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, purpose: 'LOGIN' }) }); const result = await response.json(); if (!response.ok || !result.success) throw new Error(result.message || 'Failed to send OTP.'); setStep('otp'); showToast('OTP sent successfully.', 'success'); } catch (reason) { showToast(reason instanceof Error ? reason.message : 'Server connection error.', 'error'); } finally { setLoading(false); }
   };
-
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otpValue = otp.join('');
-    if (otpValue.length !== 6) {
-      showToast('Please enter complete 6-digit OTP', 'error');
-      return;
-    }
+  const verifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault(); const value = otp.join(''); if (value.length !== 6) { showToast('Please enter the complete 6-digit OTP.', 'error'); return; }
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone, otp: otpValue }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        storeAuthAndRedirect(data.data);
-      } else {
-        showToast(data.message || 'Invalid OTP', 'error');
-      }
-    } catch {
-      showToast('Verification failed', 'error');
-    } finally {
-      setLoading(false);
-    }
+    try { const response = await fetch(`${API_BASE_URL}/auth/verify-otp`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, otp: value, purpose: 'LOGIN', name }) }); const result = await response.json(); if (!response.ok || !result.success || !result.data) throw new Error(result.message || 'Invalid OTP.'); authenticate(result.data); } catch (reason) { showToast(reason instanceof Error ? reason.message : 'Verification failed.', 'error'); } finally { setLoading(false); }
   };
-
-  const loginWithPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phone || phone.length !== 10) {
-      showToast('Please enter a valid 10-digit number', 'error');
-      return;
-    }
-    if (!password) {
-      showToast('Please enter your password', 'error');
-      return;
-    }
+  const passwordLogin = async (event: React.FormEvent) => {
+    event.preventDefault(); if (!/^\d{10}$/.test(phone) || !password) { showToast('Enter your mobile number and password.', 'error'); return; }
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone, password }),
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        storeAuthAndRedirect(data.data);
-      } else {
-        showToast(data.message || 'Invalid credentials', 'error');
-      }
-    } catch {
-      showToast('Server connection error', 'error');
-    } finally {
-      setLoading(false);
-    }
+    try { const response = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, password }) }); const result = await response.json(); if (!response.ok || !result.success || !result.data) throw new Error(result.message || 'Invalid credentials.'); authenticate(result.data); } catch (reason) { showToast(reason instanceof Error ? reason.message : 'Sign-in failed.', 'error'); } finally { setLoading(false); }
   };
+  const updateOtp = (index: number, value: string) => { if (!/^\d?$/.test(value)) return; setOtp((current) => current.map((digit, itemIndex) => itemIndex === index ? value : digit)); };
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-  };
-
-  const resetModal = () => {
-    setLoginMode('otp');
-    setStep('phone');
-    setPhone('');
-    setPassword('');
-    setOtp(['', '', '', '', '', '']);
-  };
-
-  return (
-    <div style={{ minHeight: '100vh', background: '#FAFAFA' }}>
-      <header style={{ background: '#FFF', borderBottom: '1px solid #E5E7EB', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px' }}>
-          <div>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A' }}>URBAN </span>
-            <span style={{ fontSize: '20px', fontWeight: 800, color: '#16C15D' }}>Communto</span>
-            <p style={{ fontSize: '10px', color: '#64748B' }}>Smart Commute. Better Everyday.</p>
-          </div>
-          <button onClick={handleAuthClick} className="btn-login" style={{
-            background: '#16C15D', color: '#FFF', border: 'none', padding: '10px 20px',
-            borderRadius: '10px', fontWeight: 600, fontSize: '13px', cursor: 'pointer',
-          }}>
-            {isLoggedIn ? 'Go to Dashboard' : 'Login'}
-          </button>
-        </div>
-      </header>
-
-      <section style={{ maxWidth: '1200px', margin: '0 auto', padding: '60px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '36px', fontWeight: 800, color: '#0F172A', lineHeight: 1.2 }}>
-            Smart Daily Commute<br />for <span style={{ color: '#16C15D' }}>Bangalore</span>
-          </h1>
-          <p style={{ fontSize: '14px', color: '#64748B', marginTop: '16px', lineHeight: 1.6 }}>
-            Affordable, reliable and safe office commute with fixed routes, timings and monthly passes.
-          </p>
-          <button onClick={handleAuthClick} style={{
-            marginTop: '24px', background: '#16C15D', color: '#FFF', border: 'none',
-            padding: '14px 28px', borderRadius: '12px', fontWeight: 700, fontSize: '14px',
-            cursor: 'pointer', boxShadow: '0 4px 12px rgba(22,193,93,0.3)',
-          }}>
-            Get Started
-          </button>
-        </div>
-        <div style={{ background: 'linear-gradient(135deg, #16C15D22, #3B82F622)', borderRadius: '24px', padding: '40px', textAlign: 'center' }}>
-          <div style={{ fontSize: '64px' }}>🚌</div>
-          <p style={{ fontSize: '14px', color: '#64748B', marginTop: '12px' }}>Your daily commute made easy</p>
-        </div>
-      </section>
-
-      {showAuthModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => { setShowAuthModal(false); resetModal(); }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#FFF', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '32px', position: 'relative' }}>
-            <button onClick={() => { setShowAuthModal(false); resetModal(); }} style={{ position: 'absolute', top: '16px', right: '16px', background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748B' }}>✕</button>
-
-            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <span style={{ fontWeight: 800, fontSize: '18px', color: '#16C15D' }}>TORQQ</span>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', marginTop: '8px' }}>Welcome to TORQQ</h3>
-              <p style={{ fontSize: '12px', color: '#64748B' }}>Smart Daily Commute</p>
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-              <button type="button" onClick={() => { setLoginMode('otp'); setStep('phone'); }}
-                style={{
-                  flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
-                  background: loginMode === 'otp' ? '#16C15D' : '#F3F4F6',
-                  color: loginMode === 'otp' ? '#FFF' : '#64748B',
-                  fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                }}>
-                OTP Login
-              </button>
-              <button type="button" onClick={() => { setLoginMode('password'); setStep('phone'); }}
-                style={{
-                  flex: 1, padding: '8px', borderRadius: '8px', border: 'none',
-                  background: loginMode === 'password' ? '#16C15D' : '#F3F4F6',
-                  color: loginMode === 'password' ? '#FFF' : '#64748B',
-                  fontSize: '12px', fontWeight: 600, cursor: 'pointer',
-                }}>
-                Password Login
-              </button>
-            </div>
-
-            {loginMode === 'otp' ? (
-              step === 'phone' ? (
-                <form onSubmit={sendOtp}>
-                  <div style={{ marginBottom: '20px' }}>
-                    <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Mobile Number</label>
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                      <span style={{ padding: '12px', background: '#F3F4F6', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>+91</span>
-                      <input type="tel" placeholder="Enter 10-digit number" pattern="[0-9]{10}" required
-                        value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                        style={{ flex: 1, padding: '12px', border: '1px solid #E5E7EB', borderRadius: '10px', fontSize: '13px' }} />
-                    </div>
-                  </div>
-                  <button type="submit" disabled={loading} style={{
-                    width: '100%', padding: '14px', background: '#16C15D', color: '#FFF', border: 'none',
-                    borderRadius: '10px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', opacity: loading ? 0.7 : 1,
-                  }}>
-                    {loading ? 'Sending...' : 'Send OTP'}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={verifyOtp}>
-                  <p style={{ fontSize: '12px', color: '#64748B', textAlign: 'center', marginBottom: '16px' }}>
-                    Enter the 6-digit code sent to <strong>+91 {phone}</strong>
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px' }}>
-                    {otp.map((digit, i) => (
-                      <input key={i} type="text" inputMode="numeric" maxLength={1} value={digit}
-                        onChange={(e) => handleOtpChange(i, e.target.value)}
-                        style={{ width: '42px', height: '50px', textAlign: 'center', fontSize: '20px', fontWeight: 700, border: '1px solid #E5E7EB', borderRadius: '10px' }} />
-                    ))}
-                  </div>
-                  <button type="submit" disabled={loading} style={{
-                    width: '100%', padding: '14px', background: '#16C15D', color: '#FFF', border: 'none',
-                    borderRadius: '10px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', opacity: loading ? 0.7 : 1,
-                  }}>
-                    {loading ? 'Verifying...' : 'Verify & Login'}
-                  </button>
-                  <button type="button" onClick={() => setStep('phone')} style={{ width: '100%', marginTop: '12px', background: 'none', border: 'none', color: '#16C15D', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}>
-                    ← Change Number
-                  </button>
-                </form>
-              )
-            ) : (
-              <form onSubmit={loginWithPassword}>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Mobile Number</label>
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-                    <span style={{ padding: '12px', background: '#F3F4F6', borderRadius: '10px', fontSize: '13px', fontWeight: 600 }}>+91</span>
-                    <input type="tel" placeholder="Enter 10-digit number" pattern="[0-9]{10}" required
-                      value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                      style={{ flex: 1, padding: '12px', border: '1px solid #E5E7EB', borderRadius: '10px', fontSize: '13px' }} />
-                  </div>
-                </div>
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Password</label>
-                  <input type="password" placeholder="Enter your password" required
-                    value={password} onChange={(e) => setPassword(e.target.value)}
-                    style={{ width: '100%', padding: '12px', border: '1px solid #E5E7EB', borderRadius: '10px', fontSize: '13px', marginTop: '4px', boxSizing: 'border-box' }} />
-                </div>
-                <button type="submit" disabled={loading} style={{
-                  width: '100%', padding: '14px', background: '#16C15D', color: '#FFF', border: 'none',
-                  borderRadius: '10px', fontWeight: 700, fontSize: '14px', cursor: 'pointer', opacity: loading ? 0.7 : 1,
-                }}>
-                  {loading ? 'Signing in...' : 'Sign In'}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <div>
+    <header className="navbar"><div className="container nav-container"><div className="nav-brand"><button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="logo-link"><span>URBAN </span><span className="logo-q">Communto</span></button><p className="tagline">Smart Commute. Better Everyday.</p></div><div className="nav-actions"><button className="btn-login" onClick={openAuth}><CircleUserRound size={20} />{isLoggedIn ? 'Go to Dashboard' : 'Login / Sign Up'}</button><button className="btn-menu" aria-label="Open menu"><span aria-hidden>☰</span></button></div></div></header>
+    <main>
+      <section className="hero"><div className="container hero-container"><div className="hero-content fade-in visible"><h1 className="hero-title">Smart Daily Commute <br />for <span className="text-green">Bangalore</span></h1><p className="hero-description">Affordable, reliable and safe office<br />commute with fixed routes, timings<br />and monthly passes.</p><button className="btn-primary cta-btn" onClick={openAuth}><Ticket size={24} />Book Your Commute Pass</button><div className="trust-indicators"><span className="trust-item"><Check size={20} fill="#1DB954" color="#fff" />Safe Rides</span><span className="dot">•</span><span className="trust-item">Verified Drivers</span><span className="dot">•</span><span className="trust-item">Fixed Pricing</span></div></div><div className="hero-illustration fade-in visible"><div className="image-placeholder hero-img-wrapper" style={{ minHeight: 315, background: '#E2E8F0' }}><img src="https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=85" alt="People waiting at a bus stop for their commute" className="hero-img" /></div></div></div></section>
+      <section className="commute-options"><div className="container"><div className="section-header fade-in visible"><h2 className="section-title">Choose Your Commute Option</h2><p className="section-subtitle">Select the commute type that suits you best</p></div><div className="cards-container"><article className="commute-card card-green fade-in visible"><div className="card-header"><span className="icon-wrapper green-icon-wrapper"><Bus size={25} /></span><div className="card-titles"><h3>Stop-to-Stop Pass</h3><span>Bus Stop to Bus Stop</span></div></div><div className="card-illustration-box"><img src="https://images.unsplash.com/photo-1503917988258-f87a78e3c995?auto=format&fit=crop&w=900&q=85" alt="Shared commute bus route" className="card-img" /></div><ul className="feature-list">{stopFeatures.map((feature) => <li key={feature}><Check size={20} />{feature}</li>)}</ul><button className="btn-card btn-green" onClick={openAuth}>Choose Stop-to-Stop <ChevronRight size={20} /></button></article><article className="commute-card card-blue fade-in visible"><div className="card-header"><span className="icon-wrapper blue-icon-wrapper"><House size={25} /></span><div className="card-titles"><h3>Home-to-Office Pass</h3><span>Doorstep to Office</span></div></div><div className="card-illustration-box"><img src="https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=900&q=85" alt="Home to office commute" className="card-img" /></div><ul className="feature-list">{homeFeatures.map((feature) => <li key={feature}><Check size={20} />{feature}</li>)}</ul><button className="btn-card btn-blue" onClick={openAuth}>Choose Home-to-Office <ChevronRight size={20} /></button></article></div></div></section>
+      <section className="features-section fade-in visible"><div className="container features-container">{highlights.map((highlight) => { const Icon = highlight.icon; return <article className="feature-box" key={highlight.title}><span className="feature-icon"><Icon size={32} /></span><h4>{highlight.title}</h4><p>{highlight.description}</p></article>; })}</div></section>
+    </main>
+    <div className={`modal-overlay ${modalOpen ? 'show' : ''}`} onClick={(event) => { if (event.target === event.currentTarget) closeAuth(); }}><div className="modal-container"><button className="modal-close" onClick={closeAuth} aria-label="Close modal"><X size={24} /></button><div className="modal-header"><span className="modal-logo">TORQQ</span><h2 className="modal-title">Welcome to TORQQ</h2><p className="modal-subtitle">Smart Daily Commute</p></div><div className="login-method-choice"><button type="button" className={`login-method-button ${loginMode === 'otp' ? 'is-active' : ''}`} onClick={() => { setLoginMode('otp'); setStep('phone'); }}>Continue with OTP</button><button type="button" className={`login-method-button ${loginMode === 'password' ? 'is-active' : ''}`} onClick={() => { setLoginMode('password'); setStep('phone'); }}>Sign in with password</button></div>{loginMode === 'otp' && step === 'phone' && <form className="modal-form" onSubmit={sendOtp}><div className="form-group"><label htmlFor="fullName">Full Name</label><input id="fullName" type="text" value={name} onChange={(event) => setName(event.target.value)} placeholder="Enter your full name" autoComplete="name" /></div><div className="form-group"><label htmlFor="mobileNumber">Mobile Number</label><div className="input-with-prefix"><span className="prefix">+91</span><input id="mobileNumber" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Enter 10-digit number" autoComplete="tel" /></div></div><button className="btn-primary modal-btn-full" disabled={loading}>{loading ? 'Sending…' : 'Continue'}</button></form>}{loginMode === 'otp' && step === 'otp' && <form className="modal-form" onSubmit={verifyOtp}><div className="otp-instruction"><p>Enter the 6-digit code sent to</p><strong>+91 {phone}</strong><button type="button" className="btn-text btn-change-number" onClick={() => setStep('phone')}>Change</button></div><div className="otp-inputs">{otp.map((digit, index) => <input key={index} className="otp-box" value={digit} onChange={(event) => updateOtp(index, event.target.value)} maxLength={1} inputMode="numeric" aria-label={`OTP digit ${index + 1}`} />)}</div><button className="btn-primary modal-btn-full" disabled={loading}>{loading ? 'Verifying…' : 'Verify & Proceed'}</button><div className="resend-container"><span className="resend-text">Didn&apos;t receive code?</span><button type="button" className="btn-text btn-resend" onClick={() => sendOtp({ preventDefault() {} } as React.FormEvent)}>Resend OTP</button></div><div className="login-method-switch"><span>Have a password?</span><button type="button" className="btn-text btn-switch-method" onClick={() => { setLoginMode('password'); setStep('phone'); }}>Sign in with password</button></div></form>}{loginMode === 'password' && <form className="modal-form" onSubmit={passwordLogin}><div className="form-group"><label htmlFor="passwordMobile">Mobile Number</label><div className="input-with-prefix"><span className="prefix">+91</span><input id="passwordMobile" type="tel" required value={phone} onChange={(event) => setPhone(event.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Enter 10-digit number" /></div></div><div className="form-group"><label htmlFor="password">Password</label><input id="password" type="password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" autoComplete="current-password" /></div><button className="btn-primary modal-btn-full" disabled={loading}>{loading ? 'Signing in…' : 'Sign in'}</button><div className="login-method-switch"><span>Prefer a one-time password?</span><button type="button" className="btn-text btn-switch-method" onClick={() => { setLoginMode('otp'); setStep('phone'); }}>Continue with OTP</button></div></form>}</div></div>
+  </div>;
 }

@@ -35,6 +35,7 @@ interface DriverState {
   }) => void;
   setDriverProfile: (profile: DriverProfile) => void;
   setCurrentTrip: (trip: any | null) => void;
+  clearAccessToken: () => void;
   logout: () => void;
 }
 
@@ -65,6 +66,7 @@ export const useDriverStore = create<DriverState>()(
 
       setDriverProfile: (profile) => set({ driverProfile: profile }),
       setCurrentTrip: (trip) => set({ currentTrip: trip }),
+      clearAccessToken: () => set({ accessToken: null }),
 
       logout: () => set({
         driverName: null,

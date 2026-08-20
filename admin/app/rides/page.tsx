@@ -51,13 +51,13 @@ export default function RidesPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Merge socket rides with REST rides (dedup by _id)
-  const allRides = [...activeRides];
+  // Prefer REST data for durable trip details while retaining any fresher socket status.
+  const rideById = new Map(activeRides.map((ride) => [ride._id || ride.rideRequestId || ride.tripId, ride]));
   for (const ride of restRides) {
-    if (!allRides.find(r => (r._id || r.rideRequestId) === ride._id)) {
-      allRides.push(ride);
-    }
+    const rideId = ride._id || ride.rideRequestId || ride.tripId;
+    rideById.set(rideId, { ...ride, ...(rideById.get(rideId) || {}) });
   }
+  const allRides = Array.from(rideById.values());
 
   const filteredRides = allRides.filter((ride) => {
     const matchesStatus = statusFilter === 'ALL' || ride.status === statusFilter;
@@ -243,60 +243,34 @@ export default function RidesPage() {
                     </p>
                   )}
 
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => setReassignModal({ ride, open: true })}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-hover)',
-                        color: 'var(--text-main)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <RefreshCw size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                      Reassign
-                    </button>
-                    <button
-                      onClick={() => setEditLocationModal({ ride, type: 'pickup', open: true })}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-hover)',
-                        color: 'var(--text-main)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <MapPin size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                      Edit Pickup
-                    </button>
-                    <button
-                      onClick={() => setEditLocationModal({ ride, type: 'drop', open: true })}
-                      style={{
-                        flex: 1,
-                        padding: '8px',
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        borderRadius: '8px',
-                        border: '1px solid var(--border-color)',
-                        background: 'var(--bg-hover)',
-                        color: 'var(--text-main)',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <Navigation size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} />
-                      Edit Drop
-                    </button>
-                  </div>
+                  {/* On-demand overrides are not valid for scheduled shuttle trips. */}
+                  {ride.type === 'SHUTTLE' ? (
+                    <p style={{ margin: 0, padding: '9px 10px', borderRadius: '8px', background: 'rgba(59,130,246,0.08)', color: '#2563EB', fontSize: '10px', fontWeight: 600 }}>
+                      Scheduled shuttle — manage assignment and passengers from Trips.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => setReassignModal({ ride, open: true })}
+                        disabled={!['PENDING', 'ACCEPTED'].includes(ride.status)}
+                        style={{ flex: 1, padding: '8px', fontSize: '10px', fontWeight: 700, borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-main)', cursor: ['PENDING', 'ACCEPTED'].includes(ride.status) ? 'pointer' : 'not-allowed', opacity: ['PENDING', 'ACCEPTED'].includes(ride.status) ? 1 : 0.5 }}
+                      >
+                        <RefreshCw size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Reassign
+                      </button>
+                      <button
+                        onClick={() => setEditLocationModal({ ride, type: 'pickup', open: true })}
+                        style={{ flex: 1, padding: '8px', fontSize: '10px', fontWeight: 700, borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-main)', cursor: 'pointer' }}
+                      >
+                        <MapPin size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Edit Pickup
+                      </button>
+                      <button
+                        onClick={() => setEditLocationModal({ ride, type: 'drop', open: true })}
+                        style={{ flex: 1, padding: '8px', fontSize: '10px', fontWeight: 700, borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-main)', cursor: 'pointer' }}
+                      >
+                        <Navigation size={10} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> Edit Drop
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })

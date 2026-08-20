@@ -447,3 +447,26 @@
     box-shadow: 0 4px 10px rgba(29, 185, 84, 0.3);
     margin-bottom: 4px;
 }
+
+/* Responsive dashboard density: controls stay tappable without horizontal squeeze. */
+.customer-action-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.customer-saved-locations { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+
+@media (max-width: 480px) {
+  .dashboard-body { padding-top: 72px; padding-bottom: 96px; }
+  .dashboard-header { padding: 12px 0; }
+  .profile-pic { width: 42px; height: 42px; }
+  .user-name { font-size: 16px; }
+  .dashboard-main { padding-inline: 16px; }
+  .customer-action-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .customer-saved-locations { grid-template-columns: 1fr; }
+  .action-item { min-height: 112px; padding: 14px 10px; }
+  .active-trip-card { padding: 16px; }
+  .vehicle-info { align-items: flex-start; }
+}
+
+@media (max-width: 360px) {
+  .customer-action-grid { grid-template-columns: 1fr; }
+  .card-header-flex { align-items: flex-start; gap: 8px; flex-direction: column; }
+  .vehicle-info { gap: 8px; flex-wrap: wrap; }
+}

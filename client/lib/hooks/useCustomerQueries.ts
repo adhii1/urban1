@@ -35,7 +35,15 @@ export interface TripEntry {
     dropStop?: { stopName?: string; sequenceOrder?: number };
     status?: string;
   };
-  manifest?: any[];
+  manifest?: unknown[];
+  fare?: {
+    estimated?: number;
+    final?: number;
+    details?: {
+      distanceKm?: number;
+      durationMinutes?: number;
+    };
+  };
 }
 
 export interface PlanInfo {

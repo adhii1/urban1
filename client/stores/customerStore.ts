@@ -24,6 +24,7 @@ interface CustomerState {
     userRole: string;
     userId: string;
   }) => void;
+  clearAccessToken: () => void;
   logout: () => void;
 }
 
@@ -54,6 +55,8 @@ export const useCustomerStore = create<CustomerState>()(
         userRole: info.userRole,
         userId: info.userId,
       }),
+
+      clearAccessToken: () => set({ accessToken: null }),
 
       logout: () => set({
         userName: null,

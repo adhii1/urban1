@@ -1,3 +1,6 @@
+import { useCustomerStore } from '@/stores/customerStore';
+import { useDriverStore } from '@/stores/driverStore';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api/v1';
 
 export class ApiError extends Error {
@@ -43,8 +46,14 @@ async function request<T>(
     credentials: 'include',
   };
 
+  const customerToken = useCustomerStore.getState().accessToken;
+  const driverToken = useDriverStore.getState().accessToken;
+  const isDriverRequest = endpoint.startsWith('/driver') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/driver'));
+  const accessToken = isDriverRequest ? driverToken : customerToken;
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     ...(fetchOptions.headers as Record<string, string>),
   };
 
@@ -53,7 +62,14 @@ async function request<T>(
   if (res.status === 401) {
     const refreshed = await refreshSession();
     if (refreshed) {
-      res = await fetch(`${API_BASE_URL}${endpoint}`, { ...fetchOptions, headers });
+      // The backend prefers a Bearer token over its freshly rotated session cookie.
+      // Discard the stale persisted token before retrying so the cookie authenticates it.
+      if (isDriverRequest) useDriverStore.getState().clearAccessToken();
+      else useCustomerStore.getState().clearAccessToken();
+
+      const retryHeaders = { ...headers };
+      delete retryHeaders.Authorization;
+      res = await fetch(`${API_BASE_URL}${endpoint}`, { ...fetchOptions, headers: retryHeaders });
     } else {
       const { useCustomerStore } = await import('../../stores/customerStore');
       const { useDriverStore } = await import('../../stores/driverStore');

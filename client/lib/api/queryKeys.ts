@@ -18,6 +18,7 @@ export const queryKeys = {
     trips: (params?: { page?: number; limit?: number; scope?: string }) =>
       [...queryKeys.driver.all, 'trips', params ?? {}] as const,
     trip: (id: string) => [...queryKeys.driver.all, 'trips', id] as const,
+    earnings: (period: string) => [...queryKeys.driver.all, 'earnings', period] as const,
     customers: (tripId: string) =>
       [...queryKeys.driver.all, 'trips', tripId, 'customers'] as const,
   },

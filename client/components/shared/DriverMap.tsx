@@ -83,7 +83,7 @@ export default function DriverMap({
     }
 
     if (allStops && allStops.length > 0) {
-      const bounds: L.LatLngExpression[] = [];
+      const bounds: L.LatLngTuple[] = [];
 
       if (driverLocation) {
         const [dlng, dlat] = driverLocation.coordinates;
@@ -134,7 +134,7 @@ export default function DriverMap({
 
     if (driverLocation) {
       const [dlng, dlat] = driverLocation.coordinates;
-      const latlng: L.LatLngExpression = [dlat, dlng];
+      const latlng: L.LatLngTuple = [dlat, dlng];
       const driverIcon = L.divIcon({
         className: 'driver-marker',
         html: `<div style="width:36px;height:36px;background:#16C15D;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
@@ -168,7 +168,7 @@ export default function DriverMap({
         markersRef.current.push(L.marker([drlat, drlng], { icon: dropIcon }).bindPopup('Drop').addTo(map));
       }
 
-      const bounds: L.LatLngExpression[] = [latlng];
+      const bounds: L.LatLngTuple[] = [latlng];
       if (pickupLocation) bounds.push([pickupLocation.coordinates[1], pickupLocation.coordinates[0]]);
       if (dropLocation) bounds.push([dropLocation.coordinates[1], dropLocation.coordinates[0]]);
       if (bounds.length > 1) {
