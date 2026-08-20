@@ -461,7 +461,10 @@ const getSubscriptions = asyncWrapper(async (req, res) => {
   const subscriptions = await Subscription.find()
     .populate('customerId', 'name')
     .populate('planId', 'name serviceType tier price')
-    .populate('routeId', 'name startLocation endLocation');
+    .populate('routeId', 'name startLocation endLocation')
+    .populate('assignedDriverId', 'name vehicleNumber vehicleCapacity')
+    .populate('assignedAreaId', 'name')
+    .sort({ createdAt: -1 });
   return res.status(200).json(formatResponse('Subscriptions listed successfully.', subscriptions));
 });
 

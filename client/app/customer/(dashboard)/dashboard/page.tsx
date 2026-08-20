@@ -1,51 +1,139 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bell, BriefcaseBusiness, Clock3, History, MapPin, WalletCards } from 'lucide-react';
-import { type TripEntry, useCustomerDashboard } from '@/lib/hooks/useCustomerQueries';
-
-const activeStatuses = new Set(['IN_PROGRESS']);
-const upcomingStatuses = new Set(['SCHEDULED']);
-
-function tripRoute(trip: TripEntry) {
-  return trip.routeId?.name || trip.routeName || trip.route || 'Your shared ride';
-}
-
-function tripDate(trip: TripEntry) {
-  const value = trip.scheduledAt || trip.tripDate;
-  return value ? new Date(value).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Schedule pending';
-}
+import { Bus, Clock3, History, MapPin, WalletCards, UserCheck, Calendar, Key, Navigation } from 'lucide-react';
+import { api } from '@/lib/api/client';
 
 export default function CustomerDashboardPage() {
-  const { profile, trips, subscription, isLoading, isError } = useCustomerDashboard();
-  const allTrips = trips.data || [];
-  const activeTrip = allTrips.find((trip) => activeStatuses.has(trip.status));
-  const upcomingTrip = allTrips.find((trip) => upcomingStatuses.has(trip.status));
-  const completedTrips = allTrips.filter((trip) => trip.status === 'COMPLETED').slice(0, 3);
-  const pickup = activeTrip?.myEntry?.pickupStop?.stopName || profile.data?.pickupLocation?.address || profile.data?.homeLocation?.address || 'Pickup location pending';
-  const drop = activeTrip?.myEntry?.dropStop?.stopName || profile.data?.dropLocation?.address || 'Drop location pending';
-  const planName = subscription.data?.planId?.name || subscription.data?.planType || subscription.data?.plan || 'No active pass';
+  const [booking, setBooking] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  if (isLoading) return <div className="dashboard-section" style={{ padding: '64px 0', textAlign: 'center', color: '#334155' }}>Loading your commute dashboard…</div>;
+  useEffect(() => {
+    api.get<any>('/booking')
+      .then((res) => setBooking(res.data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  return <div>
-    {isError && <div className="dashboard-section" style={{ border: '1px solid #FECACA', borderRadius: '12px', background: '#FEF2F2', padding: '12px', color: '#B91C1C', fontSize: '12px' }}>Some commute details could not be refreshed. Check that the API session is active, then try again.</div>}
-    <section className="dashboard-section">
-      <div className="card active-trip-card" style={{ border: '2px solid #16C15D' }}>
-        <div className="card-header-flex"><span className="badge badge-green">{activeTrip ? 'Active Shared Ride' : 'Your next shared commute'}</span><span className="eta">{activeTrip ? 'Live now' : 'No active ride'}</span></div>
-        <div className="route-info"><div className="route-point"><span className="dot green-dot" /><span>{pickup}</span></div><div className="route-line" /><div className="route-point"><span className="dot blue-dot" /><span>{drop}</span></div></div>
-        {activeTrip ? <div className="vehicle-info"><div className="vehicle-icon"><BriefcaseBusiness size={19} /></div><div style={{ flex: 1 }}><p className="vehicle-no">{activeTrip.driverId?.vehicleNumber || 'Vehicle assigned'}</p><p className="driver-name">{activeTrip.driverId?.name || 'Driver details arriving shortly'}</p></div><Link className="btn-primary btn-sm" href={`/customer/rides/${activeTrip._id}`}>Active Card</Link></div> : <div className="vehicle-info"><div className="vehicle-icon"><Clock3 size={19} /></div><div style={{ flex: 1 }}><p className="vehicle-no">Ready when you are</p><p className="driver-name">Book a ride or choose a commute pass to see your live journey here.</p></div><Link className="btn-primary btn-sm" href="/customer/book-ride">Book Ride</Link></div>}
-      </div>
-    </section>
+  if (loading) return <div className="dashboard-section" style={{ padding: '64px 0', textAlign: 'center', color: '#334155' }}>Loading your commute dashboard…</div>;
 
-    {upcomingTrip && <section className="dashboard-section"><div className="glass-card" style={{ padding: '18px', borderLeft: '4px solid #3B82F6' }}><div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}><span style={{ color: '#3B82F6', fontSize: '11px', fontWeight: 700 }}>UPCOMING SCHEDULED RIDE</span><span style={{ color: '#64748B', fontSize: '12px', fontWeight: 600 }}>{tripDate(upcomingTrip)}</span></div><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}><div><strong style={{ fontSize: '14px' }}>{tripRoute(upcomingTrip)}</strong><p style={{ marginTop: '3px', color: '#64748B', fontSize: '12px' }}>{upcomingTrip.myEntry?.pickupStop?.stopName || 'Assigned pickup'} → {upcomingTrip.myEntry?.dropStop?.stopName || 'Assigned drop'}</p></div><Link href={`/customer/rides/${upcomingTrip._id}`} style={{ padding: '6px 14px', borderRadius: '8px', background: 'rgba(59,130,246,.1)', color: '#2563EB', fontSize: '12px', fontWeight: 600 }}>Details</Link></div></div></section>}
+  const hasBooking = booking && booking._id;
+  const driver = booking?.assignedDriverId;
+  const area = booking?.assignedAreaId;
+  const pickup = booking?.pickupLocation?.address || (booking?.pickupLocation?.coordinates ? `${booking.pickupLocation.coordinates[1]?.toFixed(4)}, ${booking.pickupLocation.coordinates[0]?.toFixed(4)}` : 'Not set');
+  const drop = booking?.dropLocation?.address || (booking?.dropLocation?.coordinates ? `${booking.dropLocation.coordinates[1]?.toFixed(4)}, ${booking.dropLocation.coordinates[0]?.toFixed(4)}` : 'Not set');
+  const days = booking?.scheduleDays?.map((d: number) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ');
 
-    <section className="dashboard-section quick-actions"><h2 className="section-heading">Quick Actions</h2><div className="actions-grid customer-action-grid"><Link href="/customer/book-ride" className="action-item"><span className="action-icon bg-green-light text-green">➕</span><span>Book Ride</span></Link><Link href="/customer/my-trips" className="action-item"><span className="action-icon bg-blue-light text-blue">⏳</span><span>Ride Status</span></Link><Link href="/customer/my-trips" className="action-item"><span className="action-icon bg-green-light text-green"><History size={21} /></span><span>My Trips</span></Link><Link href="/customer/wallet" className="action-item"><span className="action-icon bg-blue-light text-blue"><WalletCards size={21} /></span><span>Wallet</span></Link></div></section>
+  return (
+    <div>
+      {/* Active Subscription Card */}
+      <section className="dashboard-section">
+        {hasBooking ? (
+          <div className="glass-card" style={{ padding: '20px', border: '2px solid #16C15D', borderRadius: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: '#DCFCE7', color: '#16A34A' }}>
+                {booking.status} · {booking.subscriptionType}
+              </span>
+              <span style={{ fontSize: '11px', color: '#64748B', fontWeight: 600 }}>
+                <Clock3 size={12} style={{ display: 'inline', marginRight: '3px' }} />
+                Pickup: {booking.pickupTime || '08:00'}
+              </span>
+            </div>
 
-    <section className="dashboard-section"><div className="glass-card" style={{ padding: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}><div><span style={{ color: '#16C15D', fontSize: '11px', fontWeight: 700 }}>ACTIVE PASS & COMMUTE SUMMARY</span><div style={{ fontSize: '20px', fontWeight: 800 }}>{planName}</div><span style={{ color: '#64748B', fontSize: '12px' }}>{subscription.data ? `${subscription.data.status} · ${subscription.data.remainingPauseDays ?? 0} pause days available` : 'Choose a pass to unlock scheduled commutes'}</span></div><Link href="/customer/plans" className="btn-redesign-primary" style={{ padding: '8px 14px', fontSize: '12px' }}>Manage Passes →</Link></div></section>
+            {/* Route */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#16C15D', border: '2px solid #DCFCE7' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{pickup}</span>
+              </div>
+              <div style={{ marginLeft: '4px', width: '2px', height: '16px', background: '#E2E8F0' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#3B82F6', border: '2px solid #DBEAFE' }} />
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#0F172A' }}>{drop}</span>
+              </div>
+            </div>
 
-    <section className="dashboard-section"><h2 className="section-heading">Saved Locations</h2><div className="customer-saved-locations"><Link href="/customer/book-ride" className="glass-card" style={{ padding: '14px' }}><span style={{ fontSize: '18px' }}>🏠</span><strong style={{ display: 'block', fontSize: '14px' }}>Home</strong><span style={{ display: 'block', color: '#64748B', fontSize: '11px' }}>{profile.data?.homeLocation?.address || profile.data?.pickupLocation?.address || 'Set location'}</span></Link><Link href="/customer/book-ride" className="glass-card" style={{ padding: '14px' }}><span style={{ fontSize: '18px' }}>🏢</span><strong style={{ display: 'block', fontSize: '14px' }}>Office</strong><span style={{ display: 'block', color: '#64748B', fontSize: '11px' }}>{profile.data?.dropLocation?.address || 'Set location'}</span></Link><Link href="/customer/profile" className="glass-card" style={{ padding: '14px' }}><MapPin size={18} /><strong style={{ display: 'block', fontSize: '14px' }}>Manage</strong><span style={{ display: 'block', color: '#64748B', fontSize: '11px' }}>Saved places</span></Link></div></section>
+            {/* Schedule */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+              <Calendar size={14} color="#3B82F6" />
+              <span style={{ fontSize: '12px', color: '#475569' }}>{days || 'Mon-Fri'}</span>
+            </div>
 
-    <section className="dashboard-section" style={{ marginBottom: '24px' }}><div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}><h2 className="section-heading" style={{ margin: 0 }}>Ride History Preview</h2><Link href="/customer/my-trips" style={{ color: '#16C15D', fontSize: '13px', fontWeight: 600 }}>View All Trips →</Link></div><div className="glass-card" style={{ padding: '16px' }}>{completedTrips.length ? completedTrips.map((trip, index) => <div key={trip._id} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', paddingBottom: index < completedTrips.length - 1 ? '12px' : 0, marginBottom: index < completedTrips.length - 1 ? '12px' : 0, borderBottom: index < completedTrips.length - 1 ? '1px solid rgba(0,0,0,.05)' : 'none' }}><div><strong style={{ fontSize: '14px' }}>{tripRoute(trip)}</strong><p style={{ color: '#64748B', fontSize: '12px' }}>{tripDate(trip)}</p></div><Link href={`/customer/rides/${trip._id}`}><span style={{ display: 'inline-block', borderRadius: '10px', background: 'rgba(22,193,93,.1)', color: '#16C15D', padding: '3px 10px', fontSize: '10px', fontWeight: 700 }}>COMPLETED</span></Link></div>) : <p style={{ padding: '10px 0', color: '#64748B', fontSize: '13px', textAlign: 'center' }}>Your completed rides will appear here.</p>}</div></section>
-  </div>;
+            {/* Assigned Driver */}
+            {driver ? (
+              <div style={{ padding: '14px', borderRadius: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <UserCheck size={16} color="#16A34A" />
+                  <strong style={{ fontSize: '14px', color: '#0F172A' }}>{driver.name}</strong>
+                </div>
+                <p style={{ fontSize: '12px', color: '#475569' }}>
+                  {driver.vehicleNumber} · {driver.vehicleModel} · Capacity: {driver.vehicleCapacity}
+                </p>
+                {area && <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Area: {area.name}</p>}
+              </div>
+            ) : (
+              <div style={{ padding: '14px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>
+                <p style={{ fontSize: '12px', color: '#92400E', fontWeight: 600 }}>Driver assignment pending</p>
+                <p style={{ fontSize: '11px', color: '#78716C', marginTop: '4px' }}>Admin will assign a driver to your area shortly.</p>
+              </div>
+            )}
+
+            {/* Dates */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '14px', fontSize: '11px', color: '#64748B' }}>
+              <span>Start: {booking.startDate ? new Date(booking.startDate).toLocaleDateString('en-IN') : '-'}</span>
+              <span>End: {booking.endDate ? new Date(booking.endDate).toLocaleDateString('en-IN') : '-'}</span>
+              {booking.payment?.amount && <span>Paid: ₹{booking.payment.amount}</span>}
+            </div>
+          </div>
+        ) : (
+          <div className="glass-card" style={{ padding: '24px', textAlign: 'center' }}>
+            <Bus size={32} color="#94A3B8" style={{ margin: '0 auto 12px' }} />
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0F172A', marginBottom: '6px' }}>No Active Commute</h3>
+            <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '16px' }}>Subscribe to a commute plan and we will auto-assign the best driver in your area.</p>
+            <Link href="/customer/subscribe" className="btn-redesign-primary" style={{ textDecoration: 'none' }}>
+              Subscribe Now
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* Quick Actions */}
+      <section className="dashboard-section">
+        <h2 className="section-heading">Quick Actions</h2>
+        <div className="actions-grid customer-action-grid">
+          <Link href="/customer/subscribe" className="action-item">
+            <span className="action-icon bg-green-light text-green"><Bus size={20} /></span>
+            <span>Subscribe</span>
+          </Link>
+          <Link href="/customer/book-ride" className="action-item">
+            <span className="action-icon bg-blue-light text-blue"><Navigation size={20} /></span>
+            <span>Flexy Ride</span>
+          </Link>
+          <Link href="/customer/my-trips" className="action-item">
+            <span className="action-icon bg-green-light text-green"><History size={20} /></span>
+            <span>My Trips</span>
+          </Link>
+          <Link href="/customer/wallet" className="action-item">
+            <span className="action-icon bg-blue-light text-blue"><WalletCards size={20} /></span>
+            <span>Wallet</span>
+          </Link>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section className="dashboard-section">
+        <div className="glass-card" style={{ padding: '18px' }}>
+          <h3 style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', marginBottom: '12px' }}>How your commute works</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px', color: '#475569' }}>
+            <div style={{ display: 'flex', gap: '10px' }}><span style={{ fontWeight: 700, color: '#16C15D' }}>1.</span> Subscribe (Weekday / Hybrid / Shuttle)</div>
+            <div style={{ display: 'flex', gap: '10px' }}><span style={{ fontWeight: 700, color: '#16C15D' }}>2.</span> System auto-assigns a driver in your area</div>
+            <div style={{ display: 'flex', gap: '10px' }}><span style={{ fontWeight: 700, color: '#16C15D' }}>3.</span> Driver accepts trip → you get notified with OTP</div>
+            <div style={{ display: 'flex', gap: '10px' }}><span style={{ fontWeight: 700, color: '#16C15D' }}>4.</span> Driver picks you up, verifies OTP, ride starts</div>
+            <div style={{ display: 'flex', gap: '10px' }}><span style={{ fontWeight: 700, color: '#16C15D' }}>5.</span> Dropped at destination. Ride complete!</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
 }

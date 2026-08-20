@@ -19,7 +19,9 @@ export type ManifestEntry = {
 
 export const GOOGLE_MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
-export const hasGoogleMapsKey = GOOGLE_MAPS_KEY.length > 0;
+// Maps now use Leaflet + OpenStreetMap (free, no key needed).
+// This flag is kept for backward compat but always true since we use OSM.
+export const hasGoogleMapsKey = true;
 
 export const stopDisplayName = (stop: StopLike | null | undefined, idx = 0): string => {
   if (!stop) return `Stop ${idx + 1}`;

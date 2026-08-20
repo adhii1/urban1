@@ -107,13 +107,58 @@ async function seed() {
   });
   console.log('Created 1 customer → phone: 9000000003 / password: password123 (Priya Sharma)');
 
-  // --- Plans (keep for subscription flow) ---
+  // --- Plans (all 4 booking models per PDF) ---
   await Plan.insertMany([
-    { name: 'Weekday Commute', serviceType: 'Home-to-Office', tier: 'Weekday', description: 'Mon-Fri fixed commute (auto-scheduled, auto-assigned driver)', durationDays: 30, price: 1999, pauseDaysAllowed: 4, features: ['Mon-Fri', '4 pause days', 'Auto-driver assignment'], isActive: true, bookingRules: { allowedDaysPerWeek: 5, allowedWeekdays: [1, 2, 3, 4, 5], isSharedRide: true, useManagedStops: false } },
-    { name: 'Hybrid Commute', serviceType: 'Home-to-Office', tier: 'Hybrid', description: 'Pick your days (e.g. MWF), auto-assigned driver', durationDays: 30, price: 1799, pauseDaysAllowed: 3, features: ['Pick any days', '3 pause days', 'Auto-driver assignment'], isActive: true, bookingRules: { allowedDaysPerWeek: 3, isSharedRide: true, useManagedStops: false } },
-    { name: 'Flexy Ride', serviceType: 'Home-to-Office', tier: 'Flexy', description: 'On-demand booking within your area', durationDays: 30, price: 2499, pauseDaysAllowed: 5, features: ['Flexible booking', '5km radius', '5 pause days'], isActive: true, bookingRules: { allowedDaysPerWeek: 7, isSharedRide: false, useManagedStops: false } },
+    {
+      name: 'Weekday Commute',
+      serviceType: 'Home-to-Office',
+      tier: 'Weekday',
+      description: 'Mon-Fri daily commute. Shared ride, auto-assigned driver in your area.',
+      durationDays: 30,
+      price: 1999,
+      pauseDaysAllowed: 4,
+      features: ['Mon-Fri schedule', '4 pause days', 'Shared ride', 'Auto-assigned driver'],
+      isActive: true,
+      bookingRules: { allowedDaysPerWeek: 5, allowedWeekdays: [1, 2, 3, 4, 5], isSharedRide: true, useManagedStops: false },
+    },
+    {
+      name: 'Hybrid Commute',
+      serviceType: 'Home-to-Office',
+      tier: 'Hybrid',
+      description: 'Pick any 3 days/week for your commute. Shared ride, auto-assigned driver.',
+      durationDays: 30,
+      price: 1799,
+      pauseDaysAllowed: 3,
+      features: ['Pick 3 days/week', '3 pause days', 'Shared ride', 'Auto-assigned driver'],
+      isActive: true,
+      bookingRules: { allowedDaysPerWeek: 3, isSharedRide: true, useManagedStops: false },
+    },
+    {
+      name: 'Flexy Ride',
+      serviceType: 'Home-to-Office',
+      tier: 'Flexy',
+      description: 'On-demand single-person ride. Book 2hrs in advance. Driver within 5km.',
+      durationDays: 30,
+      price: 2499,
+      pauseDaysAllowed: 5,
+      features: ['Any day booking', 'Single passenger', '2hr advance booking', '5km area match'],
+      isActive: true,
+      bookingRules: { allowedDaysPerWeek: 7, isSharedRide: false, useManagedStops: false, minAdvanceBookingMinutes: 120, maxPassengersPerBooking: 1 },
+    },
+    {
+      name: 'Shuttle Pass',
+      serviceType: 'Stop-to-Stop',
+      tier: 'Standard',
+      description: 'Fixed route, bus-stop style. Multiple passengers, admin-managed stops. Most affordable.',
+      durationDays: 30,
+      price: 1499,
+      pauseDaysAllowed: 2,
+      features: ['Fixed route stops', 'Mon-Fri', 'Multiple passengers', 'Lowest price'],
+      isActive: true,
+      bookingRules: { allowedDaysPerWeek: 5, allowedWeekdays: [1, 2, 3, 4, 5], isSharedRide: true, useManagedStops: true },
+    },
   ]);
-  console.log('Created 3 plans  → Weekday, Hybrid, Flexy');
+  console.log('Created 4 plans  → Weekday, Hybrid, Flexy, Shuttle');
 
   console.log('\n=== SEED COMPLETE ===');
   console.log('┌────────────────────────────────────────┐');

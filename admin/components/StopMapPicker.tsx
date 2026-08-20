@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
-import {
-  APIProvider,
-  Map,
-  Marker,
-  useMap,
-} from '@vis.gl/react-google-maps';
+/**
+ * StopMapPicker — Leaflet + OpenStreetMap based (free, no API key)
+ * Replaces the Google Maps version.
+ */
 
-const API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+import { useEffect, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
 export type PickerStop = {
   name: string;
@@ -24,112 +23,56 @@ export type StopMapPickerProps = {
   height?: number;
 };
 
-function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
-  const map = useMap();
+export default function StopMapPicker({ stops, selectedIndex, onMapClick, height = 280 }: StopMapPickerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+
   useEffect(() => {
-    if (!map) return;
-    const listener = map.addListener('click', (e: any) => {
-      if (e?.latLng) onMapClick(e.latLng.lat(), e.latLng.lng());
+    if (!containerRef.current) return;
+    if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+
+    const map = L.map(containerRef.current, { zoomControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom: 19,
+    }).addTo(map);
+
+    // Place markers for all stops with coordinates
+    const latLngs: L.LatLngExpression[] = [];
+    stops.forEach((stop, idx) => {
+      if (stop.lat == null || stop.lng == null) return;
+      const isSelected = idx === selectedIndex;
+      const color = isSelected ? '#16C15D' : '#3B82F6';
+      const size = isSelected ? 28 : 22;
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;">${idx + 1}</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+      L.marker([stop.lat, stop.lng], { icon }).addTo(map).bindTooltip(stop.name || `Stop ${idx + 1}`, { direction: 'top' });
+      latLngs.push([stop.lat, stop.lng]);
     });
-    return () => listener.remove();
-  }, [map, onMapClick]);
-  return null;
-}
 
-function BoundsFitter({ stops }: { stops: PickerStop[] }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!map) return;
-    const valid = stops.filter((s) => s.lat != null && s.lng != null) as Array<
-      PickerStop & { lat: number; lng: number }
-    >;
-    if (valid.length === 0) {
-      map.setCenter({ lat: 12.9716, lng: 77.5946 });
-      map.setZoom(11);
-      return;
-    }
-    const bounds = new window.google.maps.LatLngBounds();
-    for (const s of valid) bounds.extend({ lat: s.lat, lng: s.lng });
-    if (valid.length === 1) {
-      map.setCenter({ lat: valid[0].lat, lng: valid[0].lng });
-      map.setZoom(13);
+    // Fit bounds
+    if (latLngs.length > 1) {
+      map.fitBounds(L.latLngBounds(latLngs), { padding: [30, 30] });
+    } else if (latLngs.length === 1) {
+      map.setView(latLngs[0], 13);
     } else {
-      map.fitBounds(bounds, 48);
+      map.setView([12.9716, 77.5946], 11); // Default: Bangalore
     }
-  }, [map, stops]);
-  return null;
-}
 
-export default function StopMapPicker({
-  stops,
-  selectedIndex,
-  onMapClick,
-  height = 280,
-}: StopMapPickerProps) {
-  if (!API_KEY) {
-    return (
-      <div
-        style={{
-          height,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: 'var(--bg-2, #1f2937)',
-          color: 'var(--text-light, #94A3B8)',
-          borderRadius: '10px',
-          fontSize: '12px',
-          textAlign: 'center',
-          padding: '12px',
-        }}
-      >
-        Map picker unavailable — set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to enable coordinate picking.
-      </div>
-    );
-  }
+    // Click handler
+    map.on('click', (e: L.LeafletMouseEvent) => {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    });
+
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
+  }, [stops, selectedIndex, onMapClick]);
+
   return (
-    <APIProvider apiKey={API_KEY}>
-      <div
-        style={{
-          width: '100%',
-          height,
-          borderRadius: '10px',
-          overflow: 'hidden',
-          border: '1px solid var(--border-color, #E2E8F0)',
-        }}
-      >
-        <Map
-          disableDefaultUI
-          gestureHandling="greedy"
-          style={{ width: '100%', height: '100%' }}
-        >
-          <BoundsFitter stops={stops} />
-          <MapClickHandler onMapClick={onMapClick} />
-          {stops.map((s, i) => {
-            if (s.lat == null || s.lng == null) return null;
-            return (
-              <Marker
-                key={i}
-                position={{ lat: s.lat, lng: s.lng }}
-                zIndex={selectedIndex === i ? 2000 : 100 + i}
-                icon={{
-                  path: window.google.maps.SymbolPath.CIRCLE,
-                  scale: selectedIndex === i ? 18 : 12,
-                  fillColor: selectedIndex === i ? '#F59E0B' : '#3B82F6',
-                  fillOpacity: 1,
-                  strokeColor: '#fff',
-                  strokeWeight: 2,
-                }}
-                label={{
-                  text: String(i + 1),
-                  color: '#fff',
-                  fontSize: '11px',
-                  fontWeight: '700',
-                }}
-              />
-            );
-          })}
-        </Map>
-      </div>
-    </APIProvider>
+    <div ref={containerRef} style={{ width: '100%', height, borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--border-color, #E2E8F0)' }} />
   );
 }

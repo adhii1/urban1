@@ -1,10 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, Bus, Briefcase } from 'lucide-react';
+import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/stores/toastStore';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+
+const LeafletMap = dynamic(() => import('../profile/LeafletMap'), { ssr: false });
 
 const DAYS = [
   { value: 0, label: 'Sun' },
@@ -16,38 +19,87 @@ const DAYS = [
   { value: 6, label: 'Sat' },
 ];
 
-type BookingStep = 'type' | 'location' | 'schedule' | 'confirm' | 'result';
+type BookingModel = 'HYBRID' | 'WEEKDAYS' | 'SHUTTLE';
+type BookingStep = 'model' | 'location' | 'schedule' | 'confirm' | 'result';
+
+const MODEL_INFO: Record<BookingModel, { title: string; subtitle: string; icon: any; color: string; description: string; priceLabel: string }> = {
+  WEEKDAYS: {
+    title: 'Weekday (5-Day)',
+    subtitle: 'Mon–Fri daily commute',
+    icon: Briefcase,
+    color: '#16C15D',
+    description: 'Full weekday commute Monday through Friday. Shared ride, auto-assigned driver. Best value for daily office commute.',
+    priceLabel: '₹1,999/month',
+  },
+  HYBRID: {
+    title: 'Hybrid (3-Day)',
+    subtitle: 'Pick any 3 days per week',
+    icon: Calendar,
+    color: '#3B82F6',
+    description: 'Choose your commute days (e.g. Mon, Wed, Fri). Shared ride with other passengers in your area. Auto-assigned driver.',
+    priceLabel: '₹1,799/month',
+  },
+  SHUTTLE: {
+    title: 'Shuttle',
+    subtitle: 'Fixed route, bus-stop style',
+    icon: Bus,
+    color: '#8B5CF6',
+    description: 'Fixed route with managed pickup/drop stops. Multiple passengers board at designated stops. Most affordable option.',
+    priceLabel: '₹1,499/month',
+  },
+};
 
 export default function SubscribePage() {
   const { showToast } = useToast();
-  const [step, setStep] = useState<BookingStep>('type');
+  const [step, setStep] = useState<BookingStep>('model');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
   // Form state
-  const [subscriptionType, setSubscriptionType] = useState<'WEEKDAYS' | 'HYBRID' | ''>('');
+  const [model, setModel] = useState<BookingModel | ''>('');
   const [pickupAddress, setPickupAddress] = useState('');
-  const [pickupLat, setPickupLat] = useState('');
-  const [pickupLng, setPickupLng] = useState('');
+  const [pickupLat, setPickupLat] = useState('12.9279');
+  const [pickupLng, setPickupLng] = useState('77.6309');
   const [dropAddress, setDropAddress] = useState('');
-  const [dropLat, setDropLat] = useState('');
-  const [dropLng, setDropLng] = useState('');
+  const [dropLat, setDropLat] = useState('12.8489');
+  const [dropLng, setDropLng] = useState('77.6683');
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [pickupTime, setPickupTime] = useState('08:00');
+  const [mapMode, setMapMode] = useState<'pickup' | 'drop'>('pickup');
 
   const toggleDay = (day: number) => {
+    if (model === 'HYBRID' && !selectedDays.includes(day) && selectedDays.length >= 3) {
+      showToast('Hybrid plan allows max 3 days per week', 'error');
+      return;
+    }
     setSelectedDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   };
 
+  const selectModel = (m: BookingModel) => {
+    setModel(m);
+    if (m === 'WEEKDAYS') setSelectedDays([1, 2, 3, 4, 5]);
+    else if (m === 'SHUTTLE') setSelectedDays([1, 2, 3, 4, 5]);
+    else setSelectedDays([]);
+    setStep('location');
+  };
+
+  const handleMapClick = (lat: number, lng: number) => {
+    if (mapMode === 'pickup') { setPickupLat(lat.toFixed(6)); setPickupLng(lng.toFixed(6)); }
+    else { setDropLat(lat.toFixed(6)); setDropLng(lng.toFixed(6)); }
+  };
+
   const handleSubmit = async () => {
-    if (!subscriptionType) { showToast('Select a subscription type', 'error'); return; }
-    if (!pickupLat || !pickupLng || !dropLat || !dropLng) { showToast('Enter pickup and drop coordinates', 'error'); return; }
-    if (subscriptionType === 'HYBRID' && selectedDays.length === 0) { showToast('Select at least one day for Hybrid', 'error'); return; }
+    if (!model) { showToast('Select a booking model', 'error'); return; }
+    if (!pickupLat || !pickupLng || !dropLat || !dropLng) { showToast('Set pickup and drop locations', 'error'); return; }
+    if (model === 'HYBRID' && selectedDays.length === 0) { showToast('Select your commute days', 'error'); return; }
 
     setLoading(true);
     try {
+      // Map SHUTTLE → backend handles it
+      const subscriptionType = model;
+
       const body = {
         subscriptionType,
         pickupLocation: {
@@ -58,7 +110,7 @@ export default function SubscribePage() {
           address: dropAddress || `${dropLat}, ${dropLng}`,
           coordinates: [parseFloat(dropLng), parseFloat(dropLat)],
         },
-        scheduleDays: subscriptionType === 'WEEKDAYS' ? [1, 2, 3, 4, 5] : selectedDays,
+        scheduleDays: selectedDays,
         pickupTime,
         startDate: new Date().toISOString(),
       };
@@ -74,120 +126,180 @@ export default function SubscribePage() {
     }
   };
 
+  const modelInfo = model ? MODEL_INFO[model] : null;
+
   return (
-    <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>Subscribe to Commute</h2>
-      <p style={{ fontSize: '13px', color: '#64748B', marginBottom: '24px' }}>Choose your plan, set your pickup/drop, and we auto-assign the best driver in your area.</p>
+    <div style={{ maxWidth: '540px', margin: '0 auto' }}>
+      <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0F172A', marginBottom: '4px' }}>Book Your Commute</h2>
+      <p style={{ fontSize: '13px', color: '#475569', marginBottom: '24px' }}>Choose a plan, set your route, and we auto-assign the best driver.</p>
 
-      {/* Step 1: Choose Type */}
-      {step === 'type' && (
+      {/* Step 1: Choose Model */}
+      {step === 'model' && (
         <div>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>Select Commute Type</h3>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>Select Commute Model</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <button
-              onClick={() => { setSubscriptionType('WEEKDAYS'); setSelectedDays([1, 2, 3, 4, 5]); setStep('location'); }}
-              className="glass-card"
-              style={{ padding: '20px', textAlign: 'left', border: subscriptionType === 'WEEKDAYS' ? '2px solid #16C15D' : '1px solid #E2E8F0', cursor: 'pointer', background: '#fff' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                <Briefcase size={20} color="#16C15D" />
-                <strong style={{ fontSize: '15px', color: '#0F172A' }}>Weekdays (Mon-Fri)</strong>
-              </div>
-              <p style={{ fontSize: '12px', color: '#64748B' }}>Daily commute Monday through Friday. Fixed schedule, auto-assigned driver.</p>
-            </button>
+            {(Object.keys(MODEL_INFO) as BookingModel[]).map((key) => {
+              const info = MODEL_INFO[key];
+              const Icon = info.icon;
+              return (
+                <button
+                  key={key}
+                  onClick={() => selectModel(key)}
+                  className="glass-card"
+                  style={{ padding: '18px', textAlign: 'left', border: model === key ? `2px solid ${info.color}` : '1px solid #E2E8F0', cursor: 'pointer', background: '#fff', transition: 'all 0.2s ease' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                    <span style={{ width: '36px', height: '36px', borderRadius: '10px', background: `${info.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon size={18} color={info.color} />
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <strong style={{ fontSize: '14px', color: '#0F172A' }}>{info.title}</strong>
+                      <span style={{ float: 'right', fontSize: '12px', fontWeight: 700, color: info.color }}>{info.priceLabel}</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#64748B', paddingLeft: '48px' }}>{info.description}</p>
+                </button>
+              );
+            })}
+          </div>
 
-            <button
-              onClick={() => { setSubscriptionType('HYBRID'); setSelectedDays([]); setStep('location'); }}
-              className="glass-card"
-              style={{ padding: '20px', textAlign: 'left', border: subscriptionType === 'HYBRID' ? '2px solid #3B82F6' : '1px solid #E2E8F0', cursor: 'pointer', background: '#fff' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                <Calendar size={20} color="#3B82F6" />
-                <strong style={{ fontSize: '15px', color: '#0F172A' }}>Hybrid (Pick Your Days)</strong>
-              </div>
-              <p style={{ fontSize: '12px', color: '#64748B' }}>Choose specific days per week (e.g. Mon, Wed, Fri). Flexible schedule.</p>
-            </button>
+          {/* Flexy note */}
+          <div className="glass-card" style={{ padding: '14px', marginTop: '16px', borderLeft: '3px solid #F59E0B' }}>
+            <p style={{ fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>Looking for on-demand rides?</p>
+            <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+              Flexy (single-person, like Ola/Uber) is available via <Link href="/customer/book-ride" style={{ color: '#F59E0B', fontWeight: 700, textDecoration: 'underline' }}>Book Ride</Link> — no subscription needed.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Step 2: Location */}
-      {step === 'location' && (
+      {/* Step 2: Location with Map */}
+      {step === 'location' && modelInfo && (
         <div>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>
-            <MapPin size={16} style={{ display: 'inline', marginRight: '6px' }} />
-            Set Pickup & Drop Locations
-          </h3>
-          <p style={{ fontSize: '11px', color: '#64748B', marginBottom: '16px' }}>Enter coordinates (latitude, longitude). The system matches you to the nearest area driver.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+            <span style={{ width: '28px', height: '28px', borderRadius: '8px', background: `${modelInfo.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <modelInfo.icon size={14} color={modelInfo.color} />
+            </span>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{modelInfo.title} — Set Locations</h3>
+          </div>
 
-          <div className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
-            <label style={{ fontSize: '10px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup Location</label>
-            <input type="text" placeholder="Address (optional)" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px', marginTop: '6px', marginBottom: '8px' }} />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input type="text" placeholder="Latitude" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px' }} />
-              <input type="text" placeholder="Longitude" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px' }} />
+          <p style={{ fontSize: '11px', color: '#64748B', marginBottom: '12px' }}>
+            Tap the map to set your {mapMode} point, or enter coordinates manually.
+          </p>
+
+          {/* Map mode toggle */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+            <button onClick={() => setMapMode('pickup')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: mapMode === 'pickup' ? '2px solid #16C15D' : '1px solid #E2E8F0', background: mapMode === 'pickup' ? '#F0FDF4' : '#fff', fontSize: '12px', fontWeight: 700, color: mapMode === 'pickup' ? '#16C15D' : '#64748B', cursor: 'pointer' }}>
+              <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} /> Set Pickup
+            </button>
+            <button onClick={() => setMapMode('drop')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: mapMode === 'drop' ? '2px solid #3B82F6' : '1px solid #E2E8F0', background: mapMode === 'drop' ? '#EFF6FF' : '#fff', fontSize: '12px', fontWeight: 700, color: mapMode === 'drop' ? '#3B82F6' : '#64748B', cursor: 'pointer' }}>
+              <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} /> Set Drop
+            </button>
+          </div>
+
+          {/* Map */}
+          <div style={{ height: '220px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
+            <LeafletMap
+              lat={mapMode === 'pickup' ? parseFloat(pickupLat) : parseFloat(dropLat)}
+              lng={mapMode === 'pickup' ? parseFloat(pickupLng) : parseFloat(dropLng)}
+              onMapClick={handleMapClick}
+              markerColor={mapMode === 'pickup' ? '#16C15D' : '#3B82F6'}
+            />
+          </div>
+
+          {/* Coordinate inputs */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+            <div>
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup Lat, Lng</label>
+              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                <input type="text" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+                <input type="text" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize: '9px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop Lat, Lng</label>
+              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
+                <input type="text" value={dropLat} onChange={(e) => setDropLat(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+                <input type="text" value={dropLng} onChange={(e) => setDropLng(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+              </div>
             </div>
           </div>
 
-          <div className="glass-card" style={{ padding: '16px', marginBottom: '16px' }}>
-            <label style={{ fontSize: '10px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop Location</label>
-            <input type="text" placeholder="Address (optional)" value={dropAddress} onChange={(e) => setDropAddress(e.target.value)} style={{ width: '100%', padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px', marginTop: '6px', marginBottom: '8px' }} />
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input type="text" placeholder="Latitude" value={dropLat} onChange={(e) => setDropLat(e.target.value)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px' }} />
-              <input type="text" placeholder="Longitude" value={dropLng} onChange={(e) => setDropLng(e.target.value)} style={{ flex: 1, padding: '10px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '13px' }} />
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+            <input type="text" placeholder="Pickup address (optional)" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} style={{ padding: '9px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
+            <input type="text" placeholder="Drop address (optional)" value={dropAddress} onChange={(e) => setDropAddress(e.target.value)} style={{ padding: '9px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
           </div>
 
           <button onClick={() => setStep('schedule')} className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
             Continue <ArrowRight size={16} />
           </button>
-          <button onClick={() => setStep('type')} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>Back</button>
+          <button onClick={() => { setStep('model'); setModel(''); }} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>
+            <ArrowLeft size={12} style={{ display: 'inline', marginRight: '4px' }} /> Back to models
+          </button>
         </div>
       )}
 
       {/* Step 3: Schedule */}
-      {step === 'schedule' && (
+      {step === 'schedule' && modelInfo && (
         <div>
           <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>
             <Calendar size={16} style={{ display: 'inline', marginRight: '6px' }} />
-            {subscriptionType === 'WEEKDAYS' ? 'Confirm Schedule' : 'Select Your Days'}
+            {model === 'HYBRID' ? 'Pick Your 3 Days' : 'Confirm Schedule'}
           </h3>
 
-          {subscriptionType === 'HYBRID' && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-              {DAYS.map((day) => (
-                <button
-                  key={day.value}
-                  onClick={() => toggleDay(day.value)}
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: '10px',
-                    border: selectedDays.includes(day.value) ? '2px solid #3B82F6' : '1px solid #E2E8F0',
-                    background: selectedDays.includes(day.value) ? '#EFF6FF' : '#fff',
-                    color: selectedDays.includes(day.value) ? '#2563EB' : '#64748B',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {selectedDays.includes(day.value) && <Check size={12} style={{ marginRight: '4px' }} />}
-                  {day.label}
-                </button>
-              ))}
+          {/* Day selection for HYBRID */}
+          {model === 'HYBRID' && (
+            <div style={{ marginBottom: '20px' }}>
+              <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '10px' }}>Select exactly 3 days per week for your commute:</p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {DAYS.filter((d) => d.value >= 1 && d.value <= 6).map((day) => (
+                  <button
+                    key={day.value}
+                    onClick={() => toggleDay(day.value)}
+                    style={{
+                      padding: '10px 16px', borderRadius: '10px',
+                      border: selectedDays.includes(day.value) ? '2px solid #3B82F6' : '1px solid #E2E8F0',
+                      background: selectedDays.includes(day.value) ? '#EFF6FF' : '#fff',
+                      color: selectedDays.includes(day.value) ? '#2563EB' : '#64748B',
+                      fontWeight: 600, fontSize: '13px', cursor: 'pointer',
+                    }}
+                  >
+                    {selectedDays.includes(day.value) && <Check size={12} style={{ marginRight: '4px' }} />}
+                    {day.label}
+                  </button>
+                ))}
+              </div>
+              <p style={{ marginTop: '8px', fontSize: '11px', color: selectedDays.length === 3 ? '#16C15D' : '#F59E0B', fontWeight: 600 }}>
+                {selectedDays.length}/3 days selected
+              </p>
             </div>
           )}
 
-          {subscriptionType === 'WEEKDAYS' && (
+          {/* Info for WEEKDAYS */}
+          {model === 'WEEKDAYS' && (
             <div className="glass-card" style={{ padding: '16px', marginBottom: '20px' }}>
               <p style={{ fontSize: '13px', color: '#0F172A', fontWeight: 600 }}>Monday through Friday</p>
-              <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>Your commute will run every weekday automatically.</p>
+              <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>5 days/week. Auto-scheduled, auto-assigned driver in your area.</p>
             </div>
           )}
 
+          {/* Info for SHUTTLE */}
+          {model === 'SHUTTLE' && (
+            <div className="glass-card" style={{ padding: '16px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Bus size={16} color="#8B5CF6" />
+                <p style={{ fontSize: '13px', color: '#0F172A', fontWeight: 600 }}>Shuttle — Fixed Route</p>
+              </div>
+              <p style={{ fontSize: '12px', color: '#64748B' }}>You'll be picked up at the nearest admin-defined stop. Multiple passengers share the vehicle. Most affordable.</p>
+              <p style={{ fontSize: '11px', color: '#64748B', marginTop: '6px' }}>Schedule: Monday – Friday, managed stops.</p>
+            </div>
+          )}
+
+          {/* Pickup time */}
           <div className="glass-card" style={{ padding: '16px', marginBottom: '20px' }}>
             <label style={{ fontSize: '10px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
               <Clock size={12} style={{ display: 'inline', marginRight: '4px' }} />
-              Pickup Time
+              Daily Pickup Time
             </label>
             <input
               type="time"
@@ -197,45 +309,74 @@ export default function SubscribePage() {
             />
           </div>
 
-          <button onClick={() => setStep('confirm')} className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
+          <button
+            onClick={() => setStep('confirm')}
+            disabled={model === 'HYBRID' && selectedDays.length !== 3}
+            className="btn-redesign-primary"
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', opacity: model === 'HYBRID' && selectedDays.length !== 3 ? 0.5 : 1 }}
+          >
             Review Booking <ArrowRight size={16} />
           </button>
-          <button onClick={() => setStep('location')} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>Back</button>
+          <button onClick={() => setStep('location')} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>
+            <ArrowLeft size={12} style={{ display: 'inline', marginRight: '4px' }} /> Back
+          </button>
         </div>
       )}
 
       {/* Step 4: Confirm */}
-      {step === 'confirm' && (
+      {step === 'confirm' && modelInfo && (
         <div>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>Confirm Your Subscription</h3>
+          <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A', marginBottom: '16px' }}>Confirm Your Booking</h3>
 
-          <div className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Type</span>
-              <span style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{subscriptionType}</span>
+          <div className="glass-card" style={{ padding: '18px', marginBottom: '16px' }}>
+            {/* Plan summary */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #F1F5F9' }}>
+              <span style={{ width: '32px', height: '32px', borderRadius: '8px', background: `${modelInfo.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <modelInfo.icon size={16} color={modelInfo.color} />
+              </span>
+              <div>
+                <strong style={{ fontSize: '14px', color: '#0F172A' }}>{modelInfo.title}</strong>
+                <p style={{ fontSize: '11px', color: '#64748B' }}>{modelInfo.priceLabel}</p>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Days</span>
-              <span style={{ fontSize: '13px', color: '#0F172A' }}>{selectedDays.map((d) => DAYS[d].label).join(', ')}</span>
+
+            {/* Details */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Schedule</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>
+                  {selectedDays.map((d) => DAYS[d].label).join(', ')}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Pickup Time</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>{pickupTime}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748B', fontWeight: 600 }}>Ride Type</span>
+                <span style={{ color: '#0F172A', fontWeight: 700 }}>Shared (pooled)</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Pickup Time</span>
-              <span style={{ fontSize: '13px', color: '#0F172A' }}>{pickupTime}</span>
-            </div>
-            <div style={{ marginBottom: '8px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup</span>
-              <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{pickupAddress || `${pickupLat}, ${pickupLng}`}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: '11px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop</span>
-              <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{dropAddress || `${dropLat}, ${dropLng}`}</p>
+
+            {/* Locations */}
+            <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
+              <div style={{ marginBottom: '8px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup</span>
+                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{pickupAddress || `${pickupLat}, ${pickupLng}`}</p>
+              </div>
+              <div>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop</span>
+                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{dropAddress || `${dropLat}, ${dropLng}`}</p>
+              </div>
             </div>
           </div>
 
           <button onClick={handleSubmit} disabled={loading} className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
-            {loading ? <><Loader size={16} className="animate-spin" /> Creating...</> : <>Confirm & Subscribe <Check size={16} /></>}
+            {loading ? <><Loader size={16} /> Booking...</> : <>Confirm & Subscribe <Check size={16} /></>}
           </button>
-          <button onClick={() => setStep('schedule')} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>Back</button>
+          <button onClick={() => setStep('schedule')} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>
+            <ArrowLeft size={12} style={{ display: 'inline', marginRight: '4px' }} /> Back
+          </button>
         </div>
       )}
 
@@ -244,27 +385,35 @@ export default function SubscribePage() {
         <div>
           <div className="glass-card" style={{ padding: '24px', textAlign: 'center', marginBottom: '16px' }}>
             <Check size={48} color="#16C15D" style={{ margin: '0 auto 12px' }} />
-            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>Subscription Active</h3>
+            <h3 style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', marginBottom: '8px' }}>Subscription Active!</h3>
+            <p style={{ fontSize: '13px', color: '#64748B' }}>Your {modelInfo?.title} commute is booked.</p>
 
             {result.data?.assignment ? (
-              <div style={{ textAlign: 'left', marginTop: '16px' }}>
-                <p style={{ fontSize: '11px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase', marginBottom: '8px' }}>Assigned Driver</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#F0FDF4', borderRadius: '10px' }}>
-                  <Bus size={20} color="#16C15D" />
+              <div style={{ textAlign: 'left', marginTop: '20px' }}>
+                <p style={{ fontSize: '10px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase', marginBottom: '8px' }}>Assigned Driver</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', background: '#F0FDF4', borderRadius: '12px' }}>
+                  <Users size={22} color="#16C15D" />
                   <div>
                     <p style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{result.data.assignment.driver.name}</p>
-                    <p style={{ fontSize: '12px', color: '#64748B' }}>{result.data.assignment.driver.vehicleNumber} · {result.data.assignment.driver.vehicleModel}</p>
-                    <p style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>Area: {result.data.assignment.area} · {result.data.assignment.distanceKm} km away · Capacity: {result.data.assignment.driver.vehicleCapacity}</p>
+                    <p style={{ fontSize: '12px', color: '#475569' }}>
+                      {result.data.assignment.driver.vehicleNumber} · {result.data.assignment.driver.vehicleModel}
+                    </p>
+                    <p style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
+                      Area: {result.data.assignment.area} · {result.data.assignment.distanceKm} km · Capacity: {result.data.assignment.driver.vehicleCapacity}
+                    </p>
                   </div>
                 </div>
               </div>
             ) : (
-              <p style={{ fontSize: '13px', color: '#64748B', marginTop: '12px' }}>No driver available yet. Admin will assign one shortly.</p>
+              <div style={{ marginTop: '16px', padding: '12px', background: '#FFF7ED', borderRadius: '10px', textAlign: 'left' }}>
+                <p style={{ fontSize: '12px', color: '#92400E', fontWeight: 600 }}>No driver matched yet</p>
+                <p style={{ fontSize: '11px', color: '#78716C', marginTop: '4px' }}>{result.data?.reason || 'Admin will manually assign a driver shortly.'}</p>
+              </div>
             )}
 
             {result.data?.tripsGenerated?.length > 0 && (
               <div style={{ textAlign: 'left', marginTop: '16px' }}>
-                <p style={{ fontSize: '11px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase', marginBottom: '8px' }}>Upcoming Trips Generated</p>
+                <p style={{ fontSize: '10px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase', marginBottom: '6px' }}>Upcoming Trips</p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {result.data.tripsGenerated.map((date: string) => (
                     <span key={date} style={{ padding: '4px 10px', background: '#EFF6FF', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: '#2563EB' }}>{date}</span>
@@ -274,7 +423,7 @@ export default function SubscribePage() {
             )}
           </div>
 
-          <Link href="/customer/dashboard" className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', textDecoration: 'none' }}>
+          <Link href="/customer/dashboard" className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', textDecoration: 'none', display: 'flex' }}>
             Go to Dashboard
           </Link>
         </div>

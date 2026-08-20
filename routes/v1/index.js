@@ -75,6 +75,10 @@ router.get('/booking', authenticate, bookingController.getMyBooking);
 router.post('/booking/cancel', authenticate, bookingController.cancelBooking);
 router.put('/booking/location', authenticate, bookingController.updateLocation);
 
+// Wallet
+router.get('/wallet', authenticate, bookingController.getWallet);
+router.post('/wallet/add', authenticate, bookingController.addToWallet);
+
 // Legacy bookings (route search for static frontend - uses existing Route model)
 const Route = require('../../models/Route');
 router.get('/bookings/routes', authenticate, async (req, res) => {

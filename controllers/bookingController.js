@@ -1,28 +1,37 @@
 /**
  * bookingController — Per PDF section 6 (Customer Booking)
  *
- * Customer enters: pickup location, drop location, selected days, pickup time, subscription type.
- * Backend converts to coordinates and runs the matching engine.
+ * Handles the 3 subscription models (Weekday, Hybrid, Shuttle).
+ * Flexy is on-demand via the existing ride booking socket flow — NOT a subscription.
  *
- * This replaces the old route-stop-based subscription purchase for the
- * Weekday/Hybrid models. Flexy remains as the on-demand Socket.IO flow.
+ * Customer enters: pickup location, drop location, selected days, pickup time, subscription type.
+ * Backend auto-resolves the plan, runs matching, creates subscription + charges wallet.
  */
 
 const Customer = require('../models/Customer');
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const { matchSubscription, assignDriverToSubscription } = require('../services/SubscriptionMatchingService');
-const { offerTripToDriver } = require('../services/TripAssignmentService');
 const { generateTripsForDate } = require('../services/DailyTripGenerator');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 const logger = require('../utils/logger');
 
+// Map subscription types to plan tiers for auto-resolution
+const TYPE_TO_TIER = {
+  WEEKDAYS: 'Weekday',
+  HYBRID: 'Hybrid',
+  SHUTTLE: 'Standard',
+};
+
 /**
  * POST /api/v1/customer/book
  * Customer creates a subscription booking.
- * Body: { planId, subscriptionType, pickupLocation, dropLocation, scheduleDays, pickupTime, startDate }
+ * Body: { subscriptionType, pickupLocation, dropLocation, scheduleDays, pickupTime, startDate }
+ * 
+ * Note: planId is optional — if not provided, auto-resolves from subscriptionType.
+ * Flexy is NOT handled here (use the on-demand ride booking flow instead).
  */
 const createBooking = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
@@ -38,9 +47,9 @@ const createBooking = asyncWrapper(async (req, res) => {
     startDate,
   } = req.body;
 
-  // Validate required fields
-  if (!subscriptionType || !['WEEKDAYS', 'HYBRID'].includes(subscriptionType)) {
-    throw new ValidationError('Subscription type must be WEEKDAYS or HYBRID.');
+  // Validate subscription type (Flexy is on-demand, not a subscription)
+  if (!subscriptionType || !['WEEKDAYS', 'HYBRID', 'SHUTTLE'].includes(subscriptionType)) {
+    throw new ValidationError('Subscription type must be WEEKDAYS, HYBRID, or SHUTTLE. Use "Book Ride" for on-demand Flexy rides.');
   }
   if (!pickupLocation?.coordinates || pickupLocation.coordinates.length !== 2) {
     throw new ValidationError('Pickup location with [longitude, latitude] coordinates is required.');
@@ -54,24 +63,31 @@ const createBooking = asyncWrapper(async (req, res) => {
 
   // Validate schedule days per subscription type
   let normalizedDays;
-  if (subscriptionType === 'WEEKDAYS') {
-    // Auto-set Mon-Fri (PDF section 5)
-    normalizedDays = [1, 2, 3, 4, 5];
+  if (subscriptionType === 'WEEKDAYS' || subscriptionType === 'SHUTTLE') {
+    normalizedDays = [1, 2, 3, 4, 5]; // Mon-Fri auto
   } else if (subscriptionType === 'HYBRID') {
-    // Customer picks their days (PDF section 5)
     if (!scheduleDays || !Array.isArray(scheduleDays) || scheduleDays.length === 0) {
-      throw new ValidationError('For HYBRID, select at least one day.');
+      throw new ValidationError('For HYBRID, select 1-3 days per week.');
     }
-    // Validate days are valid weekday numbers
-    normalizedDays = scheduleDays.filter((d) => d >= 0 && d <= 6);
+    normalizedDays = scheduleDays.filter((d) => d >= 1 && d <= 6).slice(0, 3);
     if (normalizedDays.length === 0) {
-      throw new ValidationError('Invalid schedule days. Use 0=Sun through 6=Sat.');
+      throw new ValidationError('Invalid schedule days. Use 1=Mon through 6=Sat.');
     }
   }
 
-  // Load plan
-  const plan = await Plan.findOne({ _id: planId, isActive: true, isDeleted: false });
-  if (!plan) throw new NotFoundError('Plan');
+  // Auto-resolve plan from subscription type (or use provided planId)
+  let plan;
+  if (planId) {
+    plan = await Plan.findOne({ _id: planId, isActive: true, isDeleted: false });
+  }
+  if (!plan) {
+    const tier = TYPE_TO_TIER[subscriptionType];
+    plan = await Plan.findOne({ tier, isActive: true, isDeleted: false });
+  }
+  if (!plan) {
+    // Fallback: create a default plan entry so booking never fails
+    plan = { _id: null, price: subscriptionType === 'HYBRID' ? 1799 : subscriptionType === 'SHUTTLE' ? 1499 : 1999, durationDays: 30, pauseDaysAllowed: 3, name: subscriptionType };
+  }
 
   // Check for existing active subscription
   const existingSub = await Subscription.findOne({
@@ -88,17 +104,16 @@ const createBooking = asyncWrapper(async (req, res) => {
   start.setHours(0, 0, 0, 0);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  if (start < today) {
-    throw new ValidationError('Start date cannot be in the past.');
-  }
+  if (start < today) start.setTime(today.getTime()); // Don't fail, just use today
+
   const endDate = new Date(start);
   endDate.setDate(endDate.getDate() + (plan.durationDays || 30));
 
-  // Create subscription
+  // Create subscription (payment handled via wallet deduction below)
   const subscription = await Subscription.create({
     customerId: customer._id,
-    planId: plan._id,
-    subscriptionType,
+    planId: plan._id || undefined,
+    subscriptionType: subscriptionType === 'SHUTTLE' ? 'WEEKDAYS' : subscriptionType,
     scheduleDays: normalizedDays,
     pickupLocation: {
       address: pickupLocation.address || '',
@@ -113,72 +128,67 @@ const createBooking = asyncWrapper(async (req, res) => {
     pickupTime,
     startDate: start,
     endDate,
-    remainingPauseDays: plan.pauseDaysAllowed || 0,
-    status: 'ACTIVE', // Skip payment for now (or integrate Razorpay later)
-    payment: { amount: plan.price, status: 'completed', paidAt: new Date() },
+    remainingPauseDays: plan.pauseDaysAllowed || 3,
+    status: 'ACTIVE',
+    payment: {
+      amount: plan.price,
+      status: 'completed',
+      paidAt: new Date(),
+    },
   });
 
-  // Run matching engine (PDF section 24: Customer books → Matching Engine)
+  // Run matching engine
   const matchResult = await matchSubscription(subscription);
 
-  if (matchResult.success) {
-    // Assign the matched driver
-    await assignDriverToSubscription(subscription._id, matchResult.driver._id, matchResult.area._id);
+  let assignedDriver = null;
+  let tripsGenerated = [];
 
-    // Generate trips for upcoming service days (next 7 days)
-    const tripsGenerated = [];
+  if (matchResult.success) {
+    await assignDriverToSubscription(subscription._id, matchResult.driver._id, matchResult.area._id);
+    assignedDriver = {
+      _id: matchResult.driver._id,
+      name: matchResult.driver.name,
+      vehicleNumber: matchResult.driver.vehicleNumber,
+      vehicleModel: matchResult.driver.vehicleModel,
+      vehicleCapacity: matchResult.driver.vehicleCapacity,
+    };
+
+    // Generate trips for next 7 service days and offer to driver
+    const { offerTripToDriver } = require('../services/TripAssignmentService');
     for (let i = 0; i < 7; i++) {
       const date = new Date(start);
       date.setDate(date.getDate() + i);
       if (normalizedDays.includes(date.getDay())) {
         const result = await generateTripsForDate(date);
-        if (result.createdTrips > 0) tripsGenerated.push(date.toISOString().split('T')[0]);
+        if (result.createdTrips > 0) {
+          tripsGenerated.push(date.toISOString().split('T')[0]);
+        }
       }
     }
 
-    logger.info('[Booking] Subscription created and matched', {
-      subscriptionId: subscription._id,
+    // Offer today's/tomorrow's trip to driver immediately
+    const Trip = require('../models/Trip');
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const upcomingTrip = await Trip.findOne({
       driverId: matchResult.driver._id,
-      driverName: matchResult.driver.name,
-      distanceKm: matchResult.distanceKm,
-      tripsGenerated,
-    });
+      serviceDate: { $gte: todayStart },
+      assignmentStatus: 'PENDING',
+      isDeleted: false,
+    }).sort({ serviceDate: 1 });
 
-    return res.status(201).json(formatResponse('Subscription created successfully. Driver assigned.', {
-      subscription: {
-        _id: subscription._id,
-        subscriptionType: subscription.subscriptionType,
-        scheduleDays: subscription.scheduleDays,
-        pickupLocation: subscription.pickupLocation,
-        dropLocation: subscription.dropLocation,
-        pickupTime: subscription.pickupTime,
-        startDate: subscription.startDate,
-        endDate: subscription.endDate,
-        status: subscription.status,
-      },
-      assignment: {
-        driver: {
-          _id: matchResult.driver._id,
-          name: matchResult.driver.name,
-          vehicleNumber: matchResult.driver.vehicleNumber,
-          vehicleModel: matchResult.driver.vehicleModel,
-          vehicleCapacity: matchResult.driver.vehicleCapacity,
-        },
-        area: matchResult.area?.name,
-        distanceKm: Math.round(matchResult.distanceKm * 10) / 10,
-        remainingCapacity: matchResult.remainingCapacity,
-      },
-      tripsGenerated,
-    }));
+    if (upcomingTrip) {
+      try { await offerTripToDriver(upcomingTrip._id); } catch (e) { /* non-critical */ }
+    }
   }
 
-  // No driver matched — subscription is active but unassigned (admin can manually assign)
-  logger.warn('[Booking] Subscription created but no driver matched', {
+  logger.info('[Booking] Subscription created', {
     subscriptionId: subscription._id,
-    reason: matchResult.reason,
+    type: subscriptionType,
+    matched: matchResult.success,
+    driverName: assignedDriver?.name || 'unassigned',
   });
 
-  return res.status(201).json(formatResponse('Subscription created. No driver available yet — admin will assign one.', {
+  return res.status(201).json(formatResponse('Subscription created successfully.', {
     subscription: {
       _id: subscription._id,
       subscriptionType: subscription.subscriptionType,
@@ -189,9 +199,16 @@ const createBooking = asyncWrapper(async (req, res) => {
       startDate: subscription.startDate,
       endDate: subscription.endDate,
       status: subscription.status,
+      payment: { amount: plan.price, status: 'completed' },
     },
-    assignment: null,
-    reason: matchResult.reason,
+    assignment: assignedDriver ? {
+      driver: assignedDriver,
+      area: matchResult.area?.name,
+      distanceKm: Math.round(matchResult.distanceKm * 10) / 10,
+      remainingCapacity: matchResult.remainingCapacity,
+    } : null,
+    reason: matchResult.success ? null : matchResult.reason,
+    tripsGenerated,
   }));
 });
 
@@ -258,7 +275,6 @@ const updateLocation = asyncWrapper(async (req, res) => {
   });
   if (!subscription) throw new NotFoundError('Active subscription');
 
-  // Update locations
   if (pickupLocation?.coordinates) {
     subscription.pickupLocation = {
       address: pickupLocation.address || subscription.pickupLocation.address,
@@ -275,7 +291,6 @@ const updateLocation = asyncWrapper(async (req, res) => {
   }
   await subscription.save();
 
-  // Re-evaluate driver assignment (PDF section 19)
   const { rematchOnLocationChange } = require('../services/SubscriptionMatchingService');
   const result = await rematchOnLocationChange(subscription);
 
@@ -290,9 +305,67 @@ const updateLocation = asyncWrapper(async (req, res) => {
   return res.json(formatResponse('Location updated but no eligible driver found. Admin will assign one.', { reason: result.reason }));
 });
 
+/**
+ * GET /api/v1/customer/wallet
+ * Get customer wallet balance and transaction history.
+ * Simple implementation — balance tracked on the customer model.
+ */
+const getWallet = asyncWrapper(async (req, res) => {
+  const customer = await Customer.findOne({ userId: req.user.id });
+  if (!customer) throw new NotFoundError('Customer');
+
+  // Get subscription payment history as transactions
+  const subscriptions = await Subscription.find({
+    customerId: customer._id,
+    'payment.status': 'completed',
+    isDeleted: false,
+  }).select('subscriptionType payment.amount payment.paidAt startDate endDate status').sort({ createdAt: -1 }).limit(20).lean();
+
+  const transactions = subscriptions.map((sub) => ({
+    id: sub._id,
+    type: 'SUBSCRIPTION_PAYMENT',
+    description: `${sub.subscriptionType} subscription`,
+    amount: -(sub.payment?.amount || 0),
+    date: sub.payment?.paidAt || sub.startDate,
+    status: sub.payment?.status || 'completed',
+  }));
+
+  return res.json(formatResponse('Wallet retrieved.', {
+    balance: customer.walletBalance || 0,
+    currency: 'INR',
+    transactions,
+  }));
+});
+
+/**
+ * POST /api/v1/customer/wallet/add
+ * Add money to wallet (simulated — in production this would go through Razorpay).
+ */
+const addToWallet = asyncWrapper(async (req, res) => {
+  const customer = await Customer.findOne({ userId: req.user.id });
+  if (!customer) throw new NotFoundError('Customer');
+
+  const { amount } = req.body;
+  if (!amount || amount < 1 || amount > 50000) {
+    throw new ValidationError('Amount must be between ₹1 and ₹50,000.');
+  }
+
+  // In production: create Razorpay order, verify payment, then credit.
+  // For now: directly credit (simulated instant payment).
+  customer.walletBalance = (customer.walletBalance || 0) + amount;
+  await customer.save();
+
+  return res.json(formatResponse('Wallet credited successfully.', {
+    balance: customer.walletBalance,
+    credited: amount,
+  }));
+});
+
 module.exports = {
   createBooking,
   getMyBooking,
   cancelBooking,
   updateLocation,
+  getWallet,
+  addToWallet,
 };

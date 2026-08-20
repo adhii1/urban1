@@ -5,7 +5,10 @@ import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
 import { useRoutes, useCreateRoute, useUpdateRoute, useDeleteRoute, useDrivers } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, X, Crosshair } from 'lucide-react';
-import StopMapPicker, { type PickerStop } from '../../components/StopMapPicker';
+import dynamic from 'next/dynamic';
+
+const StopMapPicker = dynamic(() => import('../../components/StopMapPicker'), { ssr: false });
+type PickerStop = { name: string; lat: number | null; lng: number | null };
 
 type FormStop = PickerStop & { stopId?: string };
 

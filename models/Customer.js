@@ -49,6 +49,12 @@ const customerSchema = new mongoose.Schema(
       language: { type: String, default: 'en' },
       darkMode: { type: Boolean, default: false },
     },
+    // Wallet balance (in INR)
+    walletBalance: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     isDeleted: {
       type: Boolean,
       default: false,
