@@ -21,7 +21,7 @@
   - _Requirements: 3.1, 3.2, 3.3_
 
 - [ ] 3. Implement the idempotent `7019268918` Customer reconciliation in `config/database.js`
-  - [~] 3.1 Reconcile only the exact target account in `seedDatabase(env)`
+  - [ ] 3.1 Reconcile only the exact target account in `seedDatabase(env)`
     - Define a named local target constant for `targetCustomerPhone = '7019268918'` and execute this correction only through the existing non-production seed path.
     - Find the target User by that exact phone. If absent, create it as an active `Customer` using the established development/test credential policy. If present, update only its role to `Customer` and required active status; retain its phone, credentials, password flags, email, tokens, push subscriptions, and unrelated User fields.
     - Inspect the target's Customer profiles and subscriptions before changing profile data. Retain an existing valid visible Customer profile and all existing Customer subscriptions exactly as stored; create one valid Customer profile only if none exists, and never recreate, reset, remove, or duplicate Customer data.
@@ -32,7 +32,7 @@
     - _Preservation: Do not modify non-target User, Customer, Driver, Subscription, Trip, Route, OTP, credential, or historical records; preserve `9876543210` and its HSR trip association._
     - _Requirements: 2.1, 2.2, 3.1, 3.2, 3.3_
 
-  - [~] 3.2 Preserve the independent Driver seed, HSR trip association, and OTP authorization
+  - [ ] 3.2 Preserve the independent Driver seed, HSR trip association, and OTP authorization
     - Leave the existing seed/reconciliation behavior for `9876543210` unchanged: it remains the seeded Driver and retains its existing Driver profile.
     - Do not reassign, recreate, delete, or rewrite the HSR Layout - Electronic City trip's Driver reference; it must continue to reference `9876543210`'s existing Driver profile.
     - Make no behavioral changes to `services/authService.js`, OTP controllers, or OTP routes. The current Customer-only `LOGIN` OTP guard must naturally accept the corrected target role and continue rejecting every non-target Driver and Admin.
@@ -42,21 +42,21 @@
     - _Preservation: Keep `9876543210`, the HSR Layout - Electronic City trip association, and non-target Driver/Admin Customer-OTP rejection unchanged._
     - _Requirements: 2.1, 2.2, 3.1, 3.2, 3.3_
 
-  - [~] 3.3 Verify the bug-condition exploration test now passes
+  - [ ] 3.3 Verify the bug-condition exploration test now passes
     - **Property 1: Expected Behavior** - `7019268918` is restored to an OTP-eligible Customer
     - **IMPORTANT**: Re-run the same property from task 1; do not write a replacement test.
     - Exercise all generated/reproduced bug-condition states and repeated seed runs. Confirm target convergence, retained pre-existing Customer profile fields and subscription associations, no visible target Driver profile, and a successful valid Customer `LOGIN` OTP result for `7019268918`.
     - **EXPECTED OUTCOME**: The former expected-failure property passes, confirming every tested buggy target state meets the design's expected behavior.
     - _Requirements: 2.1, 2.2_
 
-  - [~] 3.4 Verify the preservation baseline tests still pass
+  - [ ] 3.4 Verify the preservation baseline tests still pass
     - **Property 2: Preservation** - `9876543210`, non-target OTP authorization, and unrelated data remain unchanged
     - **IMPORTANT**: Re-run the same tests from task 2; do not write new baseline tests.
     - Confirm `9876543210` retains its Driver role/profile identity and the HSR Layout - Electronic City trip still references that profile. Confirm non-target Driver/Admin Customer `LOGIN` OTP attempts retain the observed rejection, and unrelated records and already-correct target Customer data remain unchanged across repeated seed runs.
     - **EXPECTED OUTCOME**: All preservation properties pass after the fix, demonstrating no non-target role, trip, authorization, profile, or subscription regression.
     - _Requirements: 3.1, 3.2, 3.3_
 
-- [~] 4. Checkpoint - ensure all tests pass
+- [ ] 4. Checkpoint - ensure all tests pass
   - Run the focused seed/reconciliation, OTP-service, unit, integration, and property-based suites against isolated test data.
   - Confirm task 1's unfixed failure and counterexamples are documented; Property 1 passes after implementation; Property 2 passes before and after implementation; and repeated non-production seed execution is idempotent.
   - Confirm no test modifies production data and no task reassigns `9876543210` or the HSR Layout - Electronic City trip.
