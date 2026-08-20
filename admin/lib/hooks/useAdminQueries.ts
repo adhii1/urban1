@@ -334,3 +334,40 @@ export function useRejectPauseRequest() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['pause-requests'] }),
   });
 }
+
+// --- Areas ---
+export function useAreas() {
+  const isAuthed = !!useAuthState();
+  return useQuery({
+    queryKey: ['areas'],
+    queryFn: () => adminApi.getAreas(),
+    enabled: isAuthed,
+  });
+}
+
+export function useCreateArea() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => adminApi.createArea(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['areas'] }),
+  });
+}
+
+export function useUpdateArea() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => adminApi.updateArea(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['areas'] }),
+  });
+}
+
+export function useDeleteArea() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.deleteArea(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['areas'] });
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+    },
+  });
+}

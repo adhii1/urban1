@@ -47,14 +47,14 @@ export default function CustomerDashboardLayout({ children }: { children: React.
 
   const navItems = [
     { href: '/customer/dashboard', icon: Home, label: 'Home' },
-    { href: '/customer/my-trips', icon: MapPin, label: 'My Trips' },
+    { href: '/customer/subscribe', icon: CreditCard, label: 'Subscribe' },
     { href: '/customer/book-ride', icon: Plus, label: 'Book', primary: true },
-    { href: '/customer/subscription', icon: CreditCard, label: 'Passes' },
+    { href: '/customer/my-trips', icon: MapPin, label: 'Trips' },
     { href: '/customer/settings', icon: Settings, label: 'Settings' },
   ];
 
   if (!isLoggedIn || !validated) {
-    return <div className="dashboard-body" style={{ display: 'grid', minHeight: '100vh', placeItems: 'center' }}><p style={{ color: '#64748B', fontSize: '14px' }}>Loading your commute…</p></div>;
+    return <div className="dashboard-body" style={{ display: 'grid', minHeight: '100vh', placeItems: 'center' }}><p style={{ color: '#334155', fontSize: '14px' }}>Loading your commute…</p></div>;
   }
 
   return (

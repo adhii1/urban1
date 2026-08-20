@@ -2,7 +2,7 @@
 
 import DashboardLayout from '../../components/DashboardLayout';
 import { useState } from 'react';
-import { Users, Activity, CheckCircle, XCircle, CreditCard, ArrowUpRight, ArrowDownRight, Radio, UserCheck, MapPin } from 'lucide-react';
+import { Users, Activity, CheckCircle, XCircle, CreditCard, ArrowUpRight, ArrowDownRight, Radio, UserCheck, MapPin, Clock3 } from 'lucide-react';
 import { useDashboardStats } from '../../lib/hooks/useAdminQueries';
 import { useAdminSocket } from '../../lib/hooks/useAdminSocket';
 import Link from 'next/link';
@@ -12,34 +12,33 @@ const DATE_FILTERS = ['Today', 'Week', 'Month', 'Custom'] as const;
 export default function DashboardPage() {
   const [dateFilter, setDateFilter] = useState<string>('Today');
   const { data, isLoading } = useDashboardStats();
-  const { isConnected, onlineDrivers, onlineCustomers, activeRides } = useAdminSocket();
+  const { isConnected, onlineDrivers, onlineCustomers, activeRides, customerOperations } = useAdminSocket();
 
-  // Rich fallback stats if backend API is not running or empty
-  const defaultStats = {
-    totalCustomers: 1420,
-    totalDrivers: 84,
-    activeTrips: 16,
-    completedTrips: 3450,
-    cancelledTrips: 42,
-    activeSubscriptions: 912,
-  };
-
-  const usingDefaults = !data?.success || !data?.data;
-  const stats = usingDefaults ? defaultStats : {
+  // Real stats only — no mock/placeholder values
+  const stats = data?.success && data?.data ? {
     totalCustomers: data.data.totalCustomers || 0,
     totalDrivers: data.data.totalDrivers || 0,
     activeTrips: data.data.activeTrips || 0,
     completedTrips: data.data.completedTrips || 0,
     cancelledTrips: data.data.cancelledTrips || 0,
     activeSubscriptions: data.data.activeSubscriptions || 0,
+  } : {
+    totalCustomers: 0,
+    totalDrivers: 0,
+    activeTrips: 0,
+    completedTrips: 0,
+    cancelledTrips: 0,
+    activeSubscriptions: 0,
   };
+
+  const dataUnavailable = !data?.success || !data?.data;
 
   return (
     <DashboardLayout>
       <div className="fade-in">
-        {usingDefaults && (
+        {dataUnavailable && !isLoading && (
           <div style={{ marginBottom: '16px', padding: '10px 16px', fontSize: '12px', color: '#F59E0B', background: 'rgba(245,158,11,0.1)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)' }}>
-            ⚠ Dashboard data unavailable from API. Showing placeholder values.
+            Dashboard data unavailable from API. Showing real-time counts only.
           </div>
         )}
         {/* Header Block */}
@@ -235,6 +234,45 @@ export default function DashboardPage() {
               </Link>
             </div>
           )}
+
+          <div className="glass-card" style={{ marginTop: '20px', padding: '16px' }} aria-labelledby="customer-actions-heading">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div>
+                <h4 id="customer-actions-heading" style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Clock3 size={13} /> Recent customer actions
+                </h4>
+                <p style={{ marginTop: '3px', fontSize: '10px', color: 'var(--text-light)' }}>
+                  Persisted operational notices, with live updates when connected.
+                </p>
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-light)' }}>
+                {customerOperations.length} recent
+              </span>
+            </div>
+
+            {customerOperations.length > 0 ? (
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }} role="log" aria-live="polite" aria-label="Recent customer actions">
+                {customerOperations.map((operation, index) => (
+                  <div
+                    key={operation.id || `${operation.type}-${operation.occurredAt || index}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', padding: '10px 0', borderBottom: index < customerOperations.length - 1 ? '1px solid var(--border-color)' : 'none' }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <p style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-main)' }}>{operation.title}</p>
+                      <p style={{ marginTop: '3px', fontSize: '10px', lineHeight: 1.45, color: 'var(--text-light)' }}>{operation.summary}</p>
+                    </div>
+                    <time dateTime={operation.occurredAt} style={{ flexShrink: 0, fontSize: '9px', color: 'var(--text-light)', whiteSpace: 'nowrap' }}>
+                      {formatOperationTime(operation.occurredAt)}
+                    </time>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ padding: '12px 0', fontSize: '11px', color: 'var(--text-light)' }}>
+                Customer actions will appear here as rides, subscriptions, support requests, and account changes occur.
+              </p>
+            )}
+          </div>
         </section>
 
         {/* Operational Shortcuts */}
@@ -395,6 +433,15 @@ function LiveStatCard({ icon, label, value, color }: { icon: React.ReactNode; la
       />
     </div>
   );
+}
+
+function formatOperationTime(occurredAt?: string): string {
+  if (!occurredAt) return 'Just now';
+
+  const date = new Date(occurredAt);
+  if (Number.isNaN(date.getTime())) return 'Just now';
+
+  return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function statusColor(status: string): string {

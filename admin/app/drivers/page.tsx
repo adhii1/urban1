@@ -2,17 +2,19 @@
 
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
-import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver } from '../../lib/hooks/useAdminQueries';
+import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver, useAreas } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, X } from 'lucide-react';
 
 export default function DriversPage() {
   useAuthGuard();
   const { data, isLoading } = useDrivers();
+  const { data: areasData } = useAreas();
   const createDriver = useCreateDriver();
   const updateDriver = useUpdateDriver();
   const deleteDriver = useDeleteDriver();
   const drivers = data?.success ? (data.data || data.drivers || []) : [];
+  const areas = areasData?.success ? (areasData.data || []) : [];
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -21,34 +23,38 @@ export default function DriversPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setShowModal(false);
     };
-    if (showModal) {
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    if (showModal) window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showModal]);
+
   const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: '', phone: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', routeId: '',
+    name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '',
   });
 
   const filtered = drivers.filter((d: any) =>
     (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (d.phone || '').includes(searchTerm) ||
+    (d.userId?.phone || '').includes(searchTerm) ||
     (d.vehicleNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const openCreate = () => {
     setEditingDriver(null);
-    setFormData({ name: '', phone: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', routeId: '' });
+    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '' });
     setShowModal(true);
   };
 
   const openEdit = (driver: any) => {
     setEditingDriver(driver);
     setFormData({
-      name: driver.name || '', phone: driver.phone || '', vehicleNumber: driver.vehicleNumber || '',
-      vehicleModel: driver.vehicleModel || '', vehicleCapacity: driver.vehicleCapacity || '',
-      licenseNumber: driver.licenseNumber || '', routeId: driver.routeId?._id || driver.routeId || '',
+      name: driver.name || '',
+      phone: driver.userId?.phone || '',
+      password: '',
+      vehicleNumber: driver.vehicleNumber || '',
+      vehicleModel: driver.vehicleModel || '',
+      vehicleCapacity: driver.vehicleCapacity?.toString() || '',
+      licenseNumber: driver.licenseNumber || '',
+      areaId: driver.areaId?._id || driver.areaId || '',
     });
     setShowModal(true);
   };
@@ -56,7 +62,8 @@ export default function DriversPage() {
   const handleSave = async () => {
     try {
       if (editingDriver) {
-        await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: formData });
+        const { phone, password, ...updateData } = formData;
+        await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: updateData });
       } else {
         await createDriver.mutateAsync(formData);
       }
@@ -75,7 +82,7 @@ export default function DriversPage() {
     }
   };
 
-  const columns = ['Name', 'Phone', 'Vehicle No.', 'Model', 'Capacity', 'License', 'Route', 'Status', 'Actions'];
+  const columns = ['Name', 'Phone', 'Vehicle No.', 'Model', 'Capacity', 'License', 'Area', 'Status', 'Actions'];
 
   return (
     <DashboardLayout>
@@ -83,7 +90,7 @@ export default function DriversPage() {
         <div className="flex-between" style={{ marginBottom: '28px' }}>
           <div>
             <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.5px' }}>Drivers Management</h2>
-            <p style={{ fontSize: '12px', color: 'var(--text-light)' }}>Manage driver profiles and vehicle assignments</p>
+            <p style={{ fontSize: '12px', color: 'var(--text-light)' }}>Register drivers (phone + password) and assign them to service areas</p>
           </div>
           <button onClick={openCreate} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}>
             <Plus size={14} /> Add Driver
@@ -117,15 +124,15 @@ export default function DriversPage() {
               ) : filtered.map((driver: any) => (
                 <tr key={driver._id || driver.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td style={{ padding: '12px 18px', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>{driver.name}</td>
-                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)' }}>{driver.phone}</td>
+                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)' }}>{driver.userId?.phone || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)', fontFamily: 'monospace' }}>{driver.vehicleNumber || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.vehicleModel || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)' }}>{driver.vehicleCapacity || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12px', color: 'var(--text-light)', fontFamily: 'monospace' }}>{driver.licenseNumber || '-'}</td>
-                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.routeId?.name || driver.routeId || '-'}</td>
+                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.areaId?.name || '-'}</td>
                   <td style={{ padding: '12px 18px' }}>
-                    <span className={`badge ${driver.isActive !== false ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
-                      {driver.isActive !== false ? 'Active' : 'Inactive'}
+                    <span className={`badge ${driver.status === 'ACTIVE' ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
+                      {driver.status || 'Unknown'}
                     </span>
                   </td>
                   <td style={{ padding: '12px 18px' }}>
@@ -143,10 +150,14 @@ export default function DriversPage() {
             </tbody>
           </table>
         </div>
+
+        <p style={{ marginTop: '16px', fontSize: '11px', color: 'var(--text-light)' }}>
+          {filtered.length} driver{filtered.length !== 1 ? 's' : ''} total
+        </p>
       </div>
 
       {showModal && (
-        <div 
+        <div
           className="modal-overlay"
           role="dialog"
           aria-modal="true"
@@ -159,28 +170,59 @@ export default function DriversPage() {
               <button onClick={() => setShowModal(false)} aria-label="Close modal" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: 0 }}><X size={18} /></button>
             </div>
             <div className="modal-body custom-scrollbar" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="field-name" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
+                <input id="field-name" type="text" className="form-input" placeholder="Driver full name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+              </div>
+
+              {!editingDriver && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label htmlFor="field-phone" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone (username)</label>
+                    <input id="field-phone" type="tel" className="form-input" placeholder="e.g. 9876543210" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label htmlFor="field-password" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
+                    <input id="field-password" type="password" className="form-input" placeholder="Min 6 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                  </div>
+                </>
+              )}
+
               {[
-                { key: 'name', label: 'Name', placeholder: 'Driver full name', type: 'text' },
-                { key: 'phone', label: 'Phone', placeholder: 'e.g. 9876543210', type: 'tel' },
                 { key: 'vehicleNumber', label: 'Vehicle Number', placeholder: 'e.g. KA51MB4321', type: 'text' },
                 { key: 'vehicleModel', label: 'Vehicle Model', placeholder: 'e.g. Tata Nexon EV', type: 'text' },
                 { key: 'vehicleCapacity', label: 'Capacity', placeholder: 'e.g. 4', type: 'number' },
                 { key: 'licenseNumber', label: 'License Number', placeholder: 'Driving license ID', type: 'text' },
-                { key: 'routeId', label: 'Route ID (Optional)', placeholder: 'Assigned route ID', type: 'text' },
               ].map((field) => (
                 <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor={`field-${field.key}`} style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{field.label}</label>
-                  <input 
+                  <input
                     id={`field-${field.key}`}
                     type={field.type}
-                    className="form-input" 
+                    className="form-input"
                     placeholder={field.placeholder}
                     value={(formData as any)[field.key]}
                     onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                    style={{ fontSize: '12px', padding: '10px 12px' }} 
+                    style={{ fontSize: '12px', padding: '10px 12px' }}
                   />
                 </div>
               ))}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="field-areaId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Service Area</label>
+                <select
+                  id="field-areaId"
+                  className="form-input"
+                  value={formData.areaId}
+                  onChange={(e) => setFormData({ ...formData, areaId: e.target.value })}
+                  style={{ fontSize: '12px', padding: '10px 12px' }}
+                >
+                  <option value="">No area (available everywhere)</option>
+                  {areas.map((area: any) => (
+                    <option key={area._id} value={area._id}>{area.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="modal-footer" style={{ padding: '12px 20px' }}>
               <button onClick={() => setShowModal(false)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '11px', borderRadius: '8px' }}>Cancel</button>

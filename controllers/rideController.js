@@ -3,7 +3,7 @@ const Driver = require('../models/Driver');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
-const { emitToUser } = require('../config/socket');
+const { emitToUser, getIO } = require('../config/socket');
 const ridePairing = require('../services/ridePairingService');
 const logger = require('../utils/logger');
 
@@ -128,6 +128,18 @@ const cancelRide = asyncWrapper(async (req, res) => {
     await Driver.findByIdAndUpdate(preCancelAcceptedDriverId, { isAvailable: true });
     ridePairing.clearPairing(preCancelAcceptedDriverId.toString(), ride.customerId.toString());
   }
+
+  try {
+    getIO().of('/sockets/admin').emit('ride:update', { rideRequestId: ride._id, status: 'CANCELLED' });
+  } catch { /* socket delivery is best-effort */ }
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'RIDE_CANCELLED',
+    customerId: ride.customerId,
+    title: 'Customer cancelled a ride',
+    summary: `Ride ${ride._id.toString().slice(-6).toUpperCase()} was cancelled.`,
+    metadata: { rideId: ride._id.toString(), hadAssignedDriver: Boolean(preCancelAcceptedDriverId) },
+  });
 
   return res.status(200).json(formatResponse('Ride cancelled.', ride));
 });

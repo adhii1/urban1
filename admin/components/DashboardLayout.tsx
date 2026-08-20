@@ -88,6 +88,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       { icon: Users, label: 'Drivers', href: '/drivers' },
       { icon: UserCheck, label: 'Customers', href: '/customers' },
       { icon: Route, label: 'Routes', href: '/routes' },
+      { icon: MapPin, label: 'Areas', href: '/areas' },
       { icon: CreditCard, label: 'Subscriptions', href: '/subscriptions' },
       { href: '/plans', icon: LayoutGrid, label: 'Plans' },
       { href: '/pause-requests', icon: Clock, label: 'Pause Requests' },

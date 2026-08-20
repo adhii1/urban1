@@ -105,4 +105,42 @@ router.get('/documents', documentController.getDocuments);
 router.get('/ratings/summary', ratingController.getDriverRatingSummary);
 router.get('/ratings', ratingController.getDriverRatings);
 
+// --- Trip Assignment (PDF section 10) ---
+const { acceptTrip, rejectTrip } = require('../../services/TripAssignmentService');
+const Trip = require('../../models/Trip');
+
+// Get driver's assigned/upcoming trips
+router.get('/assigned-trips', async (req, res) => {
+  const driver = await Driver.findOne({ userId: req.user.id });
+  if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const trips = await Trip.find({
+    driverId: driver._id,
+    serviceDate: { $gte: today },
+    isDeleted: false,
+  })
+    .populate('passengers.customerId', 'name')
+    .sort({ serviceDate: 1 })
+    .lean();
+
+  res.json({ success: true, data: trips });
+});
+
+// Accept trip assignment
+router.post('/trips/:id/accept', async (req, res) => {
+  const result = await acceptTrip(req.params.id, req.user.id);
+  if (!result.success) return res.status(400).json({ success: false, message: result.reason });
+  res.json({ success: true, message: 'Trip accepted', data: result.trip });
+});
+
+// Reject trip assignment
+router.post('/trips/:id/reject', async (req, res) => {
+  const result = await rejectTrip(req.params.id, req.user.id);
+  if (!result.success) return res.status(400).json({ success: false, message: result.reason });
+  res.json({ success: true, message: result.reassigned ? 'Trip reassigned to another driver' : 'Trip rejected. Admin notified.', data: result });
+});
+
 module.exports = router;

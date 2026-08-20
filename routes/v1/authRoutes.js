@@ -23,12 +23,13 @@ router.post(
   authController.adminLogin
 );
 
-// Driver Self-Registration
+// Driver Self-Registration — DISABLED per PDF section 3:
+// "The driver should not have a public signup. Admin creates the driver."
+// Endpoint retained but returns 403 to prevent breaking existing clients.
 router.post(
   '/driver/register',
   authLimiter,
-  validateRequest(authValidation.driverRegister),
-  authController.driverRegister
+  (req, res) => res.status(403).json({ success: false, message: 'Driver registration is admin-only. Contact your administrator.' })
 );
 
 // OTP Endpoints

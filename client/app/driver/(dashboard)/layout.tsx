@@ -5,13 +5,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Car, ChartNoAxesCombined, CircleUserRound, FileText, Headphones, LayoutDashboard, List, LogOut, MapPinned, Menu, Route, Settings, UserRound, Users, Wallet } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
+import { useDriverOperationSync } from '@/lib/hooks/useDriverOperationSync';
 import { useDriverStore } from '@/stores/driverStore';
 
 const navigation = [
   { href: '/driver/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/driver/my-trips', label: 'My Trips', icon: Route },
+  { href: '/driver/assigned-trips', label: 'Assigned Trips', icon: Route },
   { href: '/driver/ride-queue', label: 'Ride Queue', icon: List },
-  { href: '/driver/routes', label: 'Routes', icon: MapPinned },
+  { href: '/driver/my-trips', label: 'Trip History', icon: MapPinned },
   { href: '/driver/earnings', label: 'Earnings', icon: Wallet },
   { href: '/driver/analytics', label: 'Analytics', icon: ChartNoAxesCombined },
   { href: '/driver/notifications', label: 'Notifications', icon: Bell },
@@ -28,6 +29,7 @@ export default function DriverDashboardLayout({ children }: { children: React.Re
   const [validated, setValidated] = useState(false);
   const [isOnline, setIsOnline] = useState(false);
   const [updatingDuty, setUpdatingDuty] = useState(false);
+  useDriverOperationSync();
 
   useEffect(() => {
     if (!isLoggedIn) {

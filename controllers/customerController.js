@@ -156,6 +156,15 @@ const requestPause = asyncWrapper(async (req, res) => {
     status: 'PENDING',
   });
 
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'PAUSE_REQUESTED',
+    customerId: customer._id,
+    title: 'Customer requested a subscription pause',
+    summary: `Pause requested from ${new Date(pauseRequest.requestedDate).toLocaleDateString('en-IN')}.`,
+    metadata: { pauseRequestId: pauseRequest._id.toString(), subscriptionId: subscription._id.toString() },
+  });
+
   return res.status(201).json(formatResponse('Pause request submitted successfully.', pauseRequest));
 });
 

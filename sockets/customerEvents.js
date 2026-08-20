@@ -167,6 +167,22 @@ function registerCustomerEvents(io) {
           scheduledPickupAt: scheduledPickupAt || null,
           fareEstimate: fareEstimate.estimated,
         });
+
+        // Keep an auditable, redacted operation notice for admins who are not
+        // connected when the request is created. The regular ride:new event
+        // continues to carry the live dispatch details.
+        const { publishCustomerOperation } = require('../services/customerOperationService');
+        await publishCustomerOperation({
+          type: 'RIDE_REQUESTED',
+          customerId: userId,
+          title: 'Customer requested a ride',
+          summary: `A new ${scheduledDate ? 'scheduled' : 'immediate'} ride request is ready for dispatch.`,
+          metadata: {
+            rideId: rideRequest._id.toString(),
+            pickupIntent,
+            scheduledPickupAt: scheduledDate?.toISOString() || null,
+          },
+        });
       } catch (err) {
         logger.error('ride:request error', { error: err.message });
         socket.emit('ride:request:error', {
@@ -295,6 +311,14 @@ function registerCustomerEvents(io) {
         io.of('/sockets/admin').emit('ride:update', {
           rideRequestId: rideRequest._id,
           status: 'CANCELLED',
+        });
+        const { publishCustomerOperation } = require('../services/customerOperationService');
+        await publishCustomerOperation({
+          type: 'RIDE_CANCELLED',
+          customerId: rideRequest.customerId,
+          title: 'Customer cancelled a ride',
+          summary: `Ride ${rideRequest._id.toString().slice(-6).toUpperCase()} was cancelled.`,
+          metadata: { rideId: rideRequest._id.toString(), hadAssignedDriver: Boolean(preCancelAcceptedDriverId) },
         });
 
         socket.emit('ride:cancel:ack', { 

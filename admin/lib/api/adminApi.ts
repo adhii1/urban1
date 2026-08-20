@@ -147,6 +147,15 @@ export const adminApi = {
   rejectPauseRequest: (id: string) =>
     apiFetch(`/admin/pause-requests/${id}/reject`, { method: 'POST' }),
 
+  // Areas
+  getAreas: () => apiFetch('/admin/areas'),
+  createArea: (data: any) =>
+    apiFetch('/admin/areas', { method: 'POST', body: JSON.stringify(data) }),
+  updateArea: (id: string, data: any) =>
+    apiFetch(`/admin/areas/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteArea: (id: string) =>
+    apiFetch(`/admin/areas/${id}`, { method: 'DELETE' }),
+
   // Live Rides (REST)
   getRides: (status?: string) =>
     apiFetch(`/admin/rides${status ? `?status=${status}` : ''}`),

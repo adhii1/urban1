@@ -1,34 +1,15 @@
 const mongoose = require('mongoose');
 
-const stopSnapshotSchema = new mongoose.Schema(
-  {
-    stopId: { type: String },
-    stopName: { type: String },
-    sequenceOrder: { type: Number },
-    location: {
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number] },
-    },
-  },
-  { _id: false }
-);
+/**
+ * Trip model — Per PDF sections 9-12, 17:
+ * A Trip is a single daily service run for a driver with multiple passengers.
+ * The manifest lists each passenger with their pickup/drop coordinates and OTP.
+ * Route order is calculated by geographic proximity, not booking order.
+ */
 
-const manifestConflictSchema = new mongoose.Schema(
+const passengerSchema = new mongoose.Schema(
   {
-    state: {
-      type: String,
-      enum: ['NONE', 'REQUIRES_RESOLUTION'],
-      default: 'NONE',
-    },
-    reason: { type: String, trim: true },
-    detectedAt: { type: Date },
-  },
-  { _id: false }
-);
-
-const manifestEntrySchema = new mongoose.Schema(
-  {
-    customer: {
+    customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
       required: true,
@@ -38,16 +19,40 @@ const manifestEntrySchema = new mongoose.Schema(
       ref: 'Subscription',
       index: true,
     },
-    pickupStop: stopSnapshotSchema,
-    dropStop: stopSnapshotSchema,
+    // Customer's pickup/drop for this trip (snapshot from subscription)
+    pickupLocation: {
+      address: { type: String, trim: true },
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number] }, // [lng, lat]
+    },
+    dropLocation: {
+      address: { type: String, trim: true },
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number] }, // [lng, lat]
+    },
+    // Optimized pickup sequence order (set by route optimizer, not booking order)
+    pickupOrder: { type: Number },
+
+    // Per-passenger OTP (per PDF section 15)
+    otp: {
+      code: { type: String },
+      verified: { type: Boolean, default: false },
+    },
+
+    // Per-passenger ride status (per PDF section 23)
     status: {
       type: String,
-      enum: ['PENDING', 'BOARDED', 'DROPPED', 'NO_SHOW'],
-      default: 'PENDING',
-    },
-    conflict: {
-      type: manifestConflictSchema,
-      default: () => ({ state: 'NONE' }),
+      enum: [
+        'ASSIGNED',          // Passenger added to trip
+        'DRIVER_EN_ROUTE',   // Driver heading to this passenger
+        'DRIVER_ARRIVED',    // Driver at pickup, waiting for OTP
+        'OTP_VERIFIED',      // OTP verified
+        'RIDE_STARTED',      // Customer boarded, ride in progress
+        'DROPPING_OFF',      // Approaching drop location
+        'COMPLETED',         // Dropped off successfully
+        'NO_SHOW',           // Customer didn't show up
+      ],
+      default: 'ASSIGNED',
     },
     boardedAt: { type: Date },
     droppedAt: { type: Date },
@@ -57,41 +62,71 @@ const manifestEntrySchema = new mongoose.Schema(
 
 const tripSchema = new mongoose.Schema(
   {
-    routeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Route',
-      required: true,
-      index: true,
-    },
+    // The driver assigned to this trip
     driverId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Driver',
+      required: true,
       index: true,
     },
-    // serviceDate is the normalized local calendar day used for idempotency.
-    // tripDate remains for existing API responses and planned departure time.
+    // The area this trip belongs to
+    areaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Area',
+      index: true,
+    },
+
+    // The service date (normalized to midnight)
     serviceDate: {
       type: Date,
       required: true,
       index: true,
     },
-    tripDate: {
-      type: Date,
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
-      default: 'SCHEDULED',
-      index: true,
-    },
-    manifest: [manifestEntrySchema],
-    startedAt: { type: Date },
-    completedAt: { type: Date },
-    cancelReason: {
+    // Planned pickup start time (e.g. 8:00 AM)
+    pickupTime: {
       type: String,
       trim: true,
     },
+
+    // Trip-level status (per PDF section 23)
+    status: {
+      type: String,
+      enum: ['SCHEDULED', 'ACCEPTED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'],
+      default: 'SCHEDULED',
+      index: true,
+    },
+
+    // Assignment status for the driver (per PDF section 10)
+    assignmentStatus: {
+      type: String,
+      enum: ['PENDING', 'OFFERED', 'ACCEPTED', 'REJECTED'],
+      default: 'PENDING',
+      index: true,
+    },
+
+    // Passengers manifest — the pooled customers for this trip
+    passengers: [passengerSchema],
+
+    // Google Maps navigation URL with ordered stops
+    navigationUrl: { type: String },
+
+    // Lifecycle timestamps
+    offeredAt: { type: Date },
+    acceptedAt: { type: Date },
+    rejectedAt: { type: Date },
+    startedAt: { type: Date },
+    completedAt: { type: Date },
+    cancelReason: { type: String, trim: true },
+
+    // Legacy route-based field (for backward compat with old trips)
+    routeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Route',
+      index: true,
+    },
+    // Legacy manifest field
+    manifest: { type: mongoose.Schema.Types.Mixed },
+
     isDeleted: {
       type: Boolean,
       default: false,
@@ -108,62 +143,22 @@ const tripSchema = new mongoose.Schema(
   }
 );
 
-tripSchema.pre('validate', function normalizeServiceDate(next) {
-  if (!this.serviceDate && this.tripDate) {
-    const normalized = new Date(this.tripDate);
-    normalized.setHours(0, 0, 0, 0);
-    this.serviceDate = normalized;
-  }
-  next();
-});
-
-// Existing manifest writers may still provide stop snapshots without a stable
-// ID. Enrich those writes from their route while the migration is in progress.
-tripSchema.pre('validate', async function enrichLegacyManifestSnapshots() {
-  const entriesNeedingIds = (this.manifest || []).some((entry) => (
-    (entry.pickupStop && !entry.pickupStop.stopId)
-    || (entry.dropStop && !entry.dropStop.stopId)
-  ));
-  if (!entriesNeedingIds || !this.routeId) return;
-
-  const Route = require('./Route');
-  const route = await Route.findById(this.routeId).select('stops').lean();
-  if (!route) return;
-  const findCurrentStop = (snapshot) => route.stops.find((stop) => (
-    stop.stopId === snapshot.stopId
-    || (stop.sequenceOrder === snapshot.sequenceOrder && stop.stopName === snapshot.stopName)
-  ));
-
-  for (const entry of this.manifest) {
-    for (const key of ['pickupStop', 'dropStop']) {
-      const snapshot = entry[key];
-      if (!snapshot || snapshot.stopId) continue;
-      const currentStop = findCurrentStop(snapshot);
-      if (currentStop) snapshot.stopId = currentStop.stopId;
-    }
-  }
-});
-
 tripSchema.pre(/^find/, function excludeDeleted(next) {
   this.where({ isDeleted: false });
   next();
 });
 
-tripSchema.pre('findOneAndUpdate', function excludeDeletedFromUpdates(next) {
+tripSchema.pre('findOneAndUpdate', function excludeDeleted(next) {
   this.where({ isDeleted: false });
   next();
 });
 
-// Legacy trips without serviceDate remain readable during migration. New and
-// backfilled active trips are unique by route and normalized service date.
+// One trip per driver per service date
 tripSchema.index(
-  { routeId: 1, serviceDate: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { isDeleted: false, serviceDate: { $exists: true } },
-    name: 'unique_active_route_service_date',
-  }
+  { driverId: 1, serviceDate: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: false } }
 );
-tripSchema.index({ 'manifest.subscriptionId': 1, serviceDate: 1, isDeleted: 1 });
+tripSchema.index({ 'passengers.subscriptionId': 1, serviceDate: 1, isDeleted: 1 });
+tripSchema.index({ 'passengers.customerId': 1, serviceDate: 1, isDeleted: 1 });
 
 module.exports = mongoose.model('Trip', tripSchema);

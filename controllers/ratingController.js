@@ -77,6 +77,16 @@ const rateRide = asyncWrapper(async (req, res) => {
     });
   }
 
+  const customer = await require('../models/Customer').findOne({ userId: customerId }).select('_id');
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'RATING_SUBMITTED',
+    customerId: customer?._id,
+    title: 'Customer submitted a driver rating',
+    summary: `${rating}-star rating recorded for the completed ride.`,
+    metadata: { rideId, driverId: ride.acceptedDriverId.toString(), rating, hasComment: Boolean(comment) },
+  });
+
   return res.status(201).json(
     formatResponse('Rating submitted successfully', {
       rating: newRating.rating,

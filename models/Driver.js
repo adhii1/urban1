@@ -63,6 +63,11 @@ const driverSchema = new mongoose.Schema(
       ref: 'Route',
       index: true,
     },
+    areaId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Area',
+      index: true,
+    },
     currentLocation: {
       type: {
         type: String,

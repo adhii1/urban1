@@ -17,6 +17,7 @@ const createDriver = Joi.object({
   vehicleCapacity: Joi.number().integer().min(1).max(20).required(),
   licenseNumber: Joi.string().trim().max(50).required(),
   routeId: Joi.string().hex().length(24).optional(),
+  areaId: Joi.string().hex().length(24).optional(),
 });
 
 const updateDriver = Joi.object({
@@ -26,6 +27,7 @@ const updateDriver = Joi.object({
   vehicleCapacity: Joi.number().integer().min(1).max(20).optional(),
   licenseNumber: Joi.string().trim().max(50).optional(),
   routeId: Joi.string().hex().length(24).optional(),
+  areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_APPROVAL').optional(),
 });
 
@@ -148,6 +150,24 @@ const pauseSubscription = Joi.object({});
 
 const resumeSubscription = Joi.object({});
 
+const createArea = Joi.object({
+  name: Joi.string().trim().min(1).max(100).required(),
+  center: Joi.object({
+    coordinates: Joi.array().items(Joi.number()).length(2).required(),
+  }).required(),
+  radiusKm: Joi.number().min(0.5).max(50).required(),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+});
+
+const updateArea = Joi.object({
+  name: Joi.string().trim().min(1).max(100).optional(),
+  center: Joi.object({
+    coordinates: Joi.array().items(Joi.number()).length(2).required(),
+  }).optional(),
+  radiusKm: Joi.number().min(0.5).max(50).optional(),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+});
+
 module.exports = {
   createDriver,
   updateDriver,
@@ -165,4 +185,6 @@ module.exports = {
   pauseSubscription,
   resumeSubscription,
   resolveOperationalException,
+  createArea,
+  updateArea,
 };

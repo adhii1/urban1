@@ -85,6 +85,61 @@ router.get('/pause-requests', adminController.getPauseRequests);
 router.post('/pause-requests/:id/approve', adminController.approvePauseRequest);
 router.post('/pause-requests/:id/reject', adminController.rejectPauseRequest);
 
+// Areas
+router.get('/areas', adminController.getAreas);
+router.post('/areas', validateRequest(adminValidation.createArea), adminController.createArea);
+router.patch('/areas/:id', validateRequest(adminValidation.updateArea), adminController.updateArea);
+router.delete('/areas/:id', adminController.deleteArea);
+
+// Subscription Matching (PDF section 20: Admin manual override)
+const SubscriptionMatchingService = require('../../services/SubscriptionMatchingService');
+const Subscription = require('../../models/Subscription');
+const { generateTripsForDate } = require('../../services/DailyTripGenerator');
+
+router.get('/subscriptions/unmatched', async (req, res) => {
+  const unmatched = await Subscription.find({
+    status: 'ACTIVE',
+    assignedDriverId: null,
+    isDeleted: false,
+  }).populate('customerId', 'name').populate('planId', 'name tier');
+  res.json({ success: true, data: unmatched });
+});
+
+router.post('/subscriptions/:id/match', async (req, res) => {
+  const subscription = await Subscription.findById(req.params.id);
+  if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+  const result = await SubscriptionMatchingService.matchSubscription(subscription);
+  if (result.success) {
+    await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, result.driver._id, result.area._id);
+    return res.json({ success: true, message: 'Driver assigned', data: { driver: result.driver, area: result.area, candidates: result.allCandidates } });
+  }
+  res.json({ success: false, message: result.reason, data: { candidates: [] } });
+});
+
+router.post('/subscriptions/:id/assign-driver', async (req, res) => {
+  const { driverId } = req.body;
+  if (!driverId) return res.status(400).json({ success: false, message: 'driverId required' });
+  const subscription = await Subscription.findById(req.params.id);
+  if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
+
+  const Area = require('../../models/Area');
+  const Driver = require('../../models/Driver');
+  const driver = await Driver.findById(driverId);
+  if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
+
+  await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, driver._id, driver.areaId);
+  res.json({ success: true, message: 'Driver manually assigned' });
+});
+
+router.post('/trips/generate', async (req, res) => {
+  const { serviceDate } = req.body;
+  const date = serviceDate ? new Date(serviceDate) : new Date();
+  date.setDate(date.getDate() + (serviceDate ? 0 : 1));
+  const result = await generateTripsForDate(date);
+  res.json({ success: true, data: result });
+});
+
 // Live Rides (REST fallback for admin panel)
 const RideRequest = require('../../models/RideRequest');
 const Trip = require('../../models/Trip');

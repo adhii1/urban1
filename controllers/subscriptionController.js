@@ -2,7 +2,9 @@ const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const Route = require('../models/Route');
 const Customer = require('../models/Customer');
+const Trip = require('../models/Trip');
 const paymentService = require('../services/paymentService');
+const { publishCustomerOperation, notifyAssignedDriversOfTripChanges } = require('../services/customerOperationService');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
@@ -175,6 +177,13 @@ const initiatePurchase = asyncWrapper(async (req, res) => {
   // Store order ID
   subscription.payment.orderId = order.orderId;
   await subscription.save();
+  await publishCustomerOperation({
+    type: 'SUBSCRIPTION_PURCHASE_STARTED',
+    customerId: customer._id,
+    title: 'Customer started a subscription purchase',
+    summary: `${plan.name} is awaiting payment confirmation.`,
+    metadata: { subscriptionId: subscription._id.toString(), planId: plan._id.toString(), routeId: route._id.toString() },
+  });
 
   return res.status(201).json(formatResponse('Subscription order created. Complete payment to activate.', {
     subscriptionId: subscription._id,
@@ -225,6 +234,13 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
     subscription.payment.status = 'failed';
     subscription.status = 'CANCELLED';
     await subscription.save();
+    await publishCustomerOperation({
+      type: 'SUBSCRIPTION_PAYMENT_FAILED',
+      customerId: customer._id,
+      title: 'Customer subscription payment failed',
+      summary: 'The pending subscription was cancelled after payment verification failed.',
+      metadata: { subscriptionId: subscription._id.toString() },
+    });
     return res.status(400).json(formatResponse('Payment verification failed. Subscription cancelled.', null));
   }
 
@@ -247,6 +263,19 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
   if (plan && route && plan.bookingRules?.isSharedRide) {
     scheduledTripCount = await scheduleRecurringTrips(subscription, plan, route, customer);
   }
+
+  const scheduledTrips = await Trip.find({
+    'manifest.subscriptionId': subscription._id,
+    status: 'SCHEDULED',
+  });
+  await notifyAssignedDriversOfTripChanges(scheduledTrips, 'SUBSCRIPTION_ACTIVATED');
+  await publishCustomerOperation({
+    type: 'SUBSCRIPTION_PAYMENT_VERIFIED',
+    customerId: customer._id,
+    title: 'Customer subscription activated',
+    summary: `${plan?.name || 'A commute plan'} is active${scheduledTripCount ? ` with ${scheduledTripCount} scheduled commute entries` : ''}.`,
+    metadata: { subscriptionId: subscription._id.toString(), scheduledTripCount },
+  });
 
   logger.info(`Subscription activated for customer ${customer._id}`, {
     subscriptionId: subscription._id,
@@ -300,6 +329,14 @@ const cancelSubscription = asyncWrapper(async (req, res) => {
   }
 
   await Customer.findByIdAndUpdate(customer._id, { $unset: { subscriptionId: 1 } });
+  await notifyAssignedDriversOfTripChanges(futureTrips, 'SUBSCRIPTION_CANCELLED');
+  await publishCustomerOperation({
+    type: 'SUBSCRIPTION_CANCELLED',
+    customerId: customer._id,
+    title: 'Customer cancelled a subscription',
+    summary: `${futureTrips.length} future scheduled trip${futureTrips.length === 1 ? '' : 's'} were reconciled.`,
+    metadata: { subscriptionId: subscription._id.toString(), affectedTripCount: futureTrips.length },
+  });
 
   return res.status(200).json(formatResponse('Subscription cancelled.', {
     subscriptionId: subscription._id,

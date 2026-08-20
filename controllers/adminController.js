@@ -9,6 +9,7 @@ const PauseRequest = require('../models/PauseRequest');
 const Admin = require('../models/Admin');
 const Settings = require('../models/Settings');
 const OperationalException = require('../models/OperationalException');
+const Area = require('../models/Area');
 const {
   applyDriverChange,
   reconcileStopChange,
@@ -48,7 +49,7 @@ const getDashboard = asyncWrapper(async (req, res) => {
 
 // Drivers CRUD
 const getDrivers = asyncWrapper(async (req, res) => {
-  const drivers = await Driver.find().populate('userId', 'phone status').populate('routeId', 'name');
+  const drivers = await Driver.find().populate('userId', 'phone status').populate('routeId', 'name').populate('areaId', 'name');
   return res.status(200).json(formatResponse('Drivers listed successfully.', drivers));
 });
 
@@ -59,7 +60,7 @@ const getDriverById = asyncWrapper(async (req, res) => {
 });
 
 const createDriver = asyncWrapper(async (req, res) => {
-  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId } = req.body;
+  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId } = req.body;
 
   if (!password) throw new ValidationError('Password is required');
 
@@ -77,13 +78,14 @@ const createDriver = asyncWrapper(async (req, res) => {
     vehicleCapacity: vehicleCapacity || 6,
     licenseNumber,
     routeId,
+    areaId: areaId || undefined,
   });
 
   return res.status(201).json(formatResponse('Driver created successfully.', driver));
 });
 
 const updateDriver = asyncWrapper(async (req, res) => {
-  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, status } = req.body;
+  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, status } = req.body;
   const driver = await Driver.findById(req.params.id);
   if (!driver) throw new NotFoundError('Driver');
 
@@ -93,6 +95,7 @@ const updateDriver = asyncWrapper(async (req, res) => {
   if (vehicleCapacity !== undefined) driver.vehicleCapacity = vehicleCapacity;
   if (licenseNumber !== undefined) driver.licenseNumber = licenseNumber;
   if (routeId !== undefined) driver.routeId = routeId;
+  if (areaId !== undefined) driver.areaId = areaId || null;
   if (status !== undefined) driver.status = status;
 
   await driver.save();
@@ -891,6 +894,49 @@ const rejectPauseRequest = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Pause request rejected.', pauseRequest));
 });
 
+// --- Areas ---
+const getAreas = asyncWrapper(async (req, res) => {
+  const areas = await Area.find();
+  return res.status(200).json(formatResponse('Areas listed successfully.', areas));
+});
+
+const createArea = asyncWrapper(async (req, res) => {
+  const { name, center, radiusKm, status } = req.body;
+  const area = await Area.create({
+    name,
+    center: { type: 'Point', coordinates: center.coordinates },
+    radiusKm,
+    status: status || 'ACTIVE',
+  });
+  return res.status(201).json(formatResponse('Area created successfully.', area));
+});
+
+const updateArea = asyncWrapper(async (req, res) => {
+  const area = await Area.findById(req.params.id);
+  if (!area) throw new NotFoundError('Area');
+
+  const { name, center, radiusKm, status } = req.body;
+  if (name !== undefined) area.name = name;
+  if (center !== undefined) {
+    area.center = { type: 'Point', coordinates: center.coordinates };
+  }
+  if (radiusKm !== undefined) area.radiusKm = radiusKm;
+  if (status !== undefined) area.status = status;
+
+  await area.save();
+  return res.status(200).json(formatResponse('Area updated successfully.', area));
+});
+
+const deleteArea = asyncWrapper(async (req, res) => {
+  const area = await Area.findById(req.params.id);
+  if (!area) throw new NotFoundError('Area');
+  area.isDeleted = true;
+  await area.save();
+  // Remove area assignment from all drivers in this area
+  await Driver.updateMany({ areaId: area._id }, { $unset: { areaId: 1 } });
+  return res.status(200).json(formatResponse('Area deleted successfully.'));
+});
+
 module.exports = {
   getAnalytics,
   getDashboard,
@@ -934,4 +980,8 @@ module.exports = {
   getPauseRequests,
   approvePauseRequest,
   rejectPauseRequest,
+  getAreas,
+  createArea,
+  updateArea,
+  deleteArea,
 };

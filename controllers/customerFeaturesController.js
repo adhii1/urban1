@@ -103,6 +103,15 @@ const updateSettings = asyncWrapper(async (req, res) => {
     { new: true }
   ).select('settings');
 
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'CUSTOMER_SETTINGS_UPDATED',
+    customerId: customer._id,
+    title: 'Customer updated notification preferences',
+    summary: `Updated: ${Object.keys(updates).map((key) => key.replace('settings.', '')).join(', ')}.`,
+    metadata: { changedKeys: Object.keys(updates).map((key) => key.replace('settings.', '')) },
+  });
+
   return res.json(formatResponse('Settings updated.', updated.settings));
 });
 
@@ -214,6 +223,16 @@ const createTicket = asyncWrapper(async (req, res) => {
     subject,
     category: category || 'OTHER',
     description,
+  });
+
+  const customer = await Customer.findOne({ userId: req.user.id }).select('_id');
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'SUPPORT_TICKET_CREATED',
+    customerId: customer?._id,
+    title: 'Customer opened a support request',
+    summary: `${ticket.category.replace('_', ' ')} · ${ticket.subject}`,
+    metadata: { ticketId: ticket._id.toString(), category: ticket.category, priority: ticket.priority },
   });
 
   return res.status(201).json(formatResponse('Support ticket created.', ticket));

@@ -26,7 +26,7 @@ export default function CustomerDashboardPage() {
   const drop = activeTrip?.myEntry?.dropStop?.stopName || profile.data?.dropLocation?.address || 'Drop location pending';
   const planName = subscription.data?.planId?.name || subscription.data?.planType || subscription.data?.plan || 'No active pass';
 
-  if (isLoading) return <div className="dashboard-section" style={{ padding: '64px 0', textAlign: 'center', color: '#64748B' }}>Loading your commute dashboard…</div>;
+  if (isLoading) return <div className="dashboard-section" style={{ padding: '64px 0', textAlign: 'center', color: '#334155' }}>Loading your commute dashboard…</div>;
 
   return <div>
     {isError && <div className="dashboard-section" style={{ border: '1px solid #FECACA', borderRadius: '12px', background: '#FEF2F2', padding: '12px', color: '#B91C1C', fontSize: '12px' }}>Some commute details could not be refreshed. Check that the API session is active, then try again.</div>}

@@ -68,7 +68,14 @@ router.get('/wallet/rewards', authenticate, featuresController.getRewards);
 router.get('/wallet/referrals', authenticate, featuresController.getReferrals);
 router.get('/wallet/refunds', authenticate, featuresController.getRefunds);
 
-// Bookings (route search for static frontend - uses existing Route model)
+// Bookings — New subscription-based booking system (PDF sections 5-6)
+const bookingController = require('../../controllers/bookingController');
+router.post('/book', authenticate, bookingController.createBooking);
+router.get('/booking', authenticate, bookingController.getMyBooking);
+router.post('/booking/cancel', authenticate, bookingController.cancelBooking);
+router.put('/booking/location', authenticate, bookingController.updateLocation);
+
+// Legacy bookings (route search for static frontend - uses existing Route model)
 const Route = require('../../models/Route');
 router.get('/bookings/routes', authenticate, async (req, res) => {
   const routes = await Route.find({ status: 'ACTIVE', isDeleted: false }).select('name startLocation endLocation stops');

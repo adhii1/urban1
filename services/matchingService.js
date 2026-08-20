@@ -1,5 +1,6 @@
 const Driver = require('../models/Driver');
 const { haversineKm } = require('../utils/geoHelper');
+const { findAreaForPickup } = require('./DriverAssignmentService');
 const logger = require('../utils/logger');
 
 const MATCH_RADIUS_KM = 5;
@@ -19,7 +20,34 @@ function getDriverCoords(driver) {
 async function findNearbyDrivers(pickupCoordinates, radiusKm = MATCH_RADIUS_KM) {
   const [lng, lat] = pickupCoordinates;
 
+  // Area-aware: prefer drivers assigned to the pickup's service area
+  const area = await findAreaForPickup([lng, lat]);
+
   try {
+    if (area) {
+      const areaDrivers = await Driver.find({
+        areaId: area._id,
+        currentLocation: {
+          $near: {
+            $geometry: { type: 'Point', coordinates: [lng, lat] },
+            $maxDistance: (area.radiusKm || radiusKm) * 1000,
+          },
+        },
+        isOnline: true,
+        isAvailable: true,
+        isDeleted: false,
+      })
+        .populate('userId', 'phone')
+        .limit(MAX_DRIVERS_TO_NOTIFY)
+        .lean();
+
+      if (areaDrivers.length > 0) {
+        return areaDrivers
+          .filter((d) => getDriverCoords(d))
+          .map((d) => ({ ...d, distanceKm: haversineKm([lng, lat], getDriverCoords(d)) }));
+      }
+    }
+
     const drivers = await Driver.find({
       currentLocation: {
         $near: {

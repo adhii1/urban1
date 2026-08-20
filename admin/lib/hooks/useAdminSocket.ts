@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { apiFetch } from '../api/adminApi';
 import { useAdminStore } from '@/stores/adminStore';
 
 const SOCKET_URL =
@@ -18,12 +19,41 @@ export function useAdminSocket() {
   const [onlineCustomers, setOnlineCustomers] = useState(0);
   const [activeRides, setActiveRides] = useState<any[]>([]);
   const [activeShuttles, setActiveShuttles] = useState<any[]>([]);
+  const [customerOperations, setCustomerOperations] = useState<Array<{ id?: string; type: string; title: string; summary: string; occurredAt?: string }>>([]);
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     adminUserIdRef.current = adminUserId;
     tokenRef.current = accessToken;
   }, [adminUserId, accessToken]);
+
+  useEffect(() => {
+    if (!adminUserId) {
+      setCustomerOperations([]);
+      return;
+    }
+
+    let cancelled = false;
+    apiFetch<{ data?: Array<{ _id: string; title: string; body?: string; metadata?: { operationType?: string }; createdAt?: string }> }>('/notifications')
+      .then((response) => {
+        if (cancelled) return;
+        setCustomerOperations((response.data || [])
+          .filter((notice) => notice.metadata?.operationType)
+          .map((notice) => ({
+            id: notice._id,
+            type: notice.metadata?.operationType || 'CUSTOMER_OPERATION',
+            title: notice.title,
+            summary: notice.body || '',
+            occurredAt: notice.createdAt,
+          }))
+          .slice(0, 12));
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminUserId]);
 
   useEffect(() => {
     if (!adminUserId) return;
@@ -77,6 +107,10 @@ export function useAdminSocket() {
         if (existing) return prev.map((ride) => (ride._id || ride.tripId) === data.tripId ? { ...ride, ...data } : ride);
         return [{ _id: data.tripId, type: 'SHUTTLE', ...data }, ...prev];
       });
+    });
+
+    socket.on('customer:operation', (operation: { type: string; title: string; summary: string; occurredAt?: string }) => {
+      setCustomerOperations((previous) => [operation, ...previous].slice(0, 12));
     });
 
     socket.on('admin:shuttles:active:response', (data: { shuttles: any[] }) => {
@@ -149,6 +183,7 @@ export function useAdminSocket() {
     onlineCustomers,
     activeRides,
     activeShuttles,
+    customerOperations,
     reassignRide,
     updateRideLocation,
     updateDriverLocation,
