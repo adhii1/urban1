@@ -15,6 +15,8 @@ const purchaseSubscription = Joi.object({
   scheduleDays: Joi.array().items(Joi.number().integer().min(0).max(6)).optional(),
   pickupTime: Joi.string().trim().required(),
   startDate: Joi.date().iso().optional(),
+  // Accepted for a unified body shape with /book; this endpoint always uses Razorpay.
+  paymentMethod: Joi.string().valid('wallet', 'razorpay', 'instant').optional(),
 });
 
 module.exports = { purchaseSubscription };
