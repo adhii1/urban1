@@ -4,6 +4,7 @@ const Subscription = require('../models/Subscription');
 const PauseRequest = require('../models/PauseRequest');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
+const { toTripView } = require('../utils/tripView');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 
 const getProfile = asyncWrapper(async (req, res) => {
@@ -36,31 +37,25 @@ const getTrips = asyncWrapper(async (req, res) => {
   const skip = (page - 1) * limit;
 
   const filter = {
-    'manifest.customer': customer._id,
+    'passengers.customerId': customer._id,
     status: { $ne: 'CANCELLED' },
   };
 
   const [trips, total] = await Promise.all([
     Trip.find(filter)
-      .populate('routeId', 'name startLocation endLocation stops')
       .populate('driverId', 'name vehicleNumber')
-      .sort({ tripDate: -1 })
+      .populate('passengers.customerId', 'name')
+      .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
     Trip.countDocuments(filter),
   ]);
 
-  for (const trip of trips) {
-    trip.myEntry = (trip.manifest || []).find((entry) => {
-      if (!entry || !entry.customer) return false;
-      const ref = typeof entry.customer === 'object' ? entry.customer._id : entry.customer;
-      return ref && customer._id.equals(ref);
-    });
-  }
+  const views = trips.map((trip) => toTripView(trip, { customerId: customer._id }));
 
   return res.status(200).json(
-    formatResponse('Trips retrieved successfully.', trips, {
+    formatResponse('Trips retrieved successfully.', views, {
       page,
       limit,
       total,
@@ -77,23 +72,17 @@ const getTripById = asyncWrapper(async (req, res) => {
 
   const trip = await Trip.findOne({
     _id: req.params.id,
-    'manifest.customer': customer._id,
+    'passengers.customerId': customer._id,
   })
-    .populate('routeId')
     .populate('driverId', 'name vehicleNumber vehicleModel')
+    .populate('passengers.customerId', 'name')
     .lean();
 
   if (!trip) {
     throw new NotFoundError('Trip not found.');
   }
 
-  trip.myEntry = (trip.manifest || []).find((entry) => {
-    if (!entry || !entry.customer) return false;
-    const ref = typeof entry.customer === 'object' ? entry.customer._id : entry.customer;
-    return ref && customer._id.equals(ref);
-  });
-
-  return res.status(200).json(formatResponse('Trip retrieved successfully.', trip));
+  return res.status(200).json(formatResponse('Trip retrieved successfully.', toTripView(trip, { customerId: customer._id })));
 });
 
 const getSubscription = asyncWrapper(async (req, res) => {
@@ -122,7 +111,8 @@ const requestPause = asyncWrapper(async (req, res) => {
 
   const subscription = await Subscription.findOne({
     customerId: customer._id,
-    status: { $ne: 'EXPIRED' },
+    status: { $in: ['ACTIVE', 'PAUSED'] },
+    isDeleted: false,
   }).populate('planId');
 
   if (!subscription) {

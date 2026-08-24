@@ -49,7 +49,7 @@ export default function CustomerSubscriptionPage() {
         </div>
         <p style={{ color: '#0F172A', fontSize: '14px', fontWeight: 700, marginBottom: '4px' }}>No Active Subscription</p>
         <p style={{ color: '#64748B', fontSize: '12px', marginBottom: '20px' }}>Subscribe to a plan to start your daily commute</p>
-        <a href="/customer/plans" style={{
+        <a href="/customer/subscribe" style={{
           display: 'inline-flex', alignItems: 'center', gap: '8px',
           padding: '12px 24px', background: '#16C15D', color: '#FFF',
           borderRadius: '12px', fontWeight: 700, fontSize: '13px', textDecoration: 'none',

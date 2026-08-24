@@ -27,7 +27,7 @@ const seedDatabase = async (env) => {
     const Driver = require('../models/Driver');
     const Customer = require('../models/Customer');
     const Route = require('../models/Route');
-    const Trip = require('../models/Trip');
+    const Area = require('../models/Area');
     const Subscription = require('../models/Subscription');
     const Plan = require('../models/Plan');
     const { hashPassword } = require('../utils/passwordHelper');
@@ -51,6 +51,18 @@ const seedDatabase = async (env) => {
       logger.info('Seeded Route: HSR Layout - Electronic City');
     }
 
+    // Service area — required by the subscription matching engine.
+    let area = await Area.findOne({ name: 'HSR Layout' });
+    if (!area) {
+      area = await Area.create({
+        name: 'HSR Layout',
+        center: { type: 'Point', coordinates: [77.6501, 12.9141] },
+        radiusKm: 5,
+        status: 'ACTIVE',
+      });
+      logger.info('Seeded Area: HSR Layout (5 km radius)');
+    }
+
     let driverUser = await User.findOne({ phone: '9876543210' });
     let driverProfile = null;
     if (!driverUser) {
@@ -63,6 +75,8 @@ const seedDatabase = async (env) => {
         vehicleCapacity: 6,
         licenseNumber: 'KA-DL-123456',
         routeId: route._id,
+        areaId: area._id,
+        currentLocation: { type: 'Point', coordinates: [77.6501, 12.9141] },
         status: 'ACTIVE',
       });
       logger.info('Seeded Driver: Raju Kumar (9876543210)');
@@ -104,6 +118,8 @@ const seedDatabase = async (env) => {
         vehicleCapacity: 4,
         licenseNumber: 'KA-DL-701926',
         routeId: route._id,
+        areaId: area._id,
+        currentLocation: { type: 'Point', coordinates: [77.6501, 12.9141] },
         status: 'ACTIVE',
         isOnline: false,
         isAvailable: false,
@@ -121,45 +137,12 @@ const seedDatabase = async (env) => {
         homeLocation: { address: 'HSR Layout, Bangalore', coordinates: [77.6309, 12.9279] },
         pickupLocation: { address: 'HSR Layout Sector 2', coordinates: [77.6309, 12.9279] },
         dropLocation: { address: 'Electronic City, Bangalore', coordinates: [77.6683, 12.8489] },
+        // Pre-funded wallet so the demo customer can subscribe via wallet.
+        walletBalance: 5000,
       });
-      const flexyPlan = await Plan.findOne({ name: 'Flexy' });
-      const seedRoute = await Route.findOne();
-
-      if (flexyPlan && seedRoute) {
-        const subscription = await Subscription.create({
-          customerId: customerProfile._id,
-          planId: flexyPlan._id,
-          routeId: seedRoute._id,
-          startDate: new Date(),
-          endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-          remainingPauseDays: flexyPlan.pauseDaysAllowed,
-          status: 'ACTIVE',
-        });
-        customerProfile.subscriptionId = subscription._id;
-        await customerProfile.save();
-        console.log('Seeded subscription with plan:', flexyPlan.name);
-      } else {
-        console.log('Could not seed subscription: missing plan or route');
-      }
-      logger.info('Default Customer seeded: 7019268917 / password123');
+      logger.info('Default Customer seeded: 7019268917 / password123 (wallet ₹5000)');
     } else {
       customerProfile = await Customer.findOne({ userId: customerUser._id });
-    }
-
-    let hsrTrip = await Trip.findOne({ routeId: route._id });
-    if (!hsrTrip) {
-      const { buildTripManifest } = require('../utils/geoHelper');
-      const manifest = customerProfile
-        ? await buildTripManifest([customerProfile._id], route._id)
-        : [];
-      hsrTrip = await Trip.create({
-        routeId: route._id,
-        driverId: driverProfile._id,
-        tripDate: new Date(),
-        status: 'SCHEDULED',
-        manifest,
-      });
-      logger.info('Seeded Trip: HSR Layout - Electronic City (SCHEDULED)');
     }
 
     const adminUserExists = await User.findOne({ role: 'Admin' });
@@ -256,6 +239,44 @@ const seedDatabase = async (env) => {
         { upsert: true, new: true }
       );
       logger.info(`Seeded plan: ${planData.name}`);
+    }
+
+    // --- Backfill invariants for pre-existing development data ---
+    // Ensure at most one "current" subscription per customer carries isCurrent
+    // (the partial unique index depends on it), keeping the most recent.
+    const currentSubs = await Subscription.find({
+      status: { $in: ['ACTIVE', 'PAUSED', 'PENDING_PAYMENT'] },
+      isDeleted: false,
+    }).sort({ createdAt: -1 }).select('_id customerId').lean();
+    const seenCustomers = new Set();
+    let releasedDuplicates = 0;
+    for (const sub of currentSubs) {
+      const key = sub.customerId.toString();
+      if (seenCustomers.has(key)) {
+        await Subscription.updateOne({ _id: sub._id }, { $set: { isCurrent: false } });
+        releasedDuplicates += 1;
+      } else {
+        seenCustomers.add(key);
+        await Subscription.updateOne({ _id: sub._id }, { $set: { isCurrent: true } });
+      }
+    }
+    await Subscription.updateMany(
+      { status: { $in: ['CANCELLED', 'COMPLETED', 'EXPIRED'] }, isCurrent: true },
+      { $set: { isCurrent: false } }
+    );
+    if (releasedDuplicates > 0) {
+      logger.warn(`[Seed] Released ${releasedDuplicates} pre-existing duplicate current subscriptions`);
+    }
+
+    // Recompute each driver's activeSubscriptionCount from live ACTIVE assignments.
+    const driverCounts = await Subscription.aggregate([
+      { $match: { status: 'ACTIVE', assignedDriverId: { $ne: null }, isDeleted: false } },
+      { $group: { _id: '$assignedDriverId', c: { $sum: 1 } } },
+    ]);
+    const countMap = new Map(driverCounts.map((r) => [r._id.toString(), r.c]));
+    const allDrivers = await Driver.find({ isDeleted: false }).select('_id').lean();
+    for (const d of allDrivers) {
+      await Driver.updateOne({ _id: d._id }, { $set: { activeSubscriptionCount: countMap.get(d._id.toString()) || 0 } });
     }
 
     if (!isTest) {

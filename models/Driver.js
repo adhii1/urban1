@@ -32,6 +32,14 @@ const driverSchema = new mongoose.Schema(
       default: 6,
       max: 6,
     },
+    // Number of ACTIVE subscriptions currently assigned to this driver. Used as
+    // the atomic capacity guard: assignment reserves a seat only while this is
+    // below vehicleCapacity, so concurrent bookings can't over-assign a driver.
+    activeSubscriptionCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     licenseNumber: {
       type: String,
       required: true,

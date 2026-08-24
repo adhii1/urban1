@@ -37,6 +37,7 @@ router.use('/payments', paymentRoutes);
 
 // --- Feature routes (auth required) ---
 const authenticate = require('../../middleware/authMiddleware');
+const authorize = require('../../middleware/roleMiddleware');
 const featuresController = require('../../controllers/customerFeaturesController');
 
 // Favourites
@@ -68,16 +69,16 @@ router.get('/wallet/rewards', authenticate, featuresController.getRewards);
 router.get('/wallet/referrals', authenticate, featuresController.getReferrals);
 router.get('/wallet/refunds', authenticate, featuresController.getRefunds);
 
-// Bookings — New subscription-based booking system (PDF sections 5-6)
+// Bookings — subscription booking (Weekday / Hybrid / Shuttle). Customer-only.
 const bookingController = require('../../controllers/bookingController');
-router.post('/book', authenticate, bookingController.createBooking);
-router.get('/booking', authenticate, bookingController.getMyBooking);
-router.post('/booking/cancel', authenticate, bookingController.cancelBooking);
-router.put('/booking/location', authenticate, bookingController.updateLocation);
+router.post('/book', authenticate, authorize('Customer'), bookingController.createBooking);
+router.get('/booking', authenticate, authorize('Customer'), bookingController.getMyBooking);
+router.post('/booking/cancel', authenticate, authorize('Customer'), bookingController.cancelBooking);
+router.put('/booking/location', authenticate, authorize('Customer'), bookingController.updateLocation);
 
 // Wallet
-router.get('/wallet', authenticate, bookingController.getWallet);
-router.post('/wallet/add', authenticate, bookingController.addToWallet);
+router.get('/wallet', authenticate, authorize('Customer'), bookingController.getWallet);
+router.post('/wallet/add', authenticate, authorize('Customer'), bookingController.addToWallet);
 
 // Legacy bookings (route search for static frontend - uses existing Route model)
 const Route = require('../../models/Route');

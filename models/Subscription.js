@@ -13,7 +13,6 @@ const subscriptionSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
       required: true,
-      index: true,
     },
     planId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -22,10 +21,12 @@ const subscriptionSchema = new mongoose.Schema(
     },
 
     // --- Subscription Type (per PDF section 5) ---
-    // WEEKDAYS = Mon-Fri, HYBRID = customer-selected days (e.g. MWF)
+    // WEEKDAYS = Mon-Fri, HYBRID = customer-selected days (e.g. MWF),
+    // SHUTTLE = fixed-route Stop-to-Stop (Standard tier). FLEXY is retained only
+    // for legacy rows; on-demand Flexy rides are RideRequests, not subscriptions.
     subscriptionType: {
       type: String,
-      enum: ['WEEKDAYS', 'HYBRID', 'FLEXY'],
+      enum: ['WEEKDAYS', 'HYBRID', 'SHUTTLE', 'FLEXY'],
       required: true,
       index: true,
     },
@@ -87,9 +88,19 @@ const subscriptionSchema = new mongoose.Schema(
     // --- Status (per PDF section 23) ---
     status: {
       type: String,
-      enum: ['PENDING', 'ACTIVE', 'PAUSED', 'CANCELLED', 'COMPLETED', 'PENDING_PAYMENT'],
+      enum: ['PENDING', 'ACTIVE', 'PAUSED', 'CANCELLED', 'COMPLETED', 'EXPIRED', 'PENDING_PAYMENT'],
       default: 'PENDING',
       index: true,
+    },
+
+    // --- Single-active-subscription invariant ---
+    // Set to `true` while a subscription is "current" (ACTIVE, PAUSED, or
+    // PENDING_PAYMENT) and unset (undefined) on CANCELLED/COMPLETED/EXPIRED.
+    // A partial unique index on { customerId } where isCurrent:true guarantees
+    // — atomically — that a customer can hold at most one current subscription,
+    // regardless of which entry point created it or how many run concurrently.
+    isCurrent: {
+      type: Boolean,
     },
 
     remainingPauseDays: {
@@ -97,8 +108,25 @@ const subscriptionSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // --- Hybrid weekly booking cap (per PDF section 5) ---
+    // Reset weekly by subscriptionExpiryService; read by checkBookingEligibility.
+    bookingsThisWeek: {
+      type: Number,
+      default: 0,
+    },
+    weekResetDate: {
+      type: Date,
+    },
+
     // --- Payment ---
     payment: {
+      // How the subscription was paid for. 'wallet' = instant debit from the
+      // customer wallet; 'razorpay' = order->verify checkout; 'instant' = dev/
+      // demo activation with no charge.
+      method: {
+        type: String,
+        enum: ['wallet', 'razorpay', 'instant'],
+      },
       orderId: { type: String },
       paymentId: { type: String },
       signature: { type: String },
@@ -139,7 +167,16 @@ subscriptionSchema.pre(/^find/, function excludeDeleted(next) {
 
 subscriptionSchema.index({ pickupLocation: '2dsphere' });
 subscriptionSchema.index({ dropLocation: '2dsphere' });
+subscriptionSchema.index({ customerId: 1, isDeleted: 1 });
 subscriptionSchema.index({ status: 1, subscriptionType: 1, isDeleted: 1 });
 subscriptionSchema.index({ assignedDriverId: 1, status: 1 });
+
+// At most one "current" (ACTIVE/PAUSED/PENDING_PAYMENT) subscription per
+// customer. MongoDB partial indexes forbid $in, so a boolean flag is used as
+// the equality predicate. This is the authoritative concurrency guard.
+subscriptionSchema.index(
+  { customerId: 1 },
+  { unique: true, partialFilterExpression: { isCurrent: true } }
+);
 
 module.exports = mongoose.model('Subscription', subscriptionSchema);

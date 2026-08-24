@@ -19,96 +19,134 @@ const logger = require('../utils/logger');
 const MAX_PICKUP_RADIUS_KM = 5;
 
 /**
- * Step 1: Find the admin-defined area that contains the pickup coordinates.
+ * Step 1: Find the admin-defined area whose radius contains the pickup point.
+ * Uses the Area `center` 2dsphere index via $geoNear (ordered by distance),
+ * keeping only areas whose radiusKm actually covers the pickup.
  */
 async function findAreaForPickup(pickupCoordinates) {
   const [lng, lat] = pickupCoordinates;
-  const areas = await Area.find({ status: 'ACTIVE' }).lean();
-  for (const area of areas) {
-    const dist = haversineKm([lng, lat], area.center.coordinates);
-    if (dist <= area.radiusKm) return area;
-  }
-  return null;
+  const [area] = await Area.aggregate([
+    {
+      $geoNear: {
+        near: { type: 'Point', coordinates: [lng, lat] },
+        distanceField: 'distanceM',
+        spherical: true,
+        query: { status: 'ACTIVE', isDeleted: false },
+      },
+    },
+    // Keep only areas whose service radius covers the pickup (metres vs km*1000).
+    { $match: { $expr: { $lte: ['$distanceM', { $multiply: ['$radiusKm', 1000] }] } } },
+    { $limit: 1 },
+  ]);
+  return area || null;
 }
 
 /**
- * Step 2-4: Find eligible drivers in the area within 5km with sufficient capacity.
- * Per PDF section 8: area + active + available + capacity + schedule + route compatibility.
+ * Step 2-4: Find eligible drivers in the area within 5km with sufficient
+ * capacity, then rank them. Capacity and route-compatibility are computed with
+ * two batched queries over all candidate drivers (no per-driver round trips).
  */
-async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, serviceDate, requiredCapacity = 1 }) {
+async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, requiredCapacity = 1 }) {
   if (!area) return [];
 
   const [lng, lat] = pickupCoordinates;
+  const days = scheduleDays && scheduleDays.length ? scheduleDays : [1, 2, 3, 4, 5];
 
-  // Get all active drivers assigned to this area
+  // All active drivers assigned to this area.
   const drivers = await Driver.find({
     areaId: area._id,
     status: 'ACTIVE',
     isDeleted: false,
   }).lean();
-
   if (!drivers.length) return [];
 
-  const candidates = [];
+  const driverIds = drivers.map((d) => d._id);
 
+  // Batched capacity: count ACTIVE subs per driver overlapping these schedule
+  // days — one aggregation instead of one query per driver.
+  const capacityAgg = await Subscription.aggregate([
+    {
+      $match: {
+        assignedDriverId: { $in: driverIds },
+        status: 'ACTIVE',
+        isDeleted: false,
+        scheduleDays: { $in: days },
+      },
+    },
+    { $group: { _id: '$assignedDriverId', count: { $sum: 1 } } },
+  ]);
+  const assignedCount = new Map(capacityAgg.map((r) => [r._id.toString(), r.count]));
+
+  // Batched route-compatibility inputs: every existing passenger pickup per
+  // driver — one query instead of one per driver.
+  const existingSubs = await Subscription.find({
+    assignedDriverId: { $in: driverIds },
+    status: 'ACTIVE',
+    isDeleted: false,
+  })
+    .select('assignedDriverId pickupLocation')
+    .lean();
+  const pickupsByDriver = new Map();
+  for (const sub of existingSubs) {
+    const key = sub.assignedDriverId.toString();
+    const coords = sub.pickupLocation?.coordinates;
+    if (!coords) continue;
+    if (!pickupsByDriver.has(key)) pickupsByDriver.set(key, []);
+    pickupsByDriver.get(key).push(coords);
+  }
+
+  const candidates = [];
   for (const driver of drivers) {
-    // Distance check (PDF section 7: only drivers ≤ 5km)
     const driverCoords = driver.currentLocation?.coordinates;
-    if (!driverCoords || (driverCoords[0] === 0 && driverCoords[1] === 0)) {
-      // Use area center as fallback for drivers without live location
-      // This is valid because admin assigned them to this area
-    }
+    // Drivers without a live location are proxied by the area center (admin
+    // assigned them to this area).
     const distanceKm = driverCoords && driverCoords[0] !== 0
       ? haversineKm([lng, lat], driverCoords)
       : haversineKm([lng, lat], area.center.coordinates);
-
     if (distanceKm > MAX_PICKUP_RADIUS_KM) continue;
 
-    // Capacity check (PDF section 4): vehicleCapacity - currentlyAssignedCustomers = remainingCapacity
-    const remainingCapacity = await getRemainingCapacity(driver._id, serviceDate, scheduleDays);
+    const used = assignedCount.get(driver._id.toString()) || 0;
+    const remainingCapacity = Math.max(0, (driver.vehicleCapacity || 4) - used);
     if (remainingCapacity < requiredCapacity) continue;
 
-    // Schedule compatibility: check the driver doesn't have a conflicting trip at the same time
-    // (For subscription trips, drivers serve all customers in their area on service days)
-
-    // Route compatibility score (PDF section 8):
-    // How well does this new customer's pickup/drop fit with existing passengers?
-    const routeScore = await calculateRouteCompatibility(driver._id, pickupCoordinates, serviceDate);
+    const pickups = pickupsByDriver.get(driver._id.toString()) || [];
+    const routeCompatibility = pickups.length === 0
+      ? 1.0
+      : Math.max(0, 1 - (pickups.reduce((t, c) => t + haversineKm(pickupCoordinates, c), 0) / pickups.length) / MAX_PICKUP_RADIUS_KM);
 
     candidates.push({
       driver,
       distanceKm,
       remainingCapacity,
-      routeCompatibility: routeScore,
-      // Composite score: lower distance + higher capacity + better route = better candidate
-      score: (1 / (distanceKm + 0.1)) * 0.4 + (remainingCapacity / driver.vehicleCapacity) * 0.3 + routeScore * 0.3,
+      routeCompatibility,
+      score:
+        (1 / (distanceKm + 0.1)) * 0.4 +
+        (remainingCapacity / (driver.vehicleCapacity || 4)) * 0.3 +
+        routeCompatibility * 0.3,
     });
   }
 
-  // Rank candidates by composite score (PDF section 8: rank the candidates)
   candidates.sort((a, b) => b.score - a.score);
   return candidates;
 }
 
 /**
- * Calculate remaining capacity for a driver on given schedule days.
- * Per PDF section 4: vehicleCapacity - currentlyAssignedCustomers = remainingCapacity
- * The backend must never exceed capacity.
+ * Remaining schedule-aware capacity for a single driver. Kept for callers that
+ * need a one-off figure; the ranking path uses the batched version above.
  */
-async function getRemainingCapacity(driverId, serviceDate, scheduleDays) {
-  const driver = await Driver.findById(driverId).lean();
-  if (!driver) return 0;
+async function getRemainingCapacity(driver, serviceDate, scheduleDays) {
+  const driverDoc = driver && driver.vehicleCapacity != null
+    ? driver
+    : await Driver.findById(driver?._id || driver).lean();
+  if (!driverDoc) return 0;
 
-  // Count currently assigned passengers across all active subscriptions for this driver
-  // that overlap with the given schedule days
   const assignedSubs = await Subscription.countDocuments({
-    assignedDriverId: driverId,
+    assignedDriverId: driverDoc._id,
     status: 'ACTIVE',
     isDeleted: false,
     scheduleDays: { $in: scheduleDays || [1, 2, 3, 4, 5] },
   });
-
-  return Math.max(0, (driver.vehicleCapacity || 4) - assignedSubs);
+  return Math.max(0, (driverDoc.vehicleCapacity || 4) - assignedSubs);
 }
 
 /**
@@ -181,18 +219,53 @@ async function matchSubscription(subscription) {
 }
 
 /**
- * Assign a driver to a subscription and update both records.
+ * Assign a driver to a subscription, atomically reserving one seat of capacity.
+ *
+ * The reservation is a guarded $inc that only succeeds while the driver's
+ * activeSubscriptionCount is below vehicleCapacity — this is what prevents two
+ * concurrent bookings from over-filling a driver. Reassignment releases the
+ * previous driver's seat. Pass { force:true } for admin overrides.
+ *
+ * Returns { success, subscription?, reason? }.
  */
-async function assignDriverToSubscription(subscriptionId, driverId, areaId) {
-  const subscription = await Subscription.findByIdAndUpdate(
-    subscriptionId,
-    {
-      assignedDriverId: driverId,
-      assignedAreaId: areaId,
-    },
+async function assignDriverToSubscription(subscriptionId, driverId, areaId, { force = false } = {}) {
+  const subscription = await Subscription.findById(subscriptionId);
+  if (!subscription) return { success: false, reason: 'Subscription not found' };
+
+  const previousDriverId = subscription.assignedDriverId?.toString();
+  if (previousDriverId === driverId.toString()) {
+    // Same driver (e.g. location change kept them) — no capacity change.
+    if (areaId) {
+      subscription.assignedAreaId = areaId;
+      await subscription.save();
+    }
+    return { success: true, subscription, reassigned: false };
+  }
+
+  // Atomically reserve a seat on the new driver.
+  const filter = { _id: driverId };
+  if (!force) {
+    filter.$expr = { $lt: [{ $ifNull: ['$activeSubscriptionCount', 0] }, '$vehicleCapacity'] };
+  }
+  const reserved = await Driver.findOneAndUpdate(
+    filter,
+    { $inc: { activeSubscriptionCount: 1 } },
     { new: true }
   );
-  return subscription;
+  if (!reserved) return { success: false, reason: 'Driver is at capacity' };
+
+  // Release the previous driver's seat, if reassigning.
+  if (previousDriverId) {
+    await Driver.updateOne(
+      { _id: previousDriverId, activeSubscriptionCount: { $gt: 0 } },
+      { $inc: { activeSubscriptionCount: -1 } }
+    );
+  }
+
+  subscription.assignedDriverId = driverId;
+  if (areaId) subscription.assignedAreaId = areaId;
+  await subscription.save();
+  return { success: true, subscription, reassigned: Boolean(previousDriverId) };
 }
 
 /**

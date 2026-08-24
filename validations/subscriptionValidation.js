@@ -1,18 +1,20 @@
 const Joi = require('joi');
 
+// Unified coordinate-model purchase (Razorpay entry). Mirrors the /book body;
+// the server forces paymentMethod = 'razorpay' for this endpoint.
+const locationSchema = Joi.object({
+  address: Joi.string().allow('').optional(),
+  coordinates: Joi.array().items(Joi.number()).length(2).required(),
+}).unknown(true);
+
 const purchaseSubscription = Joi.object({
-  planId: Joi.string().hex().length(24).required(),
-  routeId: Joi.string().hex().length(24).required(),
-  startDate: Joi.date().iso().required(),
-  // Calendar and managed-stop policy is intentionally evaluated by the
-  // subscription policy service after the plan and route are resolved.
-  selectedWeekdays: Joi.array().items(Joi.number().integer()).optional(),
-  pickupStopId: Joi.string().trim().min(1).max(200).optional(),
-  dropStopId: Joi.string().trim().min(1).max(200).optional(),
-  // Legacy clients can provide indexes during the durable-stop rollout. The
-  // policy resolves and persists the canonical IDs and sequence snapshots.
-  pickupStopIndex: Joi.number().integer().min(0).optional(),
-  dropStopIndex: Joi.number().integer().min(0).optional(),
+  subscriptionType: Joi.string().valid('WEEKDAYS', 'HYBRID', 'SHUTTLE').required(),
+  pickupLocation: locationSchema.required(),
+  dropLocation: locationSchema.required(),
+  // WEEKDAYS/SHUTTLE ignore this (Mon–Fri auto); HYBRID picks 1–3 days.
+  scheduleDays: Joi.array().items(Joi.number().integer().min(0).max(6)).optional(),
+  pickupTime: Joi.string().trim().required(),
+  startDate: Joi.date().iso().optional(),
 });
 
 module.exports = { purchaseSubscription };

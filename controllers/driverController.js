@@ -3,6 +3,7 @@ const Trip = require('../models/Trip');
 const Customer = require('../models/Customer');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
+const { toTripView } = require('../utils/tripView');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 
 const getProfile = asyncWrapper(async (req, res) => {
@@ -49,23 +50,23 @@ const getTrips = asyncWrapper(async (req, res) => {
   };
 
   if (scope === 'today') {
-    filter.tripDate = { $gte: startOfDay, $lt: startOfNextDay };
+    filter.serviceDate = { $gte: startOfDay, $lt: startOfNextDay };
   } else if (scope === 'upcoming') {
-    filter.tripDate = { $gte: startOfDay };
+    filter.serviceDate = { $gte: startOfDay };
     filter.status = 'SCHEDULED';
   }
   // scope === 'all' uses no date filter
 
-  const [trips, total] = await Promise.all([
+  const [tripDocs, total] = await Promise.all([
     Trip.find(filter)
-      .populate('routeId', 'name startLocation endLocation stops')
-      .populate('manifest.customer', 'name pickupLocation dropLocation')
-      .sort({ tripDate: -1 })
+      .populate('passengers.customerId', 'name')
+      .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
     Trip.countDocuments(filter),
   ]);
+  const trips = tripDocs.map((t) => toTripView(t));
 
   // Also get pending/accepted ride requests assigned to this driver
   const RideRequest = require('../models/RideRequest');
@@ -87,8 +88,8 @@ const getTrips = asyncWrapper(async (req, res) => {
     _id: r._id,
     type: 'RIDE',
     status: r.status,
+    serviceDate: r.requestedAt || r.createdAt,
     tripDate: r.requestedAt || r.createdAt,
-    routeId: { name: `${r.pickupLocation?.address || '?'} → ${r.dropLocation?.address || '?'}` },
     pickup: r.pickupLocation,
     drop: r.dropLocation,
     customerName: r.customerName,
@@ -191,14 +192,14 @@ const getTripById = asyncWrapper(async (req, res) => {
     _id: req.params.id,
     driverId: driver._id,
   })
-    .populate('routeId')
-    .populate('manifest.customer', 'name pickupLocation dropLocation');
+    .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .lean();
 
   if (!trip) {
     throw new NotFoundError('Trip');
   }
 
-  return res.status(200).json(formatResponse('Trip retrieved.', trip));
+  return res.status(200).json(formatResponse('Trip retrieved.', toTripView(trip)));
 });
 
 const getTripCustomers = asyncWrapper(async (req, res) => {
@@ -210,24 +211,27 @@ const getTripCustomers = asyncWrapper(async (req, res) => {
   const trip = await Trip.findOne({
     _id: req.params.id,
     driverId: driver._id,
-  }).populate({
-    path: 'manifest.customer',
-    select: 'name pickupLocation dropLocation',
-    populate: { path: 'userId', select: 'phone' },
-  });
+  })
+    .populate({
+      path: 'passengers.customerId',
+      select: 'name',
+      populate: { path: 'userId', select: 'phone' },
+    })
+    .lean();
 
   if (!trip) {
     throw new NotFoundError('Trip');
   }
 
-  return res.status(200).json(formatResponse('Trip customers retrieved.', trip.manifest));
+  const view = toTripView(trip);
+  return res.status(200).json(formatResponse('Trip customers retrieved.', view.passengers));
 });
 
 const emitTripLifecycle = async (trip, event, customerId) => {
-  const manifest = trip.manifest || [];
+  const passengers = trip.passengers || [];
   const customerIds = customerId
     ? [customerId]
-    : manifest.map((entry) => entry.customer).filter(Boolean);
+    : passengers.map((entry) => entry.customerId).filter(Boolean);
 
   if (!customerIds.length) return;
 
@@ -245,7 +249,7 @@ const emitTripLifecycle = async (trip, event, customerId) => {
 
     getIO().of('/sockets/admin').emit('trip:update', basePayload);
     for (const customer of customers) {
-      const entry = manifest.find((item) => item.customer?.toString() === customer._id.toString());
+      const entry = passengers.find((item) => item.customerId?.toString() === customer._id.toString());
       emitToUser('customer', customer.userId.toString(), 'trip:update', {
         ...basePayload,
         passengerStatus: entry?.status,
@@ -302,14 +306,14 @@ const completeTrip = asyncWrapper(async (req, res) => {
     throw new ValidationError('Trip can only be completed from IN_PROGRESS status.');
   }
 
-  const undropped = (trip.manifest || []).filter((entry) => entry.status === 'BOARDED');
-  if (undropped.length > 0) {
+  const boardedNotDropped = (trip.passengers || []).filter((p) => ['RIDE_STARTED', 'DROPPING_OFF'].includes(p.status));
+  if (boardedNotDropped.length > 0) {
     throw new ValidationError('All boarded passengers must be dropped off before completing the trip.');
   }
 
-  for (const entry of trip.manifest || []) {
-    if (entry.status === 'PENDING') {
-      entry.status = 'NO_SHOW';
+  for (const p of trip.passengers || []) {
+    if (!['COMPLETED', 'NO_SHOW'].includes(p.status)) {
+      p.status = 'NO_SHOW';
     }
   }
 
@@ -321,16 +325,19 @@ const completeTrip = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Trip completed.', trip));
 });
 
-const MANIFEST_TRANSITIONS = {
-  board: { from: 'PENDING', to: 'BOARDED', timestamp: 'boardedAt' },
-  drop: { from: 'BOARDED', to: 'DROPPED', timestamp: 'droppedAt' },
-  'no-show': { from: 'PENDING', to: 'NO_SHOW' },
+// Canonical per-passenger transitions on trip.passengers[]. OTP verification
+// (PDF section 15) is enforced on verify-otp, and optionally on board.
+const PASSENGER_TRANSITIONS = {
+  'verify-otp': { from: ['ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED'], to: 'OTP_VERIFIED', requiresOtp: true },
+  board: { from: ['ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'OTP_VERIFIED'], to: 'RIDE_STARTED', timestamp: 'boardedAt' },
+  drop: { from: ['RIDE_STARTED', 'DROPPING_OFF'], to: 'COMPLETED', timestamp: 'droppedAt' },
+  'no-show': { from: ['ASSIGNED', 'DRIVER_EN_ROUTE', 'DRIVER_ARRIVED', 'OTP_VERIFIED'], to: 'NO_SHOW' },
 };
 
 const updateManifestStatus = asyncWrapper(async (req, res) => {
-  const transition = MANIFEST_TRANSITIONS[req.params.action];
+  const transition = PASSENGER_TRANSITIONS[req.params.action];
   if (!transition) {
-    throw new ValidationError('Unsupported manifest action.');
+    throw new ValidationError('Unsupported passenger action.');
   }
 
   const driver = await Driver.findOne({ userId: req.user.id });
@@ -351,18 +358,24 @@ const updateManifestStatus = asyncWrapper(async (req, res) => {
     throw new ValidationError('Passenger status can only be updated while the trip is IN_PROGRESS.');
   }
 
-  const entry = (trip.manifest || []).find(
-    (item) => item.customer && item.customer.toString() === req.params.customerId
+  const entry = (trip.passengers || []).find(
+    (p) => p.customerId && p.customerId.toString() === req.params.customerId
   );
-
   if (!entry) {
-    throw new NotFoundError('Passenger in trip manifest');
+    throw new NotFoundError('Passenger in trip');
   }
 
-  if (entry.status !== transition.from) {
-    throw new ValidationError(
-      `Passenger can only be marked ${transition.to} from ${transition.from} status (current: ${entry.status}).`
-    );
+  if (transition.from && !transition.from.includes(entry.status)) {
+    throw new ValidationError(`Passenger cannot be marked ${transition.to} from ${entry.status}.`);
+  }
+
+  // OTP is required for verify-otp, and honored on board when supplied.
+  if (transition.requiresOtp || (req.params.action === 'board' && req.body?.otp != null)) {
+    const provided = String(req.body?.otp || '').trim();
+    if (!provided || provided !== entry.otp?.code) {
+      throw new ValidationError('Incorrect OTP for this passenger.');
+    }
+    entry.otp.verified = true;
   }
 
   entry.status = transition.to;
@@ -371,13 +384,13 @@ const updateManifestStatus = asyncWrapper(async (req, res) => {
   }
 
   await trip.save();
-  await emitTripLifecycle(trip, `PASSENGER_${transition.to}`, entry.customer);
+  await emitTripLifecycle(trip, `PASSENGER_${transition.to}`, entry.customerId);
 
   const updated = await Trip.findById(trip._id)
-    .populate('routeId', 'name startLocation endLocation stops')
-    .populate('manifest.customer', 'name pickupLocation dropLocation');
+    .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .lean();
 
-  return res.status(200).json(formatResponse(`Passenger marked ${transition.to}.`, updated));
+  return res.status(200).json(formatResponse(`Passenger marked ${transition.to}.`, toTripView(updated)));
 });
 
 module.exports = {

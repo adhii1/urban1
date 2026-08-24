@@ -28,6 +28,21 @@ function generateRideOtp() {
 }
 
 /**
+ * Build a Trip passenger manifest entry from a subscription (snapshot of the
+ * customer's pickup/drop + a fresh per-passenger OTP, per PDF section 15).
+ */
+function buildPassengerEntry(sub) {
+  return {
+    customerId: sub.customerId?._id || sub.customerId,
+    subscriptionId: sub._id,
+    pickupLocation: sub.pickupLocation,
+    dropLocation: sub.dropLocation,
+    otp: { code: generateRideOtp(), verified: false },
+    status: 'ASSIGNED',
+  };
+}
+
+/**
  * Build Google Maps navigation URL with ordered stops (PDF section 11).
  * Opens Google Maps with the driver's stops in order.
  */
@@ -136,68 +151,88 @@ async function generateTripsForDate(serviceDate) {
 
   let createdTrips = 0;
   let totalPassengers = 0;
+  let mergedPassengers = 0;
 
   for (const [driverId, group] of driverGroups) {
     const { driver, subscriptions: driverSubs } = group;
+    const capacity = driver.vehicleCapacity || 4;
+    const driverCoords = driver.currentLocation?.coordinates || [0, 0];
 
-    // Check if trip already exists for this driver on this date
+    // Existing trip for this driver on this date (idempotency + merge target).
     let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
-    if (trip) {
-      // Trip already generated (idempotent)
-      continue;
+
+    if (!trip) {
+      // No trip yet — create one with all assigned passengers (capacity-limited).
+      const passengers = driverSubs.map(buildPassengerEntry).slice(0, capacity);
+      const orderedPassengers = optimizePickupOrder(driverCoords, passengers);
+      const navigationUrl = buildNavigationUrl(driverCoords, orderedPassengers, orderedPassengers[0]?.dropLocation?.coordinates);
+
+      try {
+        trip = await Trip.create({
+          driverId: driver._id,
+          areaId: driver.areaId,
+          serviceDate: normalized,
+          pickupTime: driverSubs[0]?.pickupTime || '08:00',
+          status: 'SCHEDULED',
+          assignmentStatus: 'PENDING',
+          passengers: orderedPassengers,
+          navigationUrl,
+        });
+        createdTrips++;
+        totalPassengers += orderedPassengers.length;
+        logger.info('[DailyTripGenerator] Trip created', {
+          tripId: trip._id,
+          driverId: driver._id,
+          passengerCount: orderedPassengers.length,
+          serviceDate: normalized,
+        });
+        continue;
+      } catch (error) {
+        if (error.code === 11000) {
+          // Concurrent create — reload and fall through to the merge path.
+          trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
+        } else {
+          logger.error('[DailyTripGenerator] Failed to create trip', { driverId, error: error.message });
+          continue;
+        }
+      }
     }
 
-    // Build passenger list with OTPs
-    const passengers = driverSubs.map((sub) => ({
-      customerId: sub.customerId?._id || sub.customerId,
-      subscriptionId: sub._id,
-      pickupLocation: sub.pickupLocation,
-      dropLocation: sub.dropLocation,
-      otp: { code: generateRideOtp(), verified: false },
-      status: 'ASSIGNED',
-    }));
+    // Trip exists: merge any assigned subscriptions not already on the manifest
+    // (only while still SCHEDULED, respecting capacity). This is what lets a
+    // customer who subscribes AFTER the driver's trip was generated still ride.
+    if (!trip || trip.status !== 'SCHEDULED') continue;
 
-    // Enforce capacity (PDF section 4: backend must never exceed capacity)
-    const capacity = driver.vehicleCapacity || 4;
-    const validPassengers = passengers.slice(0, capacity);
-
-    // Optimize pickup order by geographic proximity (PDF section 12)
-    const driverCoords = driver.currentLocation?.coordinates || [0, 0];
-    const orderedPassengers = optimizePickupOrder(driverCoords, validPassengers);
-
-    // Build navigation URL (PDF section 11)
-    const firstDrop = orderedPassengers[0]?.dropLocation?.coordinates;
-    const navigationUrl = buildNavigationUrl(driverCoords, orderedPassengers, firstDrop);
-
-    // Create the trip
-    try {
-      trip = await Trip.create({
-        driverId: driver._id,
-        areaId: driver.areaId,
-        serviceDate: normalized,
-        pickupTime: driverSubs[0]?.pickupTime || '08:00',
-        status: 'SCHEDULED',
-        assignmentStatus: 'PENDING',
-        passengers: orderedPassengers,
-        navigationUrl,
-      });
-      createdTrips++;
-      totalPassengers += orderedPassengers.length;
-
-      logger.info('[DailyTripGenerator] Trip created', {
+    const present = new Set(
+      (trip.passengers || [])
+        .filter((p) => p.subscriptionId)
+        .map((p) => p.subscriptionId.toString())
+    );
+    let changed = false;
+    for (const sub of driverSubs) {
+      if (present.has(sub._id.toString())) continue;
+      if (trip.passengers.length >= capacity) {
+        logger.warn('[DailyTripGenerator] Driver at capacity; passenger not merged', {
+          driverId: driver._id,
+          serviceDate: normalized,
+          subscriptionId: sub._id,
+        });
+        break;
+      }
+      trip.passengers.push(buildPassengerEntry(sub));
+      present.add(sub._id.toString());
+      changed = true;
+      mergedPassengers++;
+    }
+    if (changed) {
+      trip.passengers = optimizePickupOrder(driverCoords, trip.passengers);
+      trip.navigationUrl = buildNavigationUrl(driverCoords, trip.passengers, trip.passengers[0]?.dropLocation?.coordinates);
+      await trip.save();
+      logger.info('[DailyTripGenerator] Merged passengers into existing trip', {
         tripId: trip._id,
         driverId: driver._id,
-        driverName: driver.name,
-        passengerCount: orderedPassengers.length,
         serviceDate: normalized,
       });
-    } catch (error) {
-      if (error.code === 11000) {
-        // Duplicate — trip already exists (race condition), skip
-        logger.info('[DailyTripGenerator] Trip already exists (concurrent)', { driverId, serviceDate: normalized });
-      } else {
-        logger.error('[DailyTripGenerator] Failed to create trip', { driverId, error: error.message });
-      }
     }
   }
 
@@ -205,10 +240,113 @@ async function generateTripsForDate(serviceDate) {
     serviceDate: normalized,
     createdTrips,
     totalPassengers,
+    mergedPassengers,
     driverGroups: driverGroups.size,
   });
 
-  return { serviceDate: normalized, createdTrips, passengers: totalPassengers };
+  return { serviceDate: normalized, createdTrips, passengers: totalPassengers, mergedPassengers };
+}
+
+/**
+ * Ensure a single subscription's passenger exists on its assigned driver's trip
+ * for one service date — creating the trip if absent, else atomically merging
+ * (dedup by subscriptionId, capacity-guarded). Scoped to one subscription, so
+ * it never scans the whole subscription collection.
+ */
+async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
+  const normalized = new Date(serviceDate);
+  normalized.setHours(0, 0, 0, 0);
+  const capacity = driver.vehicleCapacity || 4;
+  const driverCoords = driver.currentLocation?.coordinates || [0, 0];
+  const entry = buildPassengerEntry(subscription);
+
+  let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
+
+  if (!trip) {
+    const ordered = optimizePickupOrder(driverCoords, [entry]);
+    try {
+      await Trip.create({
+        driverId: driver._id,
+        areaId: driver.areaId,
+        serviceDate: normalized,
+        pickupTime: subscription.pickupTime || '08:00',
+        status: 'SCHEDULED',
+        assignmentStatus: 'PENDING',
+        passengers: ordered,
+        navigationUrl: buildNavigationUrl(driverCoords, ordered, ordered[0]?.dropLocation?.coordinates),
+      });
+      return { created: 1, merged: 0 };
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized }); // concurrent create
+    }
+  }
+
+  if (!trip || trip.status !== 'SCHEDULED') return { created: 0, merged: 0 };
+  if ((trip.passengers || []).length >= capacity) {
+    logger.warn('[DailyTripGenerator] Driver at capacity; passenger not merged', {
+      driverId: driver._id,
+      serviceDate: normalized,
+      subscriptionId: subscription._id,
+    });
+    return { created: 0, merged: 0 };
+  }
+
+  // Atomic, deduped add — only pushes if this subscription isn't already present.
+  const updated = await Trip.findOneAndUpdate(
+    { _id: trip._id, status: 'SCHEDULED', 'passengers.subscriptionId': { $ne: subscription._id } },
+    { $push: { passengers: entry } },
+    { new: true }
+  );
+  if (!updated) return { created: 0, merged: 0 }; // already present or no longer schedulable
+
+  updated.passengers = optimizePickupOrder(driverCoords, updated.passengers);
+  updated.navigationUrl = buildNavigationUrl(driverCoords, updated.passengers, updated.passengers[0]?.dropLocation?.coordinates);
+  await updated.save();
+  return { created: 0, merged: 1 };
+}
+
+/**
+ * Generate/merge trips for one subscription across its upcoming schedule window.
+ * Called (via setImmediate) right after a subscription is matched, so the
+ * customer's trips exist immediately without a global scan blocking the request.
+ */
+async function regenerateForSubscription(subscriptionId, { days = 14 } = {}) {
+  const subscription = await Subscription.findOne({ _id: subscriptionId, isDeleted: false })
+    .populate('assignedDriverId')
+    .lean();
+  if (!subscription || subscription.status !== 'ACTIVE' || !subscription.assignedDriverId) {
+    return { created: 0, merged: 0 };
+  }
+  const driver = subscription.assignedDriverId;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const subStart = new Date(subscription.startDate);
+  subStart.setHours(0, 0, 0, 0);
+  const start = subStart > today ? subStart : today;
+  const end = new Date(subscription.endDate);
+  end.setHours(0, 0, 0, 0);
+
+  let created = 0;
+  let merged = 0;
+  for (let i = 0; i < days; i++) {
+    const date = new Date(start);
+    date.setDate(date.getDate() + i);
+    date.setHours(0, 0, 0, 0);
+    if (date > end) break;
+    if (!subscription.scheduleDays?.includes(date.getDay())) continue;
+    const res = await ensureSubscriptionOnTrip(subscription, driver, date);
+    created += res.created;
+    merged += res.merged;
+  }
+  logger.info('[DailyTripGenerator] Regenerated trips for subscription', {
+    subscriptionId: subscription._id,
+    driverId: driver._id,
+    created,
+    merged,
+  });
+  return { created, merged };
 }
 
 /**
@@ -223,6 +361,9 @@ async function generateTripsForTomorrow() {
 module.exports = {
   generateTripsForDate,
   generateTripsForTomorrow,
+  regenerateForSubscription,
+  ensureSubscriptionOnTrip,
+  buildPassengerEntry,
   generateRideOtp,
   optimizePickupOrder,
   buildNavigationUrl,

@@ -20,7 +20,6 @@ router.post('/pause-request', customerController.requestPause);
 
 // Subscription purchase flow
 router.get('/plans', subscriptionController.browsePlans);
-router.get('/plans/:id/routes', subscriptionController.getRoutesForPlan);
 router.post(
   '/subscriptions/purchase',
   validateRequest(subscriptionValidation.purchaseSubscription, 'body', 'INVALID_SUBSCRIPTION_PURCHASE_REQUEST'),

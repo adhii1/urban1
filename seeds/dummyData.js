@@ -103,6 +103,7 @@ async function seed() {
     homeLocation: { address: '27th Main, HSR Layout', type: 'Point', coordinates: [77.6401, 12.9185] },
     pickupLocation: { address: 'HSR Layout Sector 2', type: 'Point', coordinates: [77.6309, 12.9279] },
     dropLocation: { address: 'Electronic City Phase 1', type: 'Point', coordinates: [77.6683, 12.8489] },
+    walletBalance: 5000,
     status: 'ACTIVE',
   });
   console.log('Created 1 customer → phone: 9000000003 / password: password123 (Priya Sharma)');

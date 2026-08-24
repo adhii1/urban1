@@ -9,9 +9,15 @@ else if (nodeEnv === "production" || nodeEnv === "prod") envFile = ".env.prod";
 console.log(`🔌 [Config] Loading environment variables from ${envFile}`);
 dotenv.config({ path: path.join(__dirname, "../", envFile) });
 
-const requireEnv = (key) => {
+const isTest = nodeEnv === "test";
+
+// In the test environment we allow safe fallbacks so the suite runs without a
+// committed secrets file (integration tests use an in-memory Mongo that
+// overrides the URL anyway). Dev and production stay strict.
+const requireEnv = (key, testFallback) => {
   const value = process.env[key];
   if (!value) {
+    if (isTest && testFallback !== undefined) return testFallback;
     throw new Error(`[FATAL] Required environment variable missing: ${key}`);
   }
   return value;
@@ -22,7 +28,7 @@ const config = {
   port: parseInt(process.env.PORT, 10) || 4000,
 
   mongoose: {
-    url: requireEnv("MONGODB_URI"),
+    url: requireEnv("MONGODB_URI", "mongodb://127.0.0.1:27017/torqq-test"),
     options: {
       autoIndex: nodeEnv !== "production",
       connectTimeoutMS: 10000,
@@ -32,10 +38,10 @@ const config = {
   },
 
   jwt: {
-    secret: requireEnv("JWT_SECRET"),
+    secret: requireEnv("JWT_SECRET", "test-jwt-secret"),
     accessExpirationMinutes:
       parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES, 10) || 120,
-    refreshSecret: requireEnv("REFRESH_SECRET"),
+    refreshSecret: requireEnv("REFRESH_SECRET", "test-refresh-secret"),
     refreshExpirationDays:
       parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS, 10) || 7,
   },

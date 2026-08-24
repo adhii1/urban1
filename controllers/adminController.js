@@ -19,6 +19,7 @@ const { hashPassword } = require('../utils/passwordHelper');
 const { buildTripManifest } = require('../utils/geoHelper');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
+const { toTripView } = require('../utils/tripView');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 
 // Dashboard
@@ -31,9 +32,9 @@ const getDashboard = asyncWrapper(async (req, res) => {
   const [totalCustomers, totalDrivers, activeTrips, completedTrips, cancelledTrips, activeSubscriptions] = await Promise.all([
     Customer.countDocuments({ isDeleted: false }),
     Driver.countDocuments({ isDeleted: false }),
-    Trip.countDocuments({ status: 'IN_PROGRESS', tripDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'COMPLETED', tripDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'CANCELLED', tripDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'IN_PROGRESS', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'COMPLETED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'CANCELLED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
     Subscription.countDocuments({ status: 'ACTIVE', isDeleted: false }),
   ]);
 
@@ -218,20 +219,20 @@ const getTrips = asyncWrapper(async (req, res) => {
   if (req.query.status) filter.status = req.query.status;
 
   const trips = await Trip.find(filter)
-    .populate('routeId', 'name')
     .populate('driverId', 'name')
-    .populate('manifest.customer', 'name')
-    .sort({ serviceDate: 1, tripDate: 1 });
-  return res.status(200).json(formatResponse('Trips listed successfully.', trips));
+    .populate('passengers.customerId', 'name')
+    .sort({ serviceDate: 1 })
+    .lean();
+  return res.status(200).json(formatResponse('Trips listed successfully.', trips.map((t) => toTripView(t))));
 });
 
 const getTripById = asyncWrapper(async (req, res) => {
   const trip = await Trip.findById(req.params.id)
-    .populate('routeId')
     .populate('driverId', 'name vehicleNumber')
-    .populate('manifest.customer', 'name pickupLocation dropLocation');
+    .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .lean();
   if (!trip) throw new NotFoundError('Trip');
-  return res.status(200).json(formatResponse('Trip details retrieved.', trip));
+  return res.status(200).json(formatResponse('Trip details retrieved.', toTripView(trip)));
 });
 
 const createTrip = asyncWrapper(async (req, res) => {
@@ -677,23 +678,23 @@ const getAnalytics = asyncWrapper(async (req, res) => {
   let tripTrend;
   if (range === '7d') {
     tripTrend = await Trip.aggregate([
-      { $match: { status: 'COMPLETED', tripDate: { $gte: startDate }, isDeleted: false } },
-      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$tripDate' } }, count: { $sum: 1 } } },
+      { $match: { status: 'COMPLETED', serviceDate: { $gte: startDate }, isDeleted: false } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$serviceDate' } }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     tripTrend = tripTrend.map(t => ({ label: dayNames[new Date(t._id).getDay()], value: t.count }));
   } else if (range === '30d') {
     tripTrend = await Trip.aggregate([
-      { $match: { status: 'COMPLETED', tripDate: { $gte: startDate }, isDeleted: false } },
-      { $group: { _id: { $week: '$tripDate' }, count: { $sum: 1 } } },
+      { $match: { status: 'COMPLETED', serviceDate: { $gte: startDate }, isDeleted: false } },
+      { $group: { _id: { $week: '$serviceDate' }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
     tripTrend = tripTrend.map((t, i) => ({ label: `W${i + 1}`, value: t.count }));
   } else {
     tripTrend = await Trip.aggregate([
-      { $match: { status: 'COMPLETED', tripDate: { $gte: startDate }, isDeleted: false } },
-      { $group: { _id: { $month: '$tripDate' }, count: { $sum: 1 } } },
+      { $match: { status: 'COMPLETED', serviceDate: { $gte: startDate }, isDeleted: false } },
+      { $group: { _id: { $month: '$serviceDate' }, count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -735,7 +736,7 @@ const getAnalytics = asyncWrapper(async (req, res) => {
 
   // Route performance
   const routePerformance = await Trip.aggregate([
-    { $match: { tripDate: { $gte: startDate }, isDeleted: false } },
+    { $match: { serviceDate: { $gte: startDate }, isDeleted: false } },
     { $lookup: { from: 'routes', localField: 'routeId', foreignField: '_id', as: 'route' } },
     { $unwind: { path: '$route', preserveNullAndEmptyArrays: true } },
     { $lookup: { from: 'drivers', localField: 'driverId', foreignField: '_id', as: 'driver' } },
@@ -747,7 +748,7 @@ const getAnalytics = asyncWrapper(async (req, res) => {
       endLocation: { $first: '$route.endLocation' },
       totalTrips: { $sum: 1 },
       completedTrips: { $sum: { $cond: [{ $eq: ['$status', 'COMPLETED'] }, 1, 0] } },
-      totalManifestSize: { $sum: { $size: { $ifNull: ['$manifest', []] } } },
+      totalManifestSize: { $sum: { $size: { $ifNull: ['$passengers', []] } } },
       avgCapacity: { $avg: { $ifNull: ['$driver.vehicleCapacity', 6] } }
     }},
     { $project: {

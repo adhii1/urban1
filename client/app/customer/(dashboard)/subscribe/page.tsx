@@ -1,11 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users, Wallet, CreditCard } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/stores/toastStore';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
+
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
 
 const LeafletMap = dynamic(() => import('../profile/LeafletMap'), { ssr: false });
 
@@ -67,6 +73,29 @@ export default function SubscribePage() {
   const [pickupTime, setPickupTime] = useState('08:00');
   const [mapMode, setMapMode] = useState<'pickup' | 'drop'>('pickup');
 
+  // Payment
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'razorpay'>('wallet');
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [plans, setPlans] = useState<any[]>([]);
+
+  // Load plan catalog (for real prices), wallet balance, and Razorpay checkout.
+  useEffect(() => {
+    api.get<any[]>('/customer/plans').then((r) => setPlans(r.data || [])).catch(() => {});
+    api.get<any>('/wallet').then((r) => setWalletBalance(r.data?.balance ?? 0)).catch(() => {});
+    if (!document.getElementById('razorpay-script')) {
+      const script = document.createElement('script');
+      script.id = 'razorpay-script';
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+    }
+  }, []);
+
+  // subscriptionType -> Plan.tier, to look up the live price from the catalog.
+  const TIER_FOR_MODEL: Record<BookingModel, string> = { WEEKDAYS: 'Weekday', HYBRID: 'Hybrid', SHUTTLE: 'Standard' };
+  const planForModel = model ? plans.find((p) => p.tier === TIER_FOR_MODEL[model]) : null;
+  const planPrice: number | null = planForModel?.price ?? null;
+
   const toggleDay = (day: number) => {
     if (model === 'HYBRID' && !selectedDays.includes(day) && selectedDays.length >= 3) {
       showToast('Hybrid plan allows max 3 days per week', 'error');
@@ -90,6 +119,28 @@ export default function SubscribePage() {
     else { setDropLat(lat.toFixed(6)); setDropLng(lng.toFixed(6)); }
   };
 
+  const buildBody = (method: 'wallet' | 'razorpay') => ({
+    subscriptionType: model,
+    pickupLocation: {
+      address: pickupAddress || `${pickupLat}, ${pickupLng}`,
+      coordinates: [parseFloat(pickupLng), parseFloat(pickupLat)],
+    },
+    dropLocation: {
+      address: dropAddress || `${dropLat}, ${dropLng}`,
+      coordinates: [parseFloat(dropLng), parseFloat(dropLat)],
+    },
+    scheduleDays: selectedDays,
+    pickupTime,
+    startDate: new Date().toISOString(),
+    paymentMethod: method,
+  });
+
+  const finish = (response: any) => {
+    setResult(response);
+    setStep('result');
+    showToast('Subscription active!', 'success');
+  };
+
   const handleSubmit = async () => {
     if (!model) { showToast('Select a booking model', 'error'); return; }
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { showToast('Set pickup and drop locations', 'error'); return; }
@@ -97,32 +148,52 @@ export default function SubscribePage() {
 
     setLoading(true);
     try {
-      // Map SHUTTLE → backend handles it
-      const subscriptionType = model;
+      if (paymentMethod === 'wallet') {
+        const response = await api.post<any>('/book', buildBody('wallet'));
+        finish(response);
+      } else {
+        // Razorpay: create the order, complete checkout, then verify.
+        const orderRes = await api.post<any>('/book', buildBody('razorpay'));
+        const data = orderRes.data;
+        const verifyAndFinish = async (payment: { orderId: string; paymentId: string; signature: string }) => {
+          await api.post('/customer/subscriptions/verify-payment', {
+            subscriptionId: data.subscriptionId,
+            orderId: payment.orderId,
+            paymentId: payment.paymentId,
+            signature: payment.signature,
+          });
+          // Re-read the activated subscription (with driver assignment) for the result screen.
+          const booking = await api.get<any>('/booking');
+          finish({ data: { subscription: booking.data, assignment: booking.data?.assignedDriverId ? { driver: booking.data.assignedDriverId, area: booking.data.assignedAreaId?.name } : null } });
+        };
 
-      const body = {
-        subscriptionType,
-        pickupLocation: {
-          address: pickupAddress || `${pickupLat}, ${pickupLng}`,
-          coordinates: [parseFloat(pickupLng), parseFloat(pickupLat)],
-        },
-        dropLocation: {
-          address: dropAddress || `${dropLat}, ${dropLng}`,
-          coordinates: [parseFloat(dropLng), parseFloat(dropLat)],
-        },
-        scheduleDays: selectedDays,
-        pickupTime,
-        startDate: new Date().toISOString(),
-      };
+        if (window.Razorpay && data.order?.orderId) {
+          const rzp = new window.Razorpay({
+            key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '',
+            amount: data.order.amount,
+            currency: data.order.currency || 'INR',
+            name: 'TORQQ',
+            description: `${model} subscription`,
+            order_id: data.order.orderId,
+            handler: (resp: any) => {
+              verifyAndFinish({ orderId: resp.razorpay_order_id, paymentId: resp.razorpay_payment_id, signature: resp.razorpay_signature })
+                .catch((e) => showToast(e.message || 'Payment verification failed', 'error'))
+                .finally(() => setLoading(false));
+            },
+            theme: { color: '#16C15D' },
+          });
+          rzp.on('payment.failed', () => { showToast('Payment failed. Please try again.', 'error'); setLoading(false); });
+          rzp.open();
+          return; // handler/finally manages loading
+        }
 
-      const response = await api.post<any>('/book', body);
-      setResult(response);
-      setStep('result');
-      showToast('Subscription created!', 'success');
+        // Mock mode (no Razorpay script / dev): verify with mock identifiers.
+        await verifyAndFinish({ orderId: data.order.orderId, paymentId: `pay_mock_${Date.now()}`, signature: 'mock_signature' });
+      }
     } catch (err: any) {
       showToast(err.message || 'Booking failed', 'error');
     } finally {
-      setLoading(false);
+      if (paymentMethod === 'wallet') setLoading(false);
     }
   };
 
@@ -369,6 +440,33 @@ export default function SubscribePage() {
                 <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{dropAddress || `${dropLat}, ${dropLng}`}</p>
               </div>
             </div>
+          </div>
+
+          {/* Payment method */}
+          <div className="glass-card" style={{ padding: '16px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <strong style={{ fontSize: '13px', color: '#0F172A' }}>Payment</strong>
+              {planPrice != null && <span style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>₹{planPrice}</span>}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => setPaymentMethod('wallet')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: paymentMethod === 'wallet' ? '2px solid #16C15D' : '1px solid #E2E8F0', background: paymentMethod === 'wallet' ? '#F0FDF4' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                <Wallet size={14} color="#16C15D" style={{ display: 'inline', marginRight: '6px' }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>Wallet</span>
+                <p style={{ fontSize: '11px', color: walletBalance != null && planPrice != null && walletBalance < planPrice ? '#DC2626' : '#64748B', marginTop: '4px' }}>
+                  Balance: ₹{walletBalance ?? '—'}
+                </p>
+              </button>
+              <button onClick={() => setPaymentMethod('razorpay')} style={{ flex: 1, padding: '12px', borderRadius: '10px', border: paymentMethod === 'razorpay' ? '2px solid #3B82F6' : '1px solid #E2E8F0', background: paymentMethod === 'razorpay' ? '#EFF6FF' : '#fff', cursor: 'pointer', textAlign: 'left' }}>
+                <CreditCard size={14} color="#3B82F6" style={{ display: 'inline', marginRight: '6px' }} />
+                <span style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>Pay online</span>
+                <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Card / UPI / netbanking</p>
+              </button>
+            </div>
+            {paymentMethod === 'wallet' && walletBalance != null && planPrice != null && walletBalance < planPrice && (
+              <p style={{ fontSize: '11px', color: '#DC2626', marginTop: '8px' }}>
+                Insufficient balance. <Link href="/customer/wallet" style={{ color: '#16C15D', fontWeight: 700 }}>Add money →</Link>
+              </p>
+            )}
           </div>
 
           <button onClick={handleSubmit} disabled={loading} className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>

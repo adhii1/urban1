@@ -42,7 +42,8 @@ router.patch('/trips/:id', validateRequest(adminValidation.updateTrip), adminCon
 router.delete('/trips/:id', adminController.deleteTrip);
 router.post('/trips/:id/reassign', validateRequest(adminValidation.reassignTrip), adminController.reassignTrip);
 // Bounded, authenticated recovery reruns for recurring-service generation.
-router.post('/trips/generate', tripGenerationController.generateRecoveryTrips);
+// (Distinct path so it doesn't shadow the canonical /trips/generate below.)
+router.post('/trips/generate-recovery', tripGenerationController.generateRecoveryTrips);
 
 // Routes
 router.get('/routes', adminController.getRoutes);
@@ -111,7 +112,8 @@ router.post('/subscriptions/:id/match', async (req, res) => {
 
   const result = await SubscriptionMatchingService.matchSubscription(subscription);
   if (result.success) {
-    await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, result.driver._id, result.area._id);
+    // Admin action — force the assignment even if the driver is near capacity.
+    await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, result.driver._id, result.area._id, { force: true });
     return res.json({ success: true, message: 'Driver assigned', data: { driver: result.driver, area: result.area, candidates: result.allCandidates } });
   }
   res.json({ success: false, message: result.reason, data: { candidates: [] } });
@@ -123,12 +125,12 @@ router.post('/subscriptions/:id/assign-driver', async (req, res) => {
   const subscription = await Subscription.findById(req.params.id);
   if (!subscription) return res.status(404).json({ success: false, message: 'Subscription not found' });
 
-  const Area = require('../../models/Area');
   const Driver = require('../../models/Driver');
   const driver = await Driver.findById(driverId);
   if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
-  await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, driver._id, driver.areaId);
+  // Admin manual override bypasses the capacity guard.
+  await SubscriptionMatchingService.assignDriverToSubscription(subscription._id, driver._id, driver.areaId, { force: true });
   res.json({ success: true, message: 'Driver manually assigned' });
 });
 
@@ -162,17 +164,16 @@ router.get('/rides', async (req, res) => {
   // Get scheduled shuttle trips (today and upcoming)
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const tripFilter = { isDeleted: false, tripDate: { $gte: todayStart } };
+  const tripFilter = { isDeleted: false, serviceDate: { $gte: todayStart } };
   if (status && status !== 'ALL') {
     tripFilter.status = status;
   } else {
     tripFilter.status = { $in: ['SCHEDULED', 'IN_PROGRESS'] };
   }
   const trips = await Trip.find(tripFilter)
-    .populate('routeId', 'name startLocation endLocation')
     .populate('driverId', 'name vehicleNumber')
-    .populate('manifest.customer', 'name')
-    .sort({ tripDate: -1 })
+    .populate('passengers.customerId', 'name')
+    .sort({ serviceDate: -1 })
     .limit(50)
     .lean();
 
@@ -181,16 +182,16 @@ router.get('/rides', async (req, res) => {
     _id: t._id,
     type: 'SHUTTLE',
     status: t.status,
-    customerName: `${(t.manifest || []).length} passengers`,
-    pickupLocation: { address: t.routeId?.startLocation || 'Route start' },
-    dropLocation: { address: t.routeId?.endLocation || 'Route end' },
+    customerName: `${(t.passengers || []).length} passengers`,
+    pickupLocation: { address: t.passengers?.[0]?.pickupLocation?.address || 'Pickup' },
+    dropLocation: { address: t.passengers?.[0]?.dropLocation?.address || 'Drop' },
     acceptedDriverId: t.driverId,
-    routeName: t.routeId?.name,
-    tripDate: t.tripDate,
-    manifest: t.manifest,
-    passengerCount: (t.manifest || []).length,
+    serviceDate: t.serviceDate,
+    tripDate: t.serviceDate,
+    passengers: t.passengers,
+    passengerCount: (t.passengers || []).length,
     createdAt: t.createdAt,
-    requestedAt: t.tripDate,
+    requestedAt: t.serviceDate,
   }));
 
   const all = [...rides, ...tripAsRides].sort((a, b) => 

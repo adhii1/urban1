@@ -1,6 +1,7 @@
 const Trip = require('../models/Trip');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
+const { toTripView } = require('../utils/tripView');
 const { NotFoundError } = require('../utils/AppError');
 
 const getTrips = asyncWrapper(async (req, res) => {
@@ -10,10 +11,9 @@ const getTrips = asyncWrapper(async (req, res) => {
 
   const [trips, total] = await Promise.all([
     Trip.find()
-      .populate('routeId', 'name')
       .populate('driverId', 'name')
-      .populate('manifest.customer', 'name')
-      .sort({ tripDate: -1 })
+      .populate('passengers.customerId', 'name')
+      .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
       .lean(),
@@ -21,7 +21,7 @@ const getTrips = asyncWrapper(async (req, res) => {
   ]);
 
   return res.status(200).json(
-    formatResponse('Trips retrieved.', trips, {
+    formatResponse('Trips retrieved.', trips.map((t) => toTripView(t)), {
       page,
       limit,
       total,
@@ -32,11 +32,11 @@ const getTrips = asyncWrapper(async (req, res) => {
 
 const getTripById = asyncWrapper(async (req, res) => {
   const trip = await Trip.findById(req.params.id)
-    .populate('routeId')
     .populate('driverId', 'name vehicleNumber')
-    .populate('manifest.customer', 'name pickupLocation dropLocation');
+    .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .lean();
   if (!trip) throw new NotFoundError('Trip');
-  return res.status(200).json(formatResponse('Trip retrieved.', trip));
+  return res.status(200).json(formatResponse('Trip retrieved.', toTripView(trip)));
 });
 
 module.exports = { getTrips, getTripById };

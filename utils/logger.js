@@ -1,8 +1,17 @@
 const fs = require('fs');
 const path = require('path');
 
-const logDir = path.join(__dirname, '../../logs');
-if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+// Project-local log directory (overridable via LOG_DIR). File logging is
+// best-effort: if the directory or a stream can't be opened, we degrade to
+// console-only rather than crashing the process.
+const logDir = process.env.LOG_DIR || path.join(__dirname, '../logs');
+let fileLoggingEnabled = true;
+try {
+  if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
+} catch (err) {
+  fileLoggingEnabled = false;
+  console.error(`Log directory unavailable (${logDir}); file logging disabled: ${err.message}`);
+}
 
 const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
 
@@ -10,11 +19,20 @@ const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_E
 const streams = {};
 
 function getStream(level) {
+  if (!fileLoggingEnabled) return null;
   if (streams[level]) return streams[level];
   const dateStr = new Date().toISOString().split('T')[0];
   const logFile = path.join(logDir, `${level}-${dateStr}.log`);
-  streams[level] = fs.createWriteStream(logFile, { flags: 'a' });
-  return streams[level];
+  const stream = fs.createWriteStream(logFile, { flags: 'a' });
+  // A stream 'error' (e.g. EPERM) is emitted asynchronously and would crash the
+  // process if unhandled. Swallow it and stop using this stream.
+  stream.on('error', (err) => {
+    console.error(`Log stream error for ${level}; disabling file logging: ${err.message}`);
+    delete streams[level];
+    fileLoggingEnabled = false;
+  });
+  streams[level] = stream;
+  return stream;
 }
 
 // Rotate streams daily — close old streams when the date changes.
@@ -35,7 +53,8 @@ const writeToFile = (level, message, meta = {}) => {
     ? JSON.stringify({ timestamp: new Date().toISOString(), level: level.toUpperCase(), message, ...meta }) + '\n'
     : `[${new Date().toISOString()}] [${level.toUpperCase()}] ${message}${Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : ''}\n`;
   try {
-    getStream(level).write(logLine);
+    const stream = getStream(level);
+    if (stream) stream.write(logLine);
   } catch (err) {
     console.error(`Failed to write to log file for ${level}:`, err.message);
   }
