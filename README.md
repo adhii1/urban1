@@ -73,6 +73,35 @@ localStorage.removeItem('torqq_api_origin'); location.reload()
 For the Next.js apps, set `NEXT_PUBLIC_API_BASE_URL` (client) or
 `NEXT_PUBLIC_API_URL` (admin) instead.
 
+## Tests
+
+```bash
+npm test
+```
+
+Runs the whole suite. No database setup: the integration tests start their own
+in-memory MongoDB (`mongodb-memory-server`), so `MONGODB_URI` is irrelevant to them
+and nothing touches your real data.
+
+`npm test` also gates `git push` — `npm install` puts a `pre-push` hook in place that
+runs it. If you need to push past a failure deliberately:
+
+```bash
+git push --no-verify        # skip all hooks for this push
+SKIP_TESTS=1 git push       # skip just the test gate
+```
+
+Split targets, when you want a faster loop:
+
+```bash
+npm run test:unit           # schema, policy and contract assertions — milliseconds, no DB
+npm run test:integration    # spins up in-memory MongoDB per file
+npm run check:contract      # routes, validators and serializers the frontends depend on
+```
+
+`npm run test:unit` includes two files that bind a loopback HTTP port. In a sandbox
+that forbids `listen`, those report `EPERM` — that's the environment, not the code.
+
 ## Checks
 
 ```bash
@@ -83,12 +112,6 @@ Verifies the things that silently differ between machines: that dev CORS accepts
 localhost/LAN origin on any port, that production CORS stays an exact allowlist, that
 both static apps are served with a CSP their own assets can survive, and that no
 frontend file has drifted back to a hardcoded `localhost:4000`. Needs no database.
-
-```bash
-node --test test/
-```
-
-Most of `test/` needs `MONGODB_URI` to point at a reachable database.
 
 ## Configuration
 

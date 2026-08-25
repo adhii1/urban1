@@ -1,8 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
 
+const db = require('./helpers/db');
 const User = require('../models/User');
 const Customer = require('../models/Customer');
 const Driver = require('../models/Driver');
@@ -12,8 +11,6 @@ const Subscription = require('../models/Subscription');
 const Trip = require('../models/Trip');
 const subscriptionService = require('../services/subscriptionService');
 const { regenerateForSubscription, generateTripsForDate } = require('../services/DailyTripGenerator');
-
-let mongoServer;
 
 const AREA_CENTER = [77.6501, 12.9141]; // [lng, lat]
 
@@ -79,19 +76,17 @@ function bookingBody(overrides = {}) {
 }
 
 test.before(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
+  await db.connect();
 });
 
 test.after(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await db.disconnect();
 });
 
 test.beforeEach(async () => {
-  await mongoose.connection.db.dropDatabase();
-  await Subscription.syncIndexes(); // ensure the partial unique index exists
-  await Trip.syncIndexes(); // driver_service_slot_unique — one trip per pickup slot
+  // Clears documents but keeps indexes — the unique partial indexes here are the
+  // real enforcement, and Area's 2dsphere index is what $geoNear needs.
+  await db.resetData();
 });
 
 test('wallet subscription activates, debits the wallet, and matches a driver', async () => {

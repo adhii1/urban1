@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 
 const Customer = require('../models/Customer');
 const Driver = require('../models/Driver');
@@ -15,7 +15,6 @@ const { POLICY_CODES, isEligibleOnServiceDate } = require('../services/subscript
 const { initiatePurchase, verifySubscriptionPayment } = require('../controllers/subscriptionController');
 
 const EARTH_RADIUS_KM = 6371;
-let mongoServer;
 let createOrderCalls;
 let originalCreateOrder;
 let originalVerifyPayment;
@@ -111,8 +110,7 @@ function purchaseBody(plan, route, overrides = {}) {
 }
 
 test.before(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
+  await db.connect();
   originalCreateOrder = paymentService.createOrder;
   originalVerifyPayment = paymentService.verifyPayment;
   paymentService.createOrder = async () => {
@@ -124,14 +122,14 @@ test.before(async () => {
 
 test.beforeEach(async () => {
   createOrderCalls = 0;
-  await mongoose.connection.db.dropDatabase();
+  // Clear documents, keep indexes — see test/helpers/db.js.
+  await db.resetData();
 });
 
 test.after(async () => {
   paymentService.createOrder = originalCreateOrder;
   paymentService.verifyPayment = originalVerifyPayment;
-  await mongoose.disconnect();
-  await mongoServer.stop();
+  await db.disconnect();
 });
 
 test('rejects a Home-to-Office distance overflow before payment or subscription persistence', async () => {

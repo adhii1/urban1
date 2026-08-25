@@ -1,8 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fc = require('fast-check');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 
 const { seedDatabase } = require('../config/database');
 const authService = require('../services/authService');
@@ -20,7 +19,6 @@ const targetPhone = '7019268918';
 const preservedDriverPhone = '9876543210';
 const hsrRouteName = 'HSR Layout - Electronic City';
 const loginOtp = '654321';
-let mongoServer;
 
 const id = (value) => value?.toString();
 const plain = (value) => value?.toObject?.() || value;
@@ -57,8 +55,8 @@ function subscriptionSnapshot(subscription) {
 }
 
 async function resetDatabase() {
-  await mongoose.connection.db.dropDatabase();
-  await Promise.all([User, Admin, Customer, Driver, OTP, Plan, Route, Subscription, Trip].map((model) => model.syncIndexes()));
+  // Clear documents, keep indexes — see test/helpers/db.js.
+  await db.resetData();
 }
 
 async function routeAndPlan() {
@@ -202,12 +200,6 @@ test('Property 2 baseline: an already-correct target Customer is unchanged by re
   }), { numRuns: 1, endOnFailure: true });
 });
 
-test.before(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
-});
+test.before(async () => { await db.connect(); });
 
-test.after(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
+test.after(async () => { await db.disconnect(); });

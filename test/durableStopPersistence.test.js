@@ -101,8 +101,12 @@ test('Trip normalizes service dates, persists conflict state, and indexes active
     keys.routeId === 1 && keys.serviceDate === 1
   ));
   assert.equal(routeDateIndex[1].unique, true);
+  // `routeId: { $type: 'objectId' }` is load-bearing, not decoration: area-based
+  // trips carry no routeId, so without it they all index at routeId: null and two
+  // drivers working the same date collide with E11000.
   assert.deepEqual(routeDateIndex[1].partialFilterExpression, {
     isDeleted: false,
+    routeId: { $type: 'objectId' },
     serviceDate: { $exists: true },
   });
 });

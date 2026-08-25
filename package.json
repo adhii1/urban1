@@ -10,7 +10,13 @@
     "dev:client": "npm --prefix client run dev",
     "dev:admin": "npm --prefix admin run dev",
     "check:startup": "node scripts/checkStartup.js",
+    "check:contract": "node scripts/contractCheck.js",
     "migrate:durable-stops": "node scripts/migrations/backfillDurableStops.js",
+    "prepare": "node scripts/installGitHooks.js",
+    "pretest": "npm run check:contract",
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node --test test/subscriptionService.unit.test.js test/subscriptionPolicy.test.js test/durableStopPersistence.test.js test/flexyRideRequestContract.test.js test/customerPasswordLoginMismatch.exploration.test.js test/customerPasswordLoginMismatch.preservation.test.js",
+    "test:integration": "node --test test/subscriptionService.integration.test.js test/subscriptionPurchase.integration.test.js test/tripGenerator.integration.test.js test/tripGenerator.property.test.js test/flexyLifecycle.test.js test/customerOtpAccountRoleCorrection.exploration.test.js test/customerOtpAccountRoleCorrection.preservation.test.js",
     "test:durable-stops": "node --test test/durableStopPersistence.test.js",
     "test:subscription-policy": "node --test test/subscriptionPolicy.test.js"
   },

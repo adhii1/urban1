@@ -30,6 +30,94 @@ const dropRetiredIndex = async (Model, matches, label) => {
 };
 
 /**
+ * Serialize a filter document so two equivalent filters compare equal.
+ *
+ * Key order must not matter here. `JSON.stringify` preserves insertion order, and
+ * the order MongoDB echoes a stored filter back in is not guaranteed to match the
+ * order the schema declares it — so a naive string compare reports "drifted" on
+ * every boot and drops/rebuilds a unique index each time the process starts.
+ */
+const canonicalize = (value) => {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value ?? null);
+  if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalize(value[k])}`).join(',')}}`;
+};
+
+/**
+ * Drop and rebuild a live index whose options no longer match the schema.
+ *
+ * MongoDB will not redefine an index in place. Given a name that already exists
+ * with different options it fails with IndexOptionsConflict (85) and *keeps the
+ * old index* — so a changed `partialFilterExpression` silently has no effect and
+ * the stale predicate goes on enforcing the constraint it always did. autoIndex
+ * logs that error and continues, which makes it look as though the new filter
+ * simply doesn't work.
+ *
+ * Narrowing a partial filter can't fail to build: the documents it now covers are
+ * a subset of those the old index already indexed uniquely.
+ */
+const reconcileIndexOptions = async (Model) => {
+  const declared = new Map(
+    Model.schema.indexes()
+      .filter(([, opts]) => opts && opts.name)
+      .map(([key, opts]) => [opts.name, { key, opts }])
+  );
+  if (declared.size === 0) return;
+
+  let live;
+  try {
+    live = await Model.collection.indexes();
+  } catch (err) {
+    // NamespaceNotFound (26) just means the collection doesn't exist yet.
+    if (err.code !== 26) {
+      logger.error(`[Migration] Could not inspect ${Model.modelName} indexes: ${err.message}`);
+    }
+    return;
+  }
+
+  for (const idx of live) {
+    const want = declared.get(idx.name);
+    if (!want) continue;
+    if (Boolean(idx.unique) === Boolean(want.opts.unique)
+      && canonicalize(idx.partialFilterExpression) === canonicalize(want.opts.partialFilterExpression)) {
+      continue;
+    }
+
+    const before = JSON.stringify(idx.partialFilterExpression || null);
+    const after = JSON.stringify(want.opts.partialFilterExpression || null);
+    try {
+      await Model.collection.dropIndex(idx.name);
+      logger.warn(
+        `[Migration] ${Model.modelName}.${idx.name} drifted from the schema `
+        + `(live partialFilterExpression ${before}, declared ${after}) — dropping to rebuild.`
+      );
+    } catch (err) {
+      logger.error(`[Migration] Could not drop ${Model.modelName}.${idx.name}: ${err.message}`);
+      continue; // Old index still stands; nothing lost.
+    }
+
+    // Rebuild here rather than leaving it to autoIndex: autoIndex is off in
+    // production, and where it is on it may already have run for this model, in
+    // which case the drop above would leave NO index — strictly worse than a
+    // stale filter, because the uniqueness guarantee disappears entirely.
+    try {
+      await Model.collection.createIndex(want.key, want.opts);
+      logger.warn(`[Migration] Rebuilt ${Model.modelName}.${idx.name} from the schema declaration.`);
+    } catch (err) {
+      // The index is now gone and could not be recreated. Say so unmistakably:
+      // whatever constraint it enforced is currently unenforced.
+      logger.error(
+        `[Migration] CRITICAL: dropped ${Model.modelName}.${idx.name} but could not recreate it `
+        + `(${err.message}). The ${want.opts.unique ? 'uniqueness ' : ''}constraint it enforced is `
+        + `NOT active. Recreate it manually: db.${Model.collection.collectionName}.createIndex(`
+        + `${JSON.stringify(want.key)}, ${JSON.stringify(want.opts)})`
+      );
+    }
+  }
+};
+
+/**
  * Schema migrations that must run in EVERY environment, production included —
  * unlike seedDatabase, which is development-only.
  */
@@ -75,6 +163,14 @@ const runMigrations = async () => {
       && idx.key.serviceDate === 1,
     'one-trip-per-driver-per-day',
   );
+
+  // The meaningful unique indexes (driver_service_slot_unique,
+  // unique_active_route_service_date, customer_schedule_slot_unique) had their
+  // partialFilterExpression narrowed this pass — e.g. `{ isDeleted: false }`
+  // -> `{ isDeleted: false, driverId: { $type: 'objectId' } }` — so a live copy
+  // with the old filter still enforces the old constraint. Drop-and-rebuild.
+  await reconcileIndexOptions(Subscription);
+  await reconcileIndexOptions(Trip);
 };
 
 const connectDB = async () => {

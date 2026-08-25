@@ -2,20 +2,19 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const fc = require('fast-check');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 const RideRequest = require('../models/RideRequest');
 const { createFlexyRide, promoteDueFlexyRides, FLEXY_CODES } = require('../services/flexyService');
 const { runDueFlexyPromotion } = require('../jobs/promoteScheduledFlexyRides');
 
-let mongoServer;
 const pickupLocation = { address: 'Pickup', type: 'Point', coordinates: [77.5946, 12.9716] };
 const dropLocation = { address: 'Drop', type: 'Point', coordinates: [77.6046, 12.9816] };
 const customerId = () => new mongoose.Types.ObjectId();
 const rideInput = (overrides = {}) => ({ customerId: customerId(), pickupLocation, dropLocation, ...overrides });
 
-test.before(async () => { mongoServer = await MongoMemoryServer.create(); await mongoose.connect(mongoServer.getUri()); });
-test.beforeEach(async () => { await mongoose.connection.db.dropDatabase(); await RideRequest.syncIndexes(); });
-test.after(async () => { await mongoose.disconnect(); await mongoServer.stop(); });
+test.before(async () => { await db.connect(); });
+test.beforeEach(async () => { await db.resetData(); }); // clears documents, keeps indexes
+test.after(async () => { await db.disconnect(); });
 
 // Feature: torqq-four-model-handover, Property 5: Flexy creation preserves pickup intent
 // **Validates: Requirements 3.2, 3.3**

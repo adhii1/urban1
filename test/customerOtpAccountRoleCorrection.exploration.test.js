@@ -1,8 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const fc = require('fast-check');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 
 const { seedDatabase } = require('../config/database');
 const authService = require('../services/authService');
@@ -19,7 +18,6 @@ const targetPhone = '7019268918';
 const preservedDriverPhone = '9876543210';
 const hsrRouteName = 'HSR Layout - Electronic City';
 const loginOtp = '654321';
-let mongoServer;
 
 const targetStates = [
   { kind: 'fresh', hasCustomerData: false },
@@ -46,8 +44,8 @@ function snapshotProfile(customer) {
 }
 
 async function resetDatabase() {
-  await mongoose.connection.db.dropDatabase();
-  await Promise.all([User, Customer, Driver, OTP, Plan, Route, Subscription, Trip].map((model) => model.syncIndexes()));
+  // Clear documents, keep indexes — see test/helpers/db.js.
+  await db.resetData();
 }
 
 async function createRouteAndPlan() {
@@ -270,12 +268,6 @@ test('exploration Property 1: every buggy target pre-state converges to an OTP-e
   );
 });
 
-test.before(async () => {
-  mongoServer = await MongoMemoryServer.create();
-  await mongoose.connect(mongoServer.getUri());
-});
+test.before(async () => { await db.connect(); });
 
-test.after(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
+test.after(async () => { await db.disconnect(); });

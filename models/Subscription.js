@@ -146,6 +146,20 @@ const subscriptionSchema = new mongoose.Schema(
     },
     pickupStopId: { type: String },
     dropStopId: { type: String },
+    // The sequence copies let conflict detection tell "the route was reordered"
+    // apart from "my stop was removed" after a route's ordering changes.
+    //
+    // These must stay declared even though area-based subscriptions never set
+    // them: routeReconciliationService.resolveManifestConflict assigns
+    // pickupStopSequence/dropStopSequence when an admin resolves a route-change
+    // conflict, and Mongoose silently drops writes to undeclared paths. Without
+    // them the resolution appeared to succeed and saved nothing.
+    pickupStopSequence: { type: Number },
+    dropStopSequence: { type: Number },
+    // Positional fallbacks, read by durableStopMigrationService when a
+    // subscription predates stable stop IDs.
+    pickupStopIndex: { type: Number },
+    dropStopIndex: { type: Number },
     selectedWeekdays: [{ type: Number, min: 0, max: 6 }],
 
     isDeleted: {

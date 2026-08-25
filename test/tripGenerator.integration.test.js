@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 
 const Customer = require('../models/Customer');
 const Driver = require('../models/Driver');
@@ -13,7 +13,6 @@ const Trip = require('../models/Trip');
 const { generateRecoveryTrips } = require('../controllers/tripGenerationController');
 const { generateForServiceDate } = require('../services/tripGenerator');
 
-let mongoServer;
 const serviceDate = new Date(2025, 0, 6);
 const objectId = () => new mongoose.Types.ObjectId();
 
@@ -53,12 +52,12 @@ async function createFixture({ withDriver = false } = {}) {
   return { route, driver, subscription };
 }
 
-test.before(async () => { mongoServer = await MongoMemoryServer.create(); await mongoose.connect(mongoServer.getUri()); });
+test.before(async () => { await db.connect(); });
 test.beforeEach(async () => {
-  await mongoose.connection.db.dropDatabase();
-  await Promise.all([Customer, Driver, OperationalException, Plan, Route, Subscription, Trip].map((model) => model.syncIndexes()));
+  // Clear documents, keep indexes — see test/helpers/db.js.
+  await db.resetData();
 });
-test.after(async () => { await mongoose.disconnect(); await mongoServer.stop(); });
+test.after(async () => { await db.disconnect(); });
 
 test('persists one unique route/date trip and manifest when recovery generation overlaps', async () => {
   const { route, subscription } = await createFixture({ withDriver: true });

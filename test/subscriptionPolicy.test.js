@@ -149,12 +149,16 @@ test('Property 1: rejects any over-threshold endpoint before payment', () => {
 });
 
 test('managed-stop distance boundaries accept 4.9 km and 5.0 km, and reject greater than 5.0 km', () => {
+  // haversineKm of a geometrically-exact "5.0 km" offset returns
+  // 5.0000000000000115, so compare against the service's own float tolerance
+  // rather than an exact <= 5.0.
+  const toleranceKm = 1e-9;
   for (const distanceKm of [4.9, 5.0]) {
     const result = validateRecurringSubscription(recurringInput({
       customer: customerAtDistances(distanceKm, distanceKm),
     }));
-    assert.ok(result.distances.pickupDistanceKm <= MAX_MANAGED_STOP_DISTANCE_KM);
-    assert.ok(result.distances.dropDistanceKm <= MAX_MANAGED_STOP_DISTANCE_KM);
+    assert.ok(result.distances.pickupDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= toleranceKm);
+    assert.ok(result.distances.dropDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= toleranceKm);
   }
 
   const code = errorCode(() => validateRecurringSubscription(recurringInput({

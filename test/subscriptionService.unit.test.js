@@ -95,7 +95,14 @@ test('trips are unique per driver + date + pickup time, not per driver-day', () 
   const [key, opts] = found;
   assert.deepEqual(Object.keys(key), ['driverId', 'serviceDate', 'pickupTime']);
   assert.equal(opts.unique, true);
-  assert.deepEqual(opts.partialFilterExpression, { isDeleted: false });
+  // Scoped to trips that actually have a driver. Route-based trips are inserted
+  // with driverId: null before a driver is resolved; without the $type predicate
+  // every driverless trip on a date keys as { null, date, null } and the second
+  // one fails with E11000. `$exists: true` would not do — it matches null.
+  assert.deepEqual(opts.partialFilterExpression, {
+    isDeleted: false,
+    driverId: { $type: 'objectId' },
+  });
 });
 
 test('normalizePickupTime makes lookup and create agree on one key', () => {

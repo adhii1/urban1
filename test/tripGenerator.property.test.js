@@ -2,7 +2,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const fc = require('fast-check');
 const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+const db = require('./helpers/db');
 const Route = require('../models/Route');
 const Plan = require('../models/Plan');
 const Customer = require('../models/Customer');
@@ -12,7 +12,6 @@ const Trip = require('../models/Trip');
 const OperationalException = require('../models/OperationalException');
 const { generateForServiceDate } = require('../services/tripGenerator');
 
-let mongoServer;
 const objectId = () => new mongoose.Types.ObjectId();
 const serviceDate = (offset) => new Date(2025, 0, 1 + offset);
 
@@ -75,12 +74,12 @@ function normalizeTrips(trips) {
   })).sort((left, right) => left.routeId.localeCompare(right.routeId));
 }
 
-test.before(async () => { mongoServer = await MongoMemoryServer.create(); await mongoose.connect(mongoServer.getUri()); });
+test.before(async () => { await db.connect(); });
 test.beforeEach(async () => {
-  await mongoose.connection.db.dropDatabase();
-  await Promise.all([Route, Plan, Customer, Driver, Subscription, Trip, OperationalException].map((model) => model.syncIndexes()));
+  // Clear documents, keep indexes — see test/helpers/db.js.
+  await db.resetData();
 });
-test.after(async () => { await mongoose.disconnect(); await mongoServer.stop(); });
+test.after(async () => { await db.disconnect(); });
 
 // Feature: torqq-four-model-handover, Property 7: Idempotent route-date manifest generation
 // **Validates: Requirements 4.1, 4.2, 4.3, 5.4, 9.5**
