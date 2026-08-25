@@ -93,12 +93,11 @@ const subscriptionSchema = new mongoose.Schema(
       index: true,
     },
 
-    // --- Single-active-subscription invariant ---
-    // Set to `true` while a subscription is "current" (ACTIVE, PAUSED, or
-    // PENDING_PAYMENT) and unset (undefined) on CANCELLED/COMPLETED/EXPIRED.
-    // A partial unique index on { customerId } where isCurrent:true guarantees
-    // — atomically — that a customer can hold at most one current subscription,
-    // regardless of which entry point created it or how many run concurrently.
+    // --- "Current" marker ---
+    // `true` while a subscription is live (ACTIVE, PAUSED or PENDING_PAYMENT),
+    // `false` once it reaches CANCELLED/COMPLETED/EXPIRED. A customer may hold
+    // as many current subscriptions as they like — one per commute. The flag is
+    // the predicate for the schedule-clash index below.
     isCurrent: {
       type: Boolean,
     },
@@ -168,15 +167,33 @@ subscriptionSchema.pre(/^find/, function excludeDeleted(next) {
 subscriptionSchema.index({ pickupLocation: '2dsphere' });
 subscriptionSchema.index({ dropLocation: '2dsphere' });
 subscriptionSchema.index({ customerId: 1, isDeleted: 1 });
+subscriptionSchema.index({ customerId: 1, isCurrent: 1 });
 subscriptionSchema.index({ status: 1, subscriptionType: 1, isDeleted: 1 });
 subscriptionSchema.index({ assignedDriverId: 1, status: 1 });
 
-// At most one "current" (ACTIVE/PAUSED/PENDING_PAYMENT) subscription per
-// customer. MongoDB partial indexes forbid $in, so a boolean flag is used as
-// the equality predicate. This is the authoritative concurrency guard.
+// A customer may hold any number of concurrent subscriptions — a weekday
+// commute at 08:00, an evening run at 18:00, a Saturday shuttle. What they
+// cannot hold is two that collide: you can only be picked up once at 08:00 on a
+// given Monday.
+//
+// `scheduleDays` is an array, so this is a *multikey* index: MongoDB stores one
+// entry per day, and the unique constraint applies per entry. Two subscriptions
+// at the same pickupTime conflict only if they actually share a day —
+// [1,2,3,4,5] vs [3,4,5] collides on 3, while [1,2,3] vs [4,5] is fine.
+// Duplicate values inside a single document are collapsed, so [1,1,2] is legal.
+//
+// This is the authoritative concurrency guard: it makes a double-submit or two
+// racing requests fail atomically in the database rather than depending on a
+// read-then-write check in the service. `findConflictingSubscription` in
+// services/subscriptionService.js produces the friendly message for the same
+// condition; this index is what actually enforces it.
 subscriptionSchema.index(
-  { customerId: 1 },
-  { unique: true, partialFilterExpression: { isCurrent: true } }
+  { customerId: 1, pickupTime: 1, scheduleDays: 1 },
+  {
+    name: 'customer_schedule_slot_unique',
+    unique: true,
+    partialFilterExpression: { isCurrent: true },
+  }
 );
 
 module.exports = mongoose.model('Subscription', subscriptionSchema);

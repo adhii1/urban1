@@ -26,6 +26,10 @@ router.post(
   subscriptionController.initiatePurchase
 );
 router.post('/subscriptions/verify-payment', subscriptionController.verifySubscriptionPayment);
+// Every subscription the customer holds. A customer may have several at once
+// (different pickup times / days), so this is the authoritative list —
+// GET /subscription only reports the primary one.
+router.get('/subscriptions', subscriptionController.listSubscriptions);
 router.post('/subscriptions/cancel', subscriptionController.cancelSubscription);
 router.get('/subscriptions/booking-eligibility', subscriptionController.checkBookingEligibility);
 

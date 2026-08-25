@@ -2,7 +2,9 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { normalizeScheduleDays, upcomingServiceDates } = require('../services/subscriptionService');
-const { optimizePickupOrder } = require('../services/DailyTripGenerator');
+const { optimizePickupOrder, normalizePickupTime } = require('../services/DailyTripGenerator');
+const Subscription = require('../models/Subscription');
+const Trip = require('../models/Trip');
 
 // These are pure functions — no DB or network — so they run anywhere.
 
@@ -39,4 +41,75 @@ test('optimizePickupOrder visits nearest pickups first from the driver', () => {
   assert.deepEqual(ordered.map((p) => p.pickupOrder), [1, 2, 3]);
   assert.equal(ordered[0].pickupLocation.coordinates[0], 77.61); // nearest first
   assert.equal(ordered[2].pickupLocation.coordinates[0], 77.70); // farthest last
+});
+
+// --- Multiple concurrent subscriptions ---
+//
+// The rule is enforced by an index, not by application code, so these assert the
+// schema declaration itself. They need no DB, which matters because the
+// integration tests can't run in every environment.
+
+/** Declared indexes as [keySpec, options] pairs. */
+const declaredIndexes = () => Subscription.schema.indexes();
+
+test('the schema no longer declares a unique index on customerId alone', () => {
+  // This was the single-subscription-per-customer constraint. If it comes back,
+  // a customer's second subscription fails with an opaque E11000.
+  const offender = declaredIndexes().find(([key, opts]) =>
+    opts && opts.unique && Object.keys(key).length === 1 && key.customerId === 1);
+  assert.equal(offender, undefined, 'a unique { customerId } index would forbid multiple subscriptions');
+});
+
+test('the schedule-slot index guards pickupTime + day, scoped to current subscriptions', () => {
+  const found = declaredIndexes().find(([, opts]) => opts && opts.name === 'customer_schedule_slot_unique');
+  assert.ok(found, 'customer_schedule_slot_unique must be declared');
+
+  const [key, opts] = found;
+  // Order matters: customerId is the equality prefix, so the index also serves
+  // findConflictingSubscription's query.
+  assert.deepEqual(Object.keys(key), ['customerId', 'pickupTime', 'scheduleDays']);
+  assert.equal(opts.unique, true);
+  // Partial on isCurrent so cancelled/expired subscriptions release their slot.
+  // It must be an equality predicate — Mongo rejects $in in a partial filter.
+  assert.deepEqual(opts.partialFilterExpression, { isCurrent: true });
+});
+
+// --- One trip per pickup slot, not per driver-day ---
+//
+// Holding several subscriptions is only useful if each one actually produces its
+// own ride. Trips used to be unique per { driverId, serviceDate }, so a
+// customer's 08:00 and 18:00 subscriptions with the same driver collapsed into a
+// single 08:00 trip. Schema-level assertions, so they run without a DB.
+
+test('trips are unique per driver + date + pickup time, not per driver-day', () => {
+  const tripIndexes = Trip.schema.indexes();
+
+  const stale = tripIndexes.find(([key, opts]) =>
+    opts && opts.unique
+    && Object.keys(key).length === 2
+    && key.driverId === 1 && key.serviceDate === 1);
+  assert.equal(stale, undefined, 'a unique { driverId, serviceDate } index merges a driver\'s separate runs');
+
+  const found = tripIndexes.find(([, opts]) => opts && opts.name === 'driver_service_slot_unique');
+  assert.ok(found, 'driver_service_slot_unique must be declared');
+  const [key, opts] = found;
+  assert.deepEqual(Object.keys(key), ['driverId', 'serviceDate', 'pickupTime']);
+  assert.equal(opts.unique, true);
+  assert.deepEqual(opts.partialFilterExpression, { isDeleted: false });
+});
+
+test('normalizePickupTime makes lookup and create agree on one key', () => {
+  // "8:00" and "08:00" are the same run. If they hashed differently, the trip
+  // lookup would miss and generate a duplicate trip for a ride that exists.
+  assert.equal(normalizePickupTime('8:00'), '08:00');
+  assert.equal(normalizePickupTime('08:00'), '08:00');
+  assert.equal(normalizePickupTime(' 18:30 '), '18:30');
+  // No pickup time recorded — fall back, and consistently.
+  assert.equal(normalizePickupTime(undefined), '08:00');
+  assert.equal(normalizePickupTime(''), '08:00');
+  // Unparseable input is passed through, never remapped to a time the customer
+  // didn't ask for.
+  assert.equal(normalizePickupTime('morning'), 'morning');
+  assert.equal(normalizePickupTime('25:00'), '25:00');
+  assert.equal(normalizePickupTime('08:75'), '08:75');
 });

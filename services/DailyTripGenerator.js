@@ -7,8 +7,9 @@
  *
  * Flow:
  * 1. Find all ACTIVE subscriptions eligible for tomorrow's service date
- * 2. Group them by assignedDriverId
- * 3. For each driver, create/update a Trip with all assigned passengers
+ * 2. Group them by assignedDriverId AND pickup time (one trip per run, so a
+ *    driver's 08:00 and 18:00 runs stay separate trips)
+ * 3. For each run, create/update a Trip with all assigned passengers
  * 4. Optimize pickup order by geographic proximity (PDF section 12)
  * 5. Generate OTPs for each passenger (PDF section 15)
  * 6. Generate Google Maps navigation URL (PDF section 11)
@@ -25,6 +26,29 @@ const logger = require('../utils/logger');
  */
 function generateRideOtp() {
   return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+/** Pickup time assumed when a subscription doesn't carry one. */
+const DEFAULT_PICKUP_TIME = '08:00';
+
+/**
+ * Canonical form of a pickup time, for use as part of a Trip's identity.
+ *
+ * pickupTime is a free-text field on Subscription, so "8:00" and "08:00" mean
+ * the same run but are different index keys. Since a trip is now looked up by
+ * pickupTime, the value used to find it must be byte-identical to the one it was
+ * created with — otherwise the lookup misses and a duplicate trip appears for a
+ * run that already exists. Anything unparseable is passed through trimmed
+ * rather than silently remapped to a time the customer never asked for.
+ */
+function normalizePickupTime(value) {
+  const raw = (value == null ? '' : String(value)).trim();
+  if (!raw) return DEFAULT_PICKUP_TIME;
+  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return raw;
+  const [, hours, minutes] = match;
+  if (Number(hours) > 23 || Number(minutes) > 59) return raw;
+  return `${hours.padStart(2, '0')}:${minutes}`;
 }
 
 /**
@@ -138,28 +162,38 @@ async function generateTripsForDate(serviceDate) {
     return { serviceDate: normalized, createdTrips: 0, passengers: 0 };
   }
 
-  // Group by assigned driver
-  const driverGroups = new Map();
+  // Group by assigned driver AND pickup time. One driver can run several
+  // separate trips in a day — an 08:00 commute and an 18:00 return carry
+  // different people at different times — so each pickup slot gets its own trip.
+  // Grouping by driver alone merged them, and a customer holding a morning and
+  // an evening subscription ended up on one manifest at the morning time.
+  const slotGroups = new Map();
   for (const sub of subscriptions) {
     const driverId = sub.assignedDriverId?._id?.toString();
     if (!driverId) continue;
-    if (!driverGroups.has(driverId)) {
-      driverGroups.set(driverId, { driver: sub.assignedDriverId, subscriptions: [] });
+    const pickupTime = normalizePickupTime(sub.pickupTime);
+    const slotKey = `${driverId}|${pickupTime}`;
+    if (!slotGroups.has(slotKey)) {
+      slotGroups.set(slotKey, { driver: sub.assignedDriverId, pickupTime, subscriptions: [] });
     }
-    driverGroups.get(driverId).subscriptions.push(sub);
+    slotGroups.get(slotKey).subscriptions.push(sub);
   }
 
   let createdTrips = 0;
   let totalPassengers = 0;
   let mergedPassengers = 0;
 
-  for (const [driverId, group] of driverGroups) {
-    const { driver, subscriptions: driverSubs } = group;
+  for (const group of slotGroups.values()) {
+    const { driver, pickupTime, subscriptions: driverSubs } = group;
+    const driverId = driver._id.toString();
+    // Capacity is per trip, so a 4-seater can serve four riders at 08:00 and
+    // four different riders at 18:00.
     const capacity = driver.vehicleCapacity || 4;
     const driverCoords = driver.currentLocation?.coordinates || [0, 0];
 
-    // Existing trip for this driver on this date (idempotency + merge target).
-    let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
+    // Existing trip for this driver, date AND pickup slot (idempotency + merge
+    // target).
+    let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized, pickupTime });
 
     if (!trip) {
       // No trip yet — create one with all assigned passengers (capacity-limited).
@@ -172,7 +206,7 @@ async function generateTripsForDate(serviceDate) {
           driverId: driver._id,
           areaId: driver.areaId,
           serviceDate: normalized,
-          pickupTime: driverSubs[0]?.pickupTime || '08:00',
+          pickupTime,
           status: 'SCHEDULED',
           assignmentStatus: 'PENDING',
           passengers: orderedPassengers,
@@ -183,6 +217,7 @@ async function generateTripsForDate(serviceDate) {
         logger.info('[DailyTripGenerator] Trip created', {
           tripId: trip._id,
           driverId: driver._id,
+          pickupTime,
           passengerCount: orderedPassengers.length,
           serviceDate: normalized,
         });
@@ -190,9 +225,9 @@ async function generateTripsForDate(serviceDate) {
       } catch (error) {
         if (error.code === 11000) {
           // Concurrent create — reload and fall through to the merge path.
-          trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
+          trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized, pickupTime });
         } else {
-          logger.error('[DailyTripGenerator] Failed to create trip', { driverId, error: error.message });
+          logger.error('[DailyTripGenerator] Failed to create trip', { driverId, pickupTime, error: error.message });
           continue;
         }
       }
@@ -215,6 +250,7 @@ async function generateTripsForDate(serviceDate) {
         logger.warn('[DailyTripGenerator] Driver at capacity; passenger not merged', {
           driverId: driver._id,
           serviceDate: normalized,
+          pickupTime,
           subscriptionId: sub._id,
         });
         break;
@@ -231,6 +267,7 @@ async function generateTripsForDate(serviceDate) {
       logger.info('[DailyTripGenerator] Merged passengers into existing trip', {
         tripId: trip._id,
         driverId: driver._id,
+        pickupTime,
         serviceDate: normalized,
       });
     }
@@ -241,7 +278,8 @@ async function generateTripsForDate(serviceDate) {
     createdTrips,
     totalPassengers,
     mergedPassengers,
-    driverGroups: driverGroups.size,
+    // Distinct (driver, pickup time) runs, not distinct drivers.
+    slotGroups: slotGroups.size,
   });
 
   return { serviceDate: normalized, createdTrips, passengers: totalPassengers, mergedPassengers };
@@ -252,15 +290,19 @@ async function generateTripsForDate(serviceDate) {
  * for one service date — creating the trip if absent, else atomically merging
  * (dedup by subscriptionId, capacity-guarded). Scoped to one subscription, so
  * it never scans the whole subscription collection.
+ *
+ * The trip is identified by driver + date + pickup time, so a customer's 08:00
+ * and 18:00 subscriptions land on two separate trips even with the same driver.
  */
 async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
   const normalized = new Date(serviceDate);
   normalized.setHours(0, 0, 0, 0);
+  const pickupTime = normalizePickupTime(subscription.pickupTime);
   const capacity = driver.vehicleCapacity || 4;
   const driverCoords = driver.currentLocation?.coordinates || [0, 0];
   const entry = buildPassengerEntry(subscription);
 
-  let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized });
+  let trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized, pickupTime });
 
   if (!trip) {
     const ordered = optimizePickupOrder(driverCoords, [entry]);
@@ -269,7 +311,7 @@ async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
         driverId: driver._id,
         areaId: driver.areaId,
         serviceDate: normalized,
-        pickupTime: subscription.pickupTime || '08:00',
+        pickupTime,
         status: 'SCHEDULED',
         assignmentStatus: 'PENDING',
         passengers: ordered,
@@ -278,7 +320,8 @@ async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
       return { created: 1, merged: 0 };
     } catch (error) {
       if (error.code !== 11000) throw error;
-      trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized }); // concurrent create
+      // Concurrent create of the same slot.
+      trip = await Trip.findOne({ driverId: driver._id, serviceDate: normalized, pickupTime });
     }
   }
 
@@ -287,6 +330,7 @@ async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
     logger.warn('[DailyTripGenerator] Driver at capacity; passenger not merged', {
       driverId: driver._id,
       serviceDate: normalized,
+      pickupTime,
       subscriptionId: subscription._id,
     });
     return { created: 0, merged: 0 };
@@ -368,4 +412,5 @@ module.exports = {
   optimizePickupOrder,
   buildNavigationUrl,
   isEligibleDay,
+  normalizePickupTime,
 };

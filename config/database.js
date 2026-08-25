@@ -4,10 +4,84 @@ const logger = require('../utils/logger');
 
 mongoose.set('strictQuery', true);
 
+/**
+ * Drop an index that the schema no longer declares.
+ *
+ * Mongoose's autoIndex only ever *creates* indexes. An index it used to declare
+ * stays in the database forever, still enforcing its old constraint, which
+ * makes retired invariants fail in a way that looks like an application bug.
+ * Matching on shape rather than name catches indexes created under either the
+ * default name or an explicit one.
+ */
+const dropRetiredIndex = async (Model, matches, label) => {
+  try {
+    const existing = await Model.collection.indexes();
+    for (const idx of existing) {
+      if (idx.name === '_id_' || !matches(idx)) continue;
+      await Model.collection.dropIndex(idx.name);
+      logger.warn(`[Migration] Dropped retired index ${Model.modelName}.${idx.name}${label ? ` (${label})` : ''}`);
+    }
+  } catch (err) {
+    // NamespaceNotFound (26) just means the collection doesn't exist yet.
+    if (err.code !== 26) {
+      logger.error(`[Migration] Could not inspect ${Model.modelName} indexes: ${err.message}`);
+    }
+  }
+};
+
+/**
+ * Schema migrations that must run in EVERY environment, production included —
+ * unlike seedDatabase, which is development-only.
+ */
+const runMigrations = async () => {
+  const Subscription = require('../models/Subscription');
+
+  // `isCurrent` mirrors status and is the partial-index predicate. Multiple
+  // current subscriptions per customer are supported now, so every live
+  // subscription carries the flag — not just one per customer, as before.
+  await Subscription.updateMany(
+    { status: { $in: ['ACTIVE', 'PAUSED', 'PENDING_PAYMENT'] }, isDeleted: false, isCurrent: { $ne: true } },
+    { $set: { isCurrent: true } }
+  );
+  await Subscription.updateMany(
+    { $or: [{ status: { $in: ['CANCELLED', 'COMPLETED', 'EXPIRED'] } }, { isDeleted: true }], isCurrent: true },
+    { $set: { isCurrent: false } }
+  );
+
+  // Retire the single-subscription index. Databases created before multiple
+  // subscriptions were supported carry a unique index on { customerId } alone,
+  // which would keep rejecting the second subscription with E11000 regardless
+  // of what the application code allows. Replaced by
+  // customer_schedule_slot_unique in models/Subscription.js.
+  await dropRetiredIndex(
+    Subscription,
+    (idx) => idx.unique
+      && Object.keys(idx.key || {}).length === 1
+      && idx.key.customerId === 1,
+    'single-subscription-per-customer',
+  );
+
+  // Retire the one-trip-per-driver-per-day index, replaced by
+  // driver_service_slot_unique ({ driverId, serviceDate, pickupTime }) in
+  // models/Trip.js. While it survives, a driver's second run of the day fails
+  // with E11000 and the generator's duplicate-key path merges those passengers
+  // into the first run instead — the exact bug the new key fixes.
+  const Trip = require('../models/Trip');
+  await dropRetiredIndex(
+    Trip,
+    (idx) => idx.unique
+      && Object.keys(idx.key || {}).length === 2
+      && idx.key.driverId === 1
+      && idx.key.serviceDate === 1,
+    'one-trip-per-driver-per-day',
+  );
+};
+
 const connectDB = async () => {
   logger.info(`Initializing connection to MongoDB... env: ${process.env.NODE_ENV || 'development'}`);
   try {
     await mongoose.connect(config.mongoose.url, config.mongoose.options);
+    await runMigrations();
     const nodeEnv = process.env.NODE_ENV || 'development';
     if (nodeEnv !== 'production' && nodeEnv !== 'prod') {
       await seedDatabase(nodeEnv);
@@ -241,32 +315,8 @@ const seedDatabase = async (env) => {
       logger.info(`Seeded plan: ${planData.name}`);
     }
 
-    // --- Backfill invariants for pre-existing development data ---
-    // Ensure at most one "current" subscription per customer carries isCurrent
-    // (the partial unique index depends on it), keeping the most recent.
-    const currentSubs = await Subscription.find({
-      status: { $in: ['ACTIVE', 'PAUSED', 'PENDING_PAYMENT'] },
-      isDeleted: false,
-    }).sort({ createdAt: -1 }).select('_id customerId').lean();
-    const seenCustomers = new Set();
-    let releasedDuplicates = 0;
-    for (const sub of currentSubs) {
-      const key = sub.customerId.toString();
-      if (seenCustomers.has(key)) {
-        await Subscription.updateOne({ _id: sub._id }, { $set: { isCurrent: false } });
-        releasedDuplicates += 1;
-      } else {
-        seenCustomers.add(key);
-        await Subscription.updateOne({ _id: sub._id }, { $set: { isCurrent: true } });
-      }
-    }
-    await Subscription.updateMany(
-      { status: { $in: ['CANCELLED', 'COMPLETED', 'EXPIRED'] }, isCurrent: true },
-      { $set: { isCurrent: false } }
-    );
-    if (releasedDuplicates > 0) {
-      logger.warn(`[Seed] Released ${releasedDuplicates} pre-existing duplicate current subscriptions`);
-    }
+    // Note: the isCurrent backfill and retired-index drop live in
+    // runMigrations(), which runs in production too.
 
     // Recompute each driver's activeSubscriptionCount from live ACTIVE assignments.
     const driverCounts = await Subscription.aggregate([

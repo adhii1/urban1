@@ -85,13 +85,20 @@ const getTripById = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Trip retrieved successfully.', toTripView(trip, { customerId: customer._id })));
 });
 
+/**
+ * GET /api/v1/customer/subscription
+ * The customer's primary subscription. Customers can hold several at once —
+ * this reports the one Customer.subscriptionId points at (falling back to the
+ * newest live one) and carries the rest in `otherSubscriptions` so callers can
+ * tell there are more. GET /customer/subscriptions returns the full list.
+ */
 const getSubscription = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
   if (!customer) {
     throw new NotFoundError('Customer not found.');
   }
 
-  const subscription = await Subscription.findOne({
+  const subscriptions = await Subscription.find({
     customerId: customer._id,
     status: { $in: ['ACTIVE', 'PAUSED', 'PENDING_PAYMENT'] },
     isDeleted: false,
@@ -100,23 +107,64 @@ const getSubscription = asyncWrapper(async (req, res) => {
     .populate('planId')
     .populate('routeId', 'name startLocation endLocation stops');
 
-  return res.status(200).json(formatResponse('Subscription retrieved successfully.', subscription));
+  if (subscriptions.length === 0) {
+    return res.status(200).json(formatResponse('Subscription retrieved successfully.', null));
+  }
+
+  const pointed = customer.subscriptionId
+    ? subscriptions.find((s) => s._id.equals(customer.subscriptionId))
+    : null;
+  const primary = pointed || subscriptions[0];
+
+  return res.status(200).json(formatResponse('Subscription retrieved successfully.', {
+    ...primary.toObject(),
+    subscriptionCount: subscriptions.length,
+    otherSubscriptions: subscriptions.filter((s) => !s._id.equals(primary._id)),
+  }));
 });
 
+/**
+ * POST /api/v1/customer/pause-request
+ * Body: { date, subscriptionId } — `subscriptionId` is required once more than
+ * one subscription is live, since a pause applies to one commute only.
+ */
 const requestPause = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
   if (!customer) {
     throw new NotFoundError('Customer not found.');
   }
 
-  const subscription = await Subscription.findOne({
+  const pausable = await Subscription.find({
     customerId: customer._id,
     status: { $in: ['ACTIVE', 'PAUSED'] },
     isDeleted: false,
-  }).populate('planId');
+  })
+    .sort({ pickupTime: 1, createdAt: 1 })
+    .populate('planId');
 
-  if (!subscription) {
+  if (pausable.length === 0) {
     throw new NotFoundError('No active subscription found.');
+  }
+
+  let subscription;
+  if (req.body.subscriptionId) {
+    subscription = pausable.find((s) => s._id.equals(req.body.subscriptionId));
+    if (!subscription) throw new NotFoundError('No active subscription found.');
+  } else if (pausable.length > 1) {
+    throw new ValidationError(
+      `You have ${pausable.length} active subscriptions. Say which one to pause.`,
+      {
+        code: 'SUBSCRIPTION_ID_REQUIRED',
+        subscriptions: pausable.map((s) => ({
+          _id: s._id,
+          subscriptionType: s.subscriptionType,
+          pickupTime: s.pickupTime,
+          scheduleDays: s.scheduleDays,
+        })),
+      }
+    );
+  } else {
+    [subscription] = pausable;
   }
 
   if (!subscription.planId || subscription.planId.pauseDaysAllowed <= 0) {

@@ -73,6 +73,20 @@ export interface SubscriptionData {
   startDate?: string;
   endDate?: string;
   remainingPauseDays?: number;
+  subscriptionType?: string;
+  pickupTime?: string;
+  scheduleDays?: number[];
+  /** How many live subscriptions this customer holds, this one included. */
+  subscriptionCount?: number;
+  /** The customer's other live subscriptions, if any. */
+  otherSubscriptions?: SubscriptionData[];
+}
+
+export interface SubscriptionListData {
+  subscriptions: SubscriptionData[];
+  count: number;
+  /** The one Customer.subscriptionId points at — a display hint, not a limit. */
+  primarySubscriptionId: string | null;
 }
 
 export interface PaginatedResponse<T> {
@@ -125,11 +139,31 @@ export function useCustomerTrip(id: string) {
 
 // --- Subscription ---
 
+/** The primary subscription only. Use useCustomerSubscriptions() for all of them. */
 export function useCustomerSubscription() {
   const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
   return useQuery({
     queryKey: queryKeys.customer.subscription(),
     queryFn: () => api.get<SubscriptionData>('/customer/subscription'),
+    enabled: isLoggedIn,
+    staleTime: 2 * 60 * 1000,
+    select: (d) => d.data,
+  });
+}
+
+/**
+ * Every subscription the customer holds. A customer can run several at once —
+ * a weekday commute at 08:00, an evening return at 18:00, a Saturday shuttle —
+ * so this, not useCustomerSubscription, is the authoritative view.
+ */
+export function useCustomerSubscriptions(includeInactive = false) {
+  const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
+  return useQuery({
+    queryKey: queryKeys.customer.subscriptions(includeInactive),
+    queryFn: () =>
+      api.get<SubscriptionListData>(
+        `/customer/subscriptions${includeInactive ? '?includeInactive=true' : ''}`
+      ),
     enabled: isLoggedIn,
     staleTime: 2 * 60 * 1000,
     select: (d) => d.data,
@@ -184,10 +218,13 @@ export function usePauseSubscription() {
   const { showToast } = useToast();
 
   return useMutation({
-    mutationFn: (date: string) =>
-      api.post('/customer/pause-request', { date }),
+    // subscriptionId is required once more than one subscription is live —
+    // the API replies 400 with the candidate list if it's omitted.
+    mutationFn: ({ date, subscriptionId }: { date: string; subscriptionId?: string }) =>
+      api.post('/customer/pause-request', subscriptionId ? { date, subscriptionId } : { date }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customer.subscription() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.customer.all, 'subscriptions'] });
       showToast('Pause request submitted successfully', 'success');
     },
     onError: (err: Error) => {
@@ -333,9 +370,14 @@ export function useCancelSubscription() {
   const { showToast } = useToast();
 
   return useMutation({
-    mutationFn: () => api.post('/customer/subscriptions/cancel', {}),
+    // Pass the subscriptionId to say which commute to cancel. It's required
+    // once the customer holds more than one; the API replies 400 with the
+    // candidate list if it's omitted.
+    mutationFn: (subscriptionId?: string) =>
+      api.post('/customer/subscriptions/cancel', subscriptionId ? { subscriptionId } : {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.customer.subscription() });
+      queryClient.invalidateQueries({ queryKey: [...queryKeys.customer.all, 'subscriptions'] });
       queryClient.invalidateQueries({ queryKey: queryKeys.customer.profile() });
       showToast('Subscription cancelled', 'success');
     },

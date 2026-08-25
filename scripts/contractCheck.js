@@ -41,6 +41,7 @@ const clientCalls = [
   ['POST', '/api/v1/wallet/add'],
   ['GET', '/api/v1/customer/plans'],
   ['GET', '/api/v1/customer/subscription'],
+  ['GET', '/api/v1/customer/subscriptions'],
   ['POST', '/api/v1/customer/subscriptions/purchase'],
   ['POST', '/api/v1/customer/subscriptions/verify-payment'],
   ['POST', '/api/v1/customer/subscriptions/cancel'],

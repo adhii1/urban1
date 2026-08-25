@@ -110,56 +110,112 @@ const createBooking = asyncWrapper(async (req, res) => {
 });
 
 /**
+ * Pick the subscription that best represents "the" booking for legacy callers.
+ *
+ * Preference order: the customer's primary pointer, then any ACTIVE one, then
+ * whatever came first. Used only to keep single-subscription clients working —
+ * anything that needs the full picture should read the `subscriptions` array.
+ */
+function pickPrimary(subscriptions, primaryId) {
+  if (primaryId) {
+    const pointed = subscriptions.find((s) => s._id.equals(primaryId));
+    if (pointed) return pointed;
+  }
+  return subscriptions.find((s) => s.status === 'ACTIVE') || subscriptions[0];
+}
+
+/**
  * GET /api/v1/booking
- * The customer's current subscription (+ assigned driver info).
+ * The customer's current subscriptions (+ assigned driver info).
+ *
+ * A customer can hold several at once, so `data.subscriptions` is the full list.
+ * The top-level fields are the primary subscription, kept flat so clients
+ * written against the old single-subscription response keep working.
  */
 const getMyBooking = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
   if (!customer) throw new NotFoundError('Customer');
 
-  const subscription = await Subscription.findOne({
+  const subscriptions = await Subscription.find({
     customerId: customer._id,
     status: { $in: subscriptionService.CURRENT_STATUSES },
     isDeleted: false,
   })
     .populate('planId', 'name tier serviceType price durationDays features')
     .populate('assignedDriverId', 'name vehicleNumber vehicleModel vehicleCapacity')
-    .populate('assignedAreaId', 'name');
+    .populate('assignedAreaId', 'name')
+    .sort({ pickupTime: 1, createdAt: 1 });
 
-  if (!subscription) {
+  if (subscriptions.length === 0) {
     return res.json(formatResponse('No active subscription.', null));
   }
-  return res.json(formatResponse('Subscription retrieved.', subscription));
+
+  const primary = pickPrimary(subscriptions, customer.subscriptionId);
+  return res.json(formatResponse('Subscription retrieved.', {
+    ...primary.toObject(),
+    subscriptions,
+    subscriptionCount: subscriptions.length,
+  }));
 });
 
 /**
  * POST /api/v1/booking/cancel
- * Cancel the current subscription and reconcile future trips.
+ * Cancel one subscription and reconcile its future trips.
+ * Body: { subscriptionId } — required once the customer holds more than one.
  */
 const cancelBooking = asyncWrapper(async (req, res) => {
-  const { subscription, affectedTrips } = await subscriptionService.cancelSubscription({ userId: req.user.id });
+  const { subscription, affectedTrips, remainingPrimary } = await subscriptionService.cancelSubscription({
+    userId: req.user.id,
+    subscriptionId: req.body?.subscriptionId,
+  });
   return res.json(formatResponse('Subscription cancelled successfully.', {
     subscriptionId: subscription._id,
     affectedTrips,
+    remainingPrimary,
   }));
 });
 
 /**
  * PUT /api/v1/booking/location
  * Change pickup/drop; backend re-evaluates driver assignment (PDF section 19).
+ * Body: { pickupLocation, dropLocation, subscriptionId } — `subscriptionId` is
+ * required once the customer holds more than one active subscription, since
+ * each has its own pickup point.
  */
 const updateLocation = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
   if (!customer) throw new NotFoundError('Customer');
 
-  const { pickupLocation, dropLocation } = req.body;
+  const { pickupLocation, dropLocation, subscriptionId } = req.body;
 
-  const subscription = await Subscription.findOne({
+  const active = await Subscription.find({
     customerId: customer._id,
     status: 'ACTIVE',
     isDeleted: false,
-  });
-  if (!subscription) throw new NotFoundError('Active subscription');
+  }).sort({ pickupTime: 1, createdAt: 1 });
+
+  if (active.length === 0) throw new NotFoundError('Active subscription');
+
+  let subscription;
+  if (subscriptionId) {
+    subscription = active.find((s) => s._id.equals(subscriptionId));
+    if (!subscription) throw new NotFoundError('Active subscription');
+  } else if (active.length > 1) {
+    throw new ValidationError(
+      `You have ${active.length} active subscriptions. Say which one to move.`,
+      {
+        code: 'SUBSCRIPTION_ID_REQUIRED',
+        subscriptions: active.map((s) => ({
+          _id: s._id,
+          subscriptionType: s.subscriptionType,
+          pickupTime: s.pickupTime,
+          scheduleDays: s.scheduleDays,
+        })),
+      }
+    );
+  } else {
+    [subscription] = active;
+  }
 
   if (pickupLocation?.coordinates) {
     subscription.pickupLocation = {

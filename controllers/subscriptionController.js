@@ -99,78 +99,90 @@ const verifySubscriptionPayment = asyncWrapper(async (req, res) => {
 });
 
 /**
- * POST /api/v1/customer/subscriptions/cancel
- * Cancel the current subscription (delegates to the shared service).
+ * GET /api/v1/customer/subscriptions
+ * Every subscription the customer holds. `?includeInactive=true` adds
+ * cancelled/expired ones for history.
  */
-const cancelSubscription = asyncWrapper(async (req, res) => {
-  const { subscription, affectedTrips } = await subscriptionService.cancelSubscription({ userId: req.user.id });
-  return res.status(200).json(formatResponse('Subscription cancelled.', {
-    subscriptionId: subscription._id,
-    status: subscription.status,
-    affectedTrips,
+const listSubscriptions = asyncWrapper(async (req, res) => {
+  const includeInactive = req.query.includeInactive === 'true';
+  const { customer, subscriptions } = await subscriptionService.listSubscriptions({
+    userId: req.user.id,
+    includeInactive,
+  });
+
+  return res.status(200).json(formatResponse('Subscriptions retrieved.', {
+    subscriptions,
+    count: subscriptions.length,
+    primarySubscriptionId: customer.subscriptionId || null,
   }));
 });
 
 /**
- * GET /api/v1/customer/subscriptions/booking-eligibility
- * Whether the customer's subscription is scheduled to run today.
+ * POST /api/v1/customer/subscriptions/cancel
+ * Cancel one subscription. Body: { subscriptionId } — required when the
+ * customer holds more than one, since there's no single "current" one to mean.
  */
-const checkBookingEligibility = asyncWrapper(async (req, res) => {
-  const customer = await Customer.findOne({ userId: req.user.id });
-  if (!customer) throw new NotFoundError('Customer');
+const cancelSubscription = asyncWrapper(async (req, res) => {
+  const { subscription, affectedTrips, remainingPrimary } = await subscriptionService.cancelSubscription({
+    userId: req.user.id,
+    subscriptionId: req.body?.subscriptionId,
+  });
+  return res.status(200).json(formatResponse('Subscription cancelled.', {
+    subscriptionId: subscription._id,
+    status: subscription.status,
+    affectedTrips,
+    remainingPrimary,
+  }));
+});
 
-  const subscription = await Subscription.findOne({
-    customerId: customer._id,
-    status: 'ACTIVE',
-    isDeleted: false,
-  }).populate('planId');
-
-  if (!subscription) {
-    return res.status(200).json(formatResponse('No active subscription.', { eligible: false, reason: 'No active subscription' }));
-  }
+/**
+ * Is this subscription usable today? Pure function over one subscription.
+ * Returns the per-subscription eligibility record used below.
+ */
+function evaluateEligibility(subscription, today) {
+  const base = {
+    subscriptionId: subscription._id,
+    subscriptionType: subscription.subscriptionType,
+    pickupTime: subscription.pickupTime,
+    scheduleDays: subscription.scheduleDays || [],
+  };
 
   const plan = subscription.planId;
-  if (!plan) {
-    return res.status(200).json(formatResponse('Plan configuration missing.', { eligible: false, reason: 'Plan configuration missing' }));
-  }
+  if (!plan) return { ...base, eligible: false, reason: 'Plan configuration missing' };
 
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
   const start = new Date(subscription.startDate); start.setHours(0, 0, 0, 0);
   const end = new Date(subscription.endDate); end.setHours(0, 0, 0, 0);
-  const scheduleDays = subscription.scheduleDays || [];
 
-  if (now < start || now > end) {
-    return res.status(200).json(formatResponse('Outside subscription service dates.', {
-      eligible: false,
-      reason: 'Today is outside your subscription service window.',
-    }));
+  if (today < start || today > end) {
+    return { ...base, eligible: false, reason: 'Today is outside your subscription service window.' };
   }
 
-  if (!scheduleDays.includes(now.getDay())) {
-    return res.status(200).json(formatResponse('Not scheduled today.', {
+  if (!base.scheduleDays.includes(today.getDay())) {
+    return {
+      ...base,
       eligible: false,
       reason: plan.tier === 'Weekday'
         ? 'Weekday plan: rides run Monday–Friday only.'
         : 'This subscription is not scheduled for today.',
-      scheduleDays,
-    }));
+    };
   }
 
-  // Hybrid weekly cap.
   if (plan.tier === 'Hybrid') {
     const maxPerWeek = plan.bookingRules?.allowedDaysPerWeek || 3;
-    if ((subscription.bookingsThisWeek || 0) >= maxPerWeek) {
-      return res.status(200).json(formatResponse('Weekly limit reached.', {
+    const used = subscription.bookingsThisWeek || 0;
+    if (used >= maxPerWeek) {
+      return {
+        ...base,
         eligible: false,
         reason: `You have used all ${maxPerWeek} bookings this week.`,
-        bookingsThisWeek: subscription.bookingsThisWeek || 0,
+        bookingsThisWeek: used,
         maxPerWeek,
-      }));
+      };
     }
   }
 
-  return res.status(200).json(formatResponse('Eligible to book.', {
+  return {
+    ...base,
     eligible: true,
     plan: {
       name: plan.name,
@@ -178,18 +190,70 @@ const checkBookingEligibility = asyncWrapper(async (req, res) => {
       isSharedRide: plan.bookingRules?.isSharedRide,
       maxPassengersPerBooking: plan.bookingRules?.maxPassengersPerBooking || 1,
     },
-    subscription: {
-      scheduleDays,
-      pickupTime: subscription.pickupTime,
-      bookingsThisWeek: subscription.bookingsThisWeek || 0,
-    },
-  }));
+    bookingsThisWeek: subscription.bookingsThisWeek || 0,
+  };
+}
+
+/**
+ * GET /api/v1/customer/subscriptions/booking-eligibility
+ * Which of the customer's subscriptions can be used today.
+ *
+ * A customer can hold several, so this evaluates all of them and returns a
+ * `subscriptions` array. The top-level `eligible` / `plan` / `subscription`
+ * fields describe the best candidate (earliest eligible pickup, else the first
+ * subscription) and are kept for clients written against the single-subscription
+ * response.
+ */
+const checkBookingEligibility = asyncWrapper(async (req, res) => {
+  const customer = await Customer.findOne({ userId: req.user.id });
+  if (!customer) throw new NotFoundError('Customer');
+
+  const subscriptions = await Subscription.find({
+    customerId: customer._id,
+    status: 'ACTIVE',
+    isDeleted: false,
+  })
+    .populate('planId')
+    .sort({ pickupTime: 1 });
+
+  if (subscriptions.length === 0) {
+    return res.status(200).json(formatResponse('No active subscription.', {
+      eligible: false,
+      reason: 'No active subscription',
+      subscriptions: [],
+    }));
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const evaluated = subscriptions.map((sub) => evaluateEligibility(sub, today));
+
+  const best = evaluated.find((e) => e.eligible) || evaluated[0];
+  const anyEligible = Boolean(evaluated.some((e) => e.eligible));
+
+  return res.status(200).json(formatResponse(
+    anyEligible ? 'Eligible to book.' : best.reason,
+    {
+      eligible: anyEligible,
+      reason: anyEligible ? null : best.reason,
+      plan: best.plan || null,
+      subscription: {
+        subscriptionId: best.subscriptionId,
+        scheduleDays: best.scheduleDays,
+        pickupTime: best.pickupTime,
+        bookingsThisWeek: best.bookingsThisWeek || 0,
+      },
+      scheduleDays: best.scheduleDays,
+      subscriptions: evaluated,
+    }
+  ));
 });
 
 module.exports = {
   browsePlans,
   initiatePurchase,
   verifySubscriptionPayment,
+  listSubscriptions,
   cancelSubscription,
   checkBookingEligibility,
 };

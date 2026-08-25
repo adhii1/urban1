@@ -6,6 +6,9 @@ export const queryKeys = {
       [...queryKeys.customer.all, 'trips', params ?? {}] as const,
     trip: (id: string) => [...queryKeys.customer.all, 'trips', id] as const,
     subscription: () => [...queryKeys.customer.all, 'subscription'] as const,
+    // The full list — customers can hold several subscriptions at once.
+    subscriptions: (includeInactive?: boolean) =>
+      [...queryKeys.customer.all, 'subscriptions', { includeInactive: includeInactive ?? false }] as const,
   },
   ride: {
     my: (params?: any) => ['rides', 'my', params] as const,

@@ -24,9 +24,27 @@ async function releaseDriverCapacity(subscriptions) {
 }
 
 /**
+ * Move Customer.subscriptionId off subscriptions that just went terminal.
+ *
+ * Only customers actually pointing at one of them are touched, and each is
+ * repointed at a surviving live subscription where one exists. Lazy require
+ * keeps the load order between the two subscription services independent.
+ */
+async function repointExpiredCustomers(terminated) {
+  const { repointPrimarySubscription } = require('./subscriptionService');
+  for (const sub of terminated) {
+    if (!sub.customerId) continue;
+    const stillPointing = await Customer.exists({ _id: sub.customerId, subscriptionId: sub._id });
+    if (!stillPointing) continue;
+    await repointPrimarySubscription(sub.customerId, sub._id);
+  }
+}
+
+/**
  * Expire subscriptions whose endDate has passed, cancel abandoned payment
  * orders, and reset weekly booking counters. Terminal transitions ALWAYS clear
- * `isCurrent` (releasing the single-active slot) and free driver capacity.
+ * `isCurrent` (freeing that pickup slot for a new subscription) and release
+ * driver capacity.
  */
 async function expireSubscriptions() {
   const now = new Date();
@@ -45,26 +63,29 @@ async function expireSubscriptions() {
         { _id: { $in: ids } },
         { $set: { status: 'EXPIRED', isCurrent: false } }
       );
-      await Customer.updateMany(
-        { _id: { $in: toExpire.map((s) => s.customerId) }, isDeleted: false },
-        { $unset: { subscriptionId: 1 } }
-      );
+      // Customers can hold several subscriptions, so the primary pointer is
+      // moved to a surviving one rather than blanket-unset — unsetting it for
+      // everyone would make customers whose *other* subscriptions are still
+      // running look unsubscribed.
+      await repointExpiredCustomers(toExpire);
       await releaseDriverCapacity(toExpire);
       logger.info(`[SubscriptionExpiry] Expired ${toExpire.length} subscriptions`);
     }
 
-    // 2. Cancel abandoned PENDING_PAYMENT orders (releases the customer's slot).
+    // 2. Cancel abandoned PENDING_PAYMENT orders (frees their pickup slot).
     const staleDate = new Date(now.getTime() - STALE_ORDER_MS);
-    const staleCancelled = await Subscription.updateMany(
-      {
-        status: 'PENDING_PAYMENT',
-        createdAt: { $lte: staleDate },
-        isDeleted: false,
-      },
-      { $set: { status: 'CANCELLED', isCurrent: false } }
-    );
-    if (staleCancelled.modifiedCount > 0) {
-      logger.info(`[SubscriptionExpiry] Cancelled ${staleCancelled.modifiedCount} stale payment orders`);
+    const stale = await Subscription.find({
+      status: 'PENDING_PAYMENT',
+      createdAt: { $lte: staleDate },
+      isDeleted: false,
+    }).select('_id customerId').lean();
+    if (stale.length > 0) {
+      await Subscription.updateMany(
+        { _id: { $in: stale.map((s) => s._id) } },
+        { $set: { status: 'CANCELLED', isCurrent: false } }
+      );
+      await repointExpiredCustomers(stale);
+      logger.info(`[SubscriptionExpiry] Cancelled ${stale.length} stale payment orders`);
     }
 
     // 3. Reset weekly booking counters every Monday.

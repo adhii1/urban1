@@ -16,6 +16,7 @@ const {
   resolveManifestConflict,
 } = require('../services/routeReconciliationService');
 const { hashPassword } = require('../utils/passwordHelper');
+const { CURRENT_STATUSES, repointPrimarySubscription } = require('../services/subscriptionService');
 const { buildTripManifest } = require('../utils/geoHelper');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
@@ -486,6 +487,10 @@ const createSubscription = asyncWrapper(async (req, res) => {
     endDate,
     remainingPauseDays: plan.pauseDaysAllowed,
     status: 'ACTIVE',
+    // `isCurrent` is the predicate for customer_schedule_slot_unique. Without
+    // it, an admin-created subscription is invisible to the customer-side
+    // conflict check and could be double-booked against.
+    isCurrent: true,
   });
 
   await Customer.findByIdAndUpdate(customerId, { subscriptionId: subscription._id });
@@ -500,10 +505,20 @@ const updateSubscription = asyncWrapper(async (req, res) => {
   if (routeId) update.routeId = routeId;
   if (startDate) update.startDate = startDate;
   if (endDate) update.endDate = endDate;
-  if (status) update.status = status;
+  if (status) {
+    update.status = status;
+    // Keep isCurrent in step with status, or a terminal subscription would hold
+    // its pickup slot forever and block the customer from re-booking that time.
+    update.isCurrent = CURRENT_STATUSES.includes(status);
+  }
 
   const subscription = await Subscription.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true });
   if (!subscription) throw new NotFoundError('Subscription');
+
+  if (status && !CURRENT_STATUSES.includes(status) && subscription.customerId) {
+    await repointPrimarySubscription(subscription.customerId, subscription._id);
+  }
+
   return res.status(200).json(formatResponse('Subscription updated successfully.', subscription));
 });
 
@@ -538,12 +553,14 @@ const cancelSubscription = asyncWrapper(async (req, res) => {
   if (subscription.status === 'CANCELLED') throw new ValidationError('Subscription is already cancelled');
 
   subscription.status = 'CANCELLED';
+  subscription.isCurrent = false; // frees the pickup slot
   await subscription.save();
 
-  // Unlink from customer
+  // Move the customer's primary pointer to a surviving subscription rather than
+  // clearing it — customers can hold several, and blanking the pointer would
+  // make one whose other subscriptions are still running look unsubscribed.
   if (subscription.customerId) {
-    const Customer = require('../models/Customer');
-    await Customer.findByIdAndUpdate(subscription.customerId, { $unset: { subscriptionId: 1 } });
+    await repointPrimarySubscription(subscription.customerId, subscription._id);
   }
 
   return res.status(200).json(formatResponse('Subscription cancelled successfully.', subscription));

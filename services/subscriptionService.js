@@ -34,7 +34,9 @@ const TYPE_TO_TIER = Object.freeze({
   SHUTTLE: 'Standard',
 });
 
-// Statuses that occupy a customer's single "current subscription" slot.
+// Statuses that make a subscription "current" — live enough to occupy its
+// pickup slot. A customer may hold any number of these at once, as long as no
+// two want the same pickupTime on a shared day.
 const CURRENT_STATUSES = Object.freeze(['ACTIVE', 'PAUSED', 'PENDING_PAYMENT']);
 const PAYMENT_METHODS = Object.freeze(['wallet', 'razorpay', 'instant']);
 const DEFAULT_DURATION_DAYS = 30;
@@ -132,14 +134,53 @@ async function resolvePlanForType(subscriptionType) {
   return plan;
 }
 
-/** Friendly pre-check; the partial unique index is the real atomic guard. */
-async function assertNoCurrentSubscription(customerId) {
-  const existing = await Subscription.findOne({ customerId, isCurrent: true, isDeleted: false })
-    .select('_id subscriptionType status')
+/**
+ * Find a live subscription that would clash with a new one.
+ *
+ * A customer can hold as many subscriptions as they want — a weekday commute at
+ * 08:00, an evening return at 18:00, a Saturday shuttle. What they can't hold is
+ * two that want the same pickupTime on a shared day, since they can only be
+ * picked up once. Days are compared by intersection: [1,2,3,4,5] and [3,4,5]
+ * clash on Wednesday, whereas [1,2,3] and [4,5] don't overlap at all.
+ *
+ * This produces the friendly error; the customer_schedule_slot_unique index in
+ * models/Subscription.js is what actually enforces it under concurrency.
+ */
+async function findConflictingSubscription(customerId, pickupTime, scheduleDays) {
+  return Subscription.findOne({
+    customerId,
+    isCurrent: true,
+    isDeleted: false,
+    pickupTime,
+    scheduleDays: { $in: scheduleDays },
+  })
+    .select('_id subscriptionType status pickupTime scheduleDays')
     .lean();
-  if (existing) {
-    throw new ConflictError('You already have an active subscription. Cancel it before creating a new one.');
-  }
+}
+
+const DAY_NAMES = Object.freeze(['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+
+/** "Monday and Wednesday" / "Monday, Wednesday and Friday" */
+function formatDays(days) {
+  const names = [...days].sort((a, b) => a - b).map((d) => DAY_NAMES[d]).filter(Boolean);
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+/**
+ * Reject a new subscription that collides with an existing one, naming the
+ * overlapping days so the customer knows what to change.
+ */
+async function assertNoScheduleConflict(customerId, pickupTime, scheduleDays) {
+  const clash = await findConflictingSubscription(customerId, pickupTime, scheduleDays);
+  if (!clash) return;
+
+  const overlap = (clash.scheduleDays || []).filter((d) => scheduleDays.includes(d));
+  throw new ConflictError(
+    `You already have a ${clash.subscriptionType} subscription picking you up at ${pickupTime} on ${formatDays(overlap)}. ` +
+    'Choose a different time or different days, or cancel that subscription first.',
+    { code: 'SUBSCRIPTION_SCHEDULE_CONFLICT', conflictingSubscriptionId: clash._id, conflictingDays: overlap }
+  );
 }
 
 /** Release a subscription's "current" slot and mark a terminal/failed status. */
@@ -151,8 +192,11 @@ async function releaseSubscription(subscription, status) {
 }
 
 /**
- * Create a subscription. Reserves the single-active slot atomically (as
+ * Create a subscription. Reserves its pickup slot atomically (as
  * PENDING_PAYMENT, or ACTIVE for instant), then runs the payment state machine.
+ *
+ * A customer may already hold other subscriptions; only one wanting the same
+ * pickupTime on a shared day is refused.
  *
  * Returns { subscription, plan, requiresPayment, order?, match?, scheduledDates }.
  */
@@ -177,14 +221,15 @@ async function createSubscription({
   const plan = await resolvePlanForType(subscriptionType);
   const method = PAYMENT_METHODS.includes(paymentMethod) ? paymentMethod : 'wallet';
 
-  await assertNoCurrentSubscription(customer._id);
+  await assertNoScheduleConflict(customer._id, pickupTime, normalizedDays);
 
   const start = normalizeStartDate(startDate);
   const endDate = new Date(start);
   endDate.setDate(endDate.getDate() + (plan.durationDays || DEFAULT_DURATION_DAYS));
 
-  // Reserve the slot. The partial unique index on { customerId, isCurrent:true }
-  // makes this the authoritative concurrency guard against double-booking.
+  // Reserve the slot. customer_schedule_slot_unique is the authoritative guard:
+  // two racing requests for the same time+day can't both land, even though the
+  // check above passed for both.
   let subscription;
   try {
     subscription = await Subscription.create({
@@ -209,8 +254,15 @@ async function createSubscription({
       },
     });
   } catch (err) {
+    // Lost a race against a concurrent request for the same time+day slot.
     if (err && err.code === 11000) {
-      throw new ConflictError('You already have an active subscription. Cancel it before creating a new one.');
+      await assertNoScheduleConflict(customer._id, pickupTime, normalizedDays);
+      // The conflicting row is already gone (cancelled between the write and
+      // this read), so there's nothing useful to name.
+      throw new ConflictError(
+        'That pickup slot was just taken by another request. Please try again.',
+        { code: 'SUBSCRIPTION_SLOT_RACE' }
+      );
     }
     throw err;
   }
@@ -257,7 +309,6 @@ async function createSubscription({
   // ACTIVE (wallet or instant): link, match, and schedule trips out of band.
   await Customer.findByIdAndUpdate(customer._id, { subscriptionId: subscription._id });
   const match = await runMatchingAndSchedule(subscription);
-
   return {
     subscription,
     plan,
@@ -414,17 +465,98 @@ async function removeSubscriptionFromFutureTrips(subscriptionId) {
   return trips.length;
 }
 
-/** Cancel the customer's current subscription and reconcile future trips. */
-async function cancelSubscription({ userId }) {
+/**
+ * Point Customer.subscriptionId at a remaining live subscription, or clear it.
+ *
+ * The field predates multiple subscriptions and is a single ref, so it can only
+ * ever name one. It's kept as a "primary" pointer for the legacy readers that
+ * populate it (customerController.getProfile, adminController listings); the
+ * authoritative list is always a Subscription query. Without this, cancelling
+ * any one subscription would blank the pointer and make the customer look
+ * unsubscribed while other subscriptions were still running.
+ */
+async function repointPrimarySubscription(customerId, excludeSubscriptionId) {
+  const replacement = await Subscription.findOne({
+    customerId,
+    _id: { $ne: excludeSubscriptionId },
+    status: { $in: CURRENT_STATUSES },
+    isDeleted: false,
+  })
+    .sort({ status: 1, createdAt: -1 }) // ACTIVE sorts before PAUSED/PENDING_PAYMENT
+    .select('_id')
+    .lean();
+
+  if (replacement) {
+    await Customer.findByIdAndUpdate(customerId, { subscriptionId: replacement._id });
+  } else {
+    await Customer.findByIdAndUpdate(customerId, { $unset: { subscriptionId: 1 } });
+  }
+  return replacement ? replacement._id : null;
+}
+
+/** Every subscription a customer holds, newest first. */
+async function listSubscriptions({ userId, includeInactive = false }) {
   const customer = await Customer.findOne({ userId });
   if (!customer) throw new NotFoundError('Customer');
 
-  const subscription = await Subscription.findOne({
-    customerId: customer._id,
-    status: { $in: CURRENT_STATUSES },
-    isDeleted: false,
-  });
-  if (!subscription) throw new NotFoundError('Active subscription');
+  const filter = { customerId: customer._id, isDeleted: false };
+  if (!includeInactive) filter.status = { $in: CURRENT_STATUSES };
+
+  const subscriptions = await Subscription.find(filter)
+    .populate('planId', 'name tier serviceType price durationDays features')
+    .populate('assignedDriverId', 'name vehicleNumber vehicleModel vehicleCapacity')
+    .populate('assignedAreaId', 'name')
+    .sort({ createdAt: -1 });
+
+  return { customer, subscriptions };
+}
+
+/**
+ * Cancel one subscription and reconcile its future trips.
+ *
+ * `subscriptionId` is required whenever the customer holds more than one live
+ * subscription — cancelling "the" subscription is no longer well defined, and
+ * silently picking one would cancel the wrong commute. It stays optional for the
+ * single-subscription case so existing clients keep working.
+ */
+async function cancelSubscription({ userId, subscriptionId } = {}) {
+  const customer = await Customer.findOne({ userId });
+  if (!customer) throw new NotFoundError('Customer');
+
+  let subscription;
+  if (subscriptionId) {
+    subscription = await Subscription.findOne({
+      _id: subscriptionId,
+      customerId: customer._id,
+      status: { $in: CURRENT_STATUSES },
+      isDeleted: false,
+    });
+    if (!subscription) throw new NotFoundError('Active subscription');
+  } else {
+    const live = await Subscription.find({
+      customerId: customer._id,
+      status: { $in: CURRENT_STATUSES },
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
+
+    if (live.length === 0) throw new NotFoundError('Active subscription');
+    if (live.length > 1) {
+      throw new ValidationError(
+        `You have ${live.length} active subscriptions. Say which one to cancel.`,
+        {
+          code: 'SUBSCRIPTION_ID_REQUIRED',
+          subscriptions: live.map((s) => ({
+            _id: s._id,
+            subscriptionType: s.subscriptionType,
+            pickupTime: s.pickupTime,
+            scheduleDays: s.scheduleDays,
+            status: s.status,
+          })),
+        }
+      );
+    }
+    [subscription] = live;
+  }
 
   subscription.status = 'CANCELLED';
   subscription.isCurrent = false;
@@ -439,16 +571,19 @@ async function cancelSubscription({ userId }) {
   }
 
   const affectedTrips = await removeSubscriptionFromFutureTrips(subscription._id);
-  await Customer.findByIdAndUpdate(customer._id, { $unset: { subscriptionId: 1 } });
+  const remainingPrimary = await repointPrimarySubscription(customer._id, subscription._id);
 
-  return { subscription, affectedTrips };
+  return { subscription, affectedTrips, remainingPrimary };
 }
 
 module.exports = {
   TYPE_TO_TIER,
   CURRENT_STATUSES,
   resolvePlanForType,
-  assertNoCurrentSubscription,
+  findConflictingSubscription,
+  assertNoScheduleConflict,
+  repointPrimarySubscription,
+  listSubscriptions,
   createSubscription,
   activateAfterPayment,
   runMatchingAndSchedule,

@@ -153,10 +153,21 @@ tripSchema.pre('findOneAndUpdate', function excludeDeleted(next) {
   next();
 });
 
-// One trip per driver per service date
+// One trip per driver per service date PER PICKUP TIME.
+//
+// pickupTime is part of a trip's identity, not a label on it: a driver can run
+// an 08:00 commute and an 18:00 return on the same day, and those are different
+// people in the vehicle at different times. Keyed on { driverId, serviceDate }
+// alone, the second run collided with the first and its passengers were merged
+// into the first trip's manifest — so a customer holding a morning and an
+// evening subscription got one ride, at the morning time.
+//
+// Adding a field only widens a unique key, so this cannot fail to build on data
+// that satisfied the old index. The old one is dropped in config/database.js;
+// left in place it would still reject the second run.
 tripSchema.index(
-  { driverId: 1, serviceDate: 1 },
-  { unique: true, partialFilterExpression: { isDeleted: false } }
+  { driverId: 1, serviceDate: 1, pickupTime: 1 },
+  { unique: true, partialFilterExpression: { isDeleted: false }, name: 'driver_service_slot_unique' }
 );
 tripSchema.index({ 'passengers.subscriptionId': 1, serviceDate: 1, isDeleted: 1 });
 tripSchema.index({ 'passengers.customerId': 1, serviceDate: 1, isDeleted: 1 });
