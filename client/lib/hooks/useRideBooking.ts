@@ -2,9 +2,8 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useCustomerStore } from '@/stores/customerStore';
 import { useToastStore } from '@/stores/toastStore';
+import { API_BASE_URL, SOCKET_URL } from '@/lib/apiBase';
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:4000';
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api/v1';
 const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000; // 10 min (before 15-min JWT expiry)
 
 interface SelectedLocation {

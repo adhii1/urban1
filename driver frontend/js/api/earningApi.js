@@ -1,6 +1,6 @@
 // TORQQ Driver Earnings & Payouts API Client (Connected to Backend)
 
-var API_BASE_URL = 'http://localhost:4000/api/v1';
+var API_BASE_URL = (window.TORQQ_API_BASE || '/api/v1');
 
 function getAuthHeaders() {
     const token = localStorage.getItem('driverToken');

@@ -10,7 +10,7 @@ class SocketBroker {
         // Dynamically load Socket.IO client script if not already present
         if (typeof io === 'undefined') {
             const script = document.createElement('script');
-            script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+            script.src = window.TORQQ_SOCKET_CLIENT_URL || '/socket.io/socket.io.js';
             script.onload = () => this.initSocket();
             document.head.appendChild(script);
         } else {
@@ -45,7 +45,7 @@ class SocketBroker {
         }
 
         console.log(`🔌 [Socket] Connecting to namespace /sockets/driver with userId: ${userId}`);
-        this.socket = io('http://localhost:4000/sockets/driver', {
+        this.socket = io((window.TORQQ_SOCKET_ORIGIN || window.location.origin) + '/sockets/driver', {
             auth: { token, userId },
             withCredentials: true,
             transports: ['websocket', 'polling']

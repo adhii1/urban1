@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (['home-3day', 'home-mon-fri', 'stop-to-stop'].includes(bookingData.selectedModel)) {
                         const planMap = { 'home-3day': 'Hybrid', 'home-mon-fri': 'Weekday', 'stop-to-stop': 'Standard' };
                         const tierName = planMap[bookingData.selectedModel];
-                        const API = 'http://localhost:4000/api/v1';
+                        const API = (window.TORQQ_API_BASE || '/api/v1');
                         
                         // Refresh session first
                         await fetch(`${API}/auth/refresh`, { method: 'POST', credentials: 'include' }).catch(() => {});

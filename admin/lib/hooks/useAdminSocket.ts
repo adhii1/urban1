@@ -4,10 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { apiFetch } from '../api/adminApi';
 import { useAdminStore } from '@/stores/adminStore';
-
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') ||
-  'http://localhost:4000';
+import { SOCKET_URL } from '@/lib/apiBase';
 
 export function useAdminSocket() {
   const socketRef = useRef<Socket | null>(null);

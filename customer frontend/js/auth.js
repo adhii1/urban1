@@ -160,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === authModal) closeModal();
     });
 
-    var API_BASE_URL = 'http://localhost:4000/api/v1';
+    var API_BASE_URL = (window.TORQQ_API_BASE || '/api/v1');
 
     function completeLegacyLogin(data) {
         const loginData = data && data.data;
@@ -229,7 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .catch(err => {
                 console.error(err);
-                alert('Failed to connect to backend server. Make sure it is running on port 5000.');
+                alert(`Could not reach the TORQQ backend at ${API_BASE_URL}.\n\nStart it with "npm run dev" and open this page from the address it prints.`);
             });
     });
 

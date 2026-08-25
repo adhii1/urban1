@@ -19,7 +19,7 @@ const RIDE_SOCKET = (() => {
         }
 
         // Refresh token first to ensure it's valid
-        fetch('http://localhost:4000/api/v1/auth/refresh', {
+        fetch((window.TORQQ_API_BASE || '/api/v1') + '/auth/refresh', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -27,7 +27,7 @@ const RIDE_SOCKET = (() => {
             // Load Socket.IO client if not already loaded
             if (typeof io === 'undefined') {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+                script.src = window.TORQQ_SOCKET_CLIENT_URL || '/socket.io/socket.io.js';
                 script.onload = () => initSocket(token, userId);
                 document.head.appendChild(script);
             } else {
@@ -37,7 +37,7 @@ const RIDE_SOCKET = (() => {
             // Try connecting anyway with existing token
             if (typeof io === 'undefined') {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.socket.io/4.7.5/socket.io.min.js';
+                script.src = window.TORQQ_SOCKET_CLIENT_URL || '/socket.io/socket.io.js';
                 script.onload = () => initSocket(token, userId);
                 document.head.appendChild(script);
             } else {
@@ -47,7 +47,8 @@ const RIDE_SOCKET = (() => {
     }
 
     function initSocket(token, userId) {
-        const WS_URL = (window.TORQQ_ENV ? window.TORQQ_ENV.current.baseUrl : 'http://localhost:4000/api/v1').replace('/api/v1', '');
+        const WS_URL = window.TORQQ_SOCKET_ORIGIN
+            || (window.TORQQ_ENV ? window.TORQQ_ENV.current.baseUrl.replace('/api/v1', '') : window.location.origin);
         
         socket = io(`${WS_URL}/sockets/customer`, {
             auth: { token, userId },

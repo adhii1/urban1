@@ -4,7 +4,7 @@
 
 const TORQQ_API = (() => {
     function getEndpoint(path) {
-        const env = window.TORQQ_ENV ? window.TORQQ_ENV.current : { baseUrl: 'http://localhost:4000/api/v1' };
+        const env = window.TORQQ_ENV ? window.TORQQ_ENV.current : { baseUrl: (window.TORQQ_API_BASE || '/api/v1') };
         return `${env.baseUrl}${path}`;
     }
 

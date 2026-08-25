@@ -789,7 +789,7 @@ function startLocationUpdateLoop(trip) {
     if (!token) return;
 
     // Fetch tracking details once to get the pickup coordinate
-    fetch(`http://localhost:4000/api/v1/tracking/${trip.id}`, {
+    fetch(`${window.TORQQ_API_BASE || '/api/v1'}/tracking/${trip.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
     })
     .then(res => res.json())
@@ -842,7 +842,7 @@ function startLocationUpdateLoop(trip) {
 
                 console.log(`Sending simulated driver coordinates: [${currentLng}, ${currentLat}]`);
                 // POST driver-location
-                fetch('http://localhost:4000/api/v1/tracking/driver-location', {
+                fetch((window.TORQQ_API_BASE || '/api/v1') + '/tracking/driver-location', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

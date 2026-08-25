@@ -4,7 +4,7 @@
  */
 
 const CUSTOMER_API = (() => {
-    var API_BASE_URL = 'http://localhost:4000/api/v1';
+    var API_BASE_URL = (window.TORQQ_API_BASE || '/api/v1');
 
     // Core fetch wrapper
     async function request(endpoint, options = {}) {
@@ -149,7 +149,13 @@ const CUSTOMER_API = (() => {
 
         // Subscriptions (Plans & Passes)
         getPlans: () => request('/customer/plans'),
+        // Primary subscription only — see getSubscriptions() for the full list.
         getSubscription: () => request('/customer/subscription'),
+        // Every subscription the customer holds. A customer can run several at
+        // once (e.g. a weekday commute at 08:00 and a Saturday shuttle).
+        getSubscriptions: (includeInactive) => request(
+            `/customer/subscriptions${includeInactive ? '?includeInactive=true' : ''}`
+        ),
         purchaseSubscription: (data) => request('/customer/subscriptions/purchase', {
             method: 'POST',
             body: JSON.stringify(data)
@@ -158,14 +164,16 @@ const CUSTOMER_API = (() => {
             method: 'POST',
             body: JSON.stringify(data)
         }),
-        cancelSubscription: () => request('/customer/subscriptions/cancel', {
+        // subscriptionId is required when more than one subscription is live;
+        // the API replies 400 with the candidate list if it's missing.
+        cancelSubscription: (subscriptionId) => request('/customer/subscriptions/cancel', {
             method: 'POST',
-            body: JSON.stringify({})
+            body: JSON.stringify(subscriptionId ? { subscriptionId } : {})
         }),
         getBookingEligibility: () => request('/customer/subscriptions/booking-eligibility'),
-        requestPause: (date) => request('/customer/pause-request', {
+        requestPause: (date, subscriptionId) => request('/customer/pause-request', {
             method: 'POST',
-            body: JSON.stringify({ date })
+            body: JSON.stringify(subscriptionId ? { date, subscriptionId } : { date })
         }),
 
         // Trips

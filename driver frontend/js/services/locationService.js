@@ -29,7 +29,7 @@ const LocationService = (() => {
 
         console.log(`🔌 [Location Service] Uploading coordinates: [${lng}, ${lat}]`);
         try {
-            const response = await fetch('http://localhost:4000/api/v1/tracking/driver-location', {
+            const response = await fetch((window.TORQQ_API_BASE || '/api/v1') + '/tracking/driver-location', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

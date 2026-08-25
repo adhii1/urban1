@@ -6,9 +6,13 @@
 const TORQQ_ENV = (() => {
     const ENVIRONMENTS = {
         localhost: {
-            name: 'Localhost Development',
-            baseUrl: 'http://localhost:4000/api/v1',
-            wsUrl: 'ws://localhost:4000',
+            name: 'Local Development',
+            // Resolved at runtime by js/config/apiBase.js so this works whether
+            // the backend is serving these pages itself or a separate static
+            // server is, and whether you're on this machine or another one on
+            // the same network. Never hardcode localhost here again.
+            baseUrl: (window.TORQQ_API_BASE || '/api/v1'),
+            wsUrl: (window.TORQQ_SOCKET_ORIGIN || window.location.origin),
             useMockData: true,
             debug: true
         },

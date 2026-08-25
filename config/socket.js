@@ -190,7 +190,14 @@ const initSockets = (httpServer) => {
 
   ioInstance = new Server(httpServer, {
     cors: {
-      origin: config.cors.origins,
+      // Same rule as the HTTP layer, so a page that can call the API can also
+      // open a socket. Passing the array directly used to silently drop LAN and
+      // non-whitelisted-port clients at handshake time.
+      origin: (origin, callback) => {
+        if (config.cors.isAllowed(origin)) return callback(null, true);
+        logger.warn(`Socket.IO CORS blocked origin: ${origin}`);
+        return callback(null, false);
+      },
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       credentials: true,
     },

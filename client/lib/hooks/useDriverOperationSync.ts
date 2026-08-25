@@ -6,8 +6,7 @@ import { io } from 'socket.io-client';
 import { queryKeys } from '@/lib/api/queryKeys';
 import { useDriverStore } from '@/stores/driverStore';
 import { useToast } from '@/stores/toastStore';
-
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:4000';
+import { SOCKET_URL } from '@/lib/apiBase';
 
 type DriverOperation = { event?: string; passengerCount?: number; rating?: number; message?: string };
 

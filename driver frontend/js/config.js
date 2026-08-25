@@ -3,10 +3,14 @@
 
 const CONFIG = {
     // =========================
-    // FUTURE EXPRESS API BASE
+    // BACKEND API
     // =========================
-    API_BASE_URL: "http://localhost:4000/api/v1",
-    WEBSOCKET_URL: "ws://localhost:4000",
+    // Resolved at runtime by js/apiBase.js — works whether the backend serves
+    // these pages itself or a separate static server does, and from any machine
+    // on the network. Override with:
+    //   localStorage.setItem('torqq_api_origin', 'http://<host>:4000')
+    API_BASE_URL: (window.TORQQ_API_BASE || '/api/v1'),
+    WEBSOCKET_URL: (window.TORQQ_SOCKET_ORIGIN || window.location.origin),
     
     // Third-party API keys
     GOOGLE_MAPS_KEY: "AIzaSyA-MockGoogleMapsKeyForTorqqDriverDashboard",

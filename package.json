@@ -4,8 +4,12 @@
   "description": "TORQQ Carpool/Shuttle Platform Backend",
   "main": "server.js",
   "scripts": {
+    "setup": "node scripts/setup.js",
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "dev:client": "npm --prefix client run dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "check:startup": "node scripts/checkStartup.js",
     "migrate:durable-stops": "node scripts/migrations/backfillDurableStops.js",
     "test:durable-stops": "node --test test/durableStopPersistence.test.js",
     "test:subscription-policy": "node --test test/subscriptionPolicy.test.js"

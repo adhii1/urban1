@@ -41,7 +41,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (profileAvatar) {
                     if (user.avatar) {
-                        profileAvatar.src = `http://localhost:4000/${user.avatar}`;
+                        profileAvatar.src = window.TORQQ_ASSET_URL
+                            ? window.TORQQ_ASSET_URL(user.avatar)
+                            : `/${user.avatar}`;
                         if (btnRemovePhoto) btnRemovePhoto.style.display = 'inline-block';
                     } else {
                         profileAvatar.src = 'assets/images/default-avatar.png';
