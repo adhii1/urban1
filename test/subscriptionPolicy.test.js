@@ -11,6 +11,13 @@ const {
 
 const EARTH_RADIUS_KM = 6371;
 const VALID_HYBRID_DAYS = [1, 3, 5];
+// The service's own float slack (MANAGED_STOP_DISTANCE_TOLERANCE_KM in
+// services/subscriptionPolicyService.js). Converting a distance to degrees and
+// back through haversine does not round-trip exactly: 5.0 km comes back as
+// 5.0000000000000115, and 4.999999999999999 km also lands just above 5.0. So an
+// exact `<= 5.0` assertion fails on inputs the service correctly accepts —
+// intermittently, since fast-check only finds them on some seeds.
+const TOLERANCE_KM = 1e-9;
 
 function degreesForKmAtEquator(distanceKm) {
   return (distanceKm / EARTH_RADIUS_KM) * (180 / Math.PI);
@@ -112,8 +119,8 @@ test('Property 1: accepts all managed-stop distances through 5 km', () => {
           recurringInput({ customer: customerAtDistances(pickupDistanceKm, dropDistanceKm) }),
           () => { paymentOrders += 1; }
         );
-        assert.ok(result.distances.pickupDistanceKm <= MAX_MANAGED_STOP_DISTANCE_KM);
-        assert.ok(result.distances.dropDistanceKm <= MAX_MANAGED_STOP_DISTANCE_KM);
+        assert.ok(result.distances.pickupDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= TOLERANCE_KM);
+        assert.ok(result.distances.dropDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= TOLERANCE_KM);
         assert.equal(paymentOrders, 1);
       }
     ),
@@ -149,16 +156,12 @@ test('Property 1: rejects any over-threshold endpoint before payment', () => {
 });
 
 test('managed-stop distance boundaries accept 4.9 km and 5.0 km, and reject greater than 5.0 km', () => {
-  // haversineKm of a geometrically-exact "5.0 km" offset returns
-  // 5.0000000000000115, so compare against the service's own float tolerance
-  // rather than an exact <= 5.0.
-  const toleranceKm = 1e-9;
   for (const distanceKm of [4.9, 5.0]) {
     const result = validateRecurringSubscription(recurringInput({
       customer: customerAtDistances(distanceKm, distanceKm),
     }));
-    assert.ok(result.distances.pickupDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= toleranceKm);
-    assert.ok(result.distances.dropDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= toleranceKm);
+    assert.ok(result.distances.pickupDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= TOLERANCE_KM);
+    assert.ok(result.distances.dropDistanceKm - MAX_MANAGED_STOP_DISTANCE_KM <= TOLERANCE_KM);
   }
 
   const code = errorCode(() => validateRecurringSubscription(recurringInput({

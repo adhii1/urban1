@@ -7,7 +7,14 @@ const test = require('node:test');
 const fc = require('fast-check');
 
 const customerFrontendDirectory = path.resolve(__dirname, '../customer frontend');
-const apiBaseUrl = 'http://localhost:4000/api/v1';
+
+// How the page is being served, which is what decides the API base at runtime.
+// The default is the supported setup: the backend serves the frontend itself, so
+// the API is same-origin. A static dev server on its own port is the other case
+// — see the STATIC_DEV_PORTS branch in js/config/apiBase.js.
+const BACKEND_SERVED_PAGE = { protocol: 'http:', hostname: 'localhost', port: '4000' };
+const LIVE_SERVER_PAGE = { protocol: 'http:', hostname: '192.168.1.42', port: '5500' };
+
 const requiredSession = {
   accessToken: 'access-token',
   userName: 'OTP Customer',
@@ -93,7 +100,7 @@ function createElement({ id, classes = [] } = {}) {
   };
 }
 
-function createHarness({ responses = [], localValues = {} } = {}) {
+function createHarness({ responses = [], localValues = {}, page = BACKEND_SERVED_PAGE } = {}) {
   const elements = new Map();
   const add = (id, classes = []) => {
     const element = createElement({ id, classes });
@@ -135,11 +142,23 @@ function createHarness({ responses = [], localValues = {} } = {}) {
     },
   };
 
+  const windowStub = {
+    location: {
+      href: 'index.html',
+      pathname: '/index.html',
+      protocol: page.protocol,
+      hostname: page.hostname,
+      port: page.port,
+      origin: `${page.protocol}//${page.hostname}${page.port ? `:${page.port}` : ''}`,
+    },
+    localStorage,
+  };
+
   const context = {
     document,
     localStorage,
     sessionStorage,
-    window: { location: { href: 'index.html', pathname: '/index.html' } },
+    window: windowStub,
     alert: (message) => alerts.push(message),
     console: { log() {}, error() {} },
     fetch: async (url, options) => {
@@ -162,15 +181,42 @@ function createHarness({ responses = [], localValues = {} } = {}) {
     localStorage,
     sessionStorage,
     context,
+    /** The API base the resolver settled on — what the page will really call. */
+    apiBase() { return this.context.window.TORQQ_API_BASE; },
     start() { domContentLoaded.forEach((listener) => listener()); },
   };
 }
 
-async function loadStaticAuth(authScript, options) {
+/**
+ * Run the page's scripts in load order: the API base resolver first, then
+ * auth.js — matching the two <script> tags in index.html.
+ *
+ * The resolver has to run here rather than having the test hardcode a base URL.
+ * auth.js reads `window.TORQQ_API_BASE` at call time, so a test that skips
+ * apiBase.js silently exercises the '/api/v1' fallback and would keep passing
+ * even if the resolver were deleted outright.
+ */
+async function loadStaticAuth(scripts, options) {
   const harness = createHarness(options);
-  vm.runInNewContext(authScript, harness.context, { filename: 'customer frontend/js/auth.js' });
+  vm.runInNewContext(scripts.apiBase, harness.context, { filename: 'customer frontend/js/config/apiBase.js' });
+  vm.runInNewContext(scripts.auth, harness.context, { filename: 'customer frontend/js/auth.js' });
   harness.start();
   return harness;
+}
+
+/** Fetch the page's scripts over HTTP, the way a browser would. */
+async function fetchPageScripts(baseUrl) {
+  const [apiBase, auth] = await Promise.all([
+    fetch(`${baseUrl}/js/config/apiBase.js`).then((r) => {
+      assert.equal(r.status, 200, 'js/config/apiBase.js must be served');
+      return r.text();
+    }),
+    fetch(`${baseUrl}/js/auth.js`).then((r) => {
+      assert.equal(r.status, 200, 'js/auth.js must be served');
+      return r.text();
+    }),
+  ]);
+  return { apiBase, auth };
 }
 
 async function settle() {
@@ -205,9 +251,7 @@ function assertUnauthenticated(harness) {
 test('preservation Property 2: successful OTP inputs retain the observed request, cookie, session, close, and redirect contract', async (t) => {
   const staticServer = await serveStaticCustomerFrontend();
   t.after(staticServer.close);
-  const response = await fetch(`${staticServer.baseUrl}/js/auth.js`);
-  assert.equal(response.status, 200);
-  const authScript = await response.text();
+  const scripts = await fetchPageScripts(staticServer.baseUrl);
 
   await fc.assert(
     fc.asyncProperty(
@@ -216,12 +260,13 @@ test('preservation Property 2: successful OTP inputs retain the observed request
       fc.array(fc.integer({ min: 0, max: 9 }), { minLength: 6, maxLength: 6 })
         .map((digits) => digits.join('')),
       async (phone, otp) => {
-        const harness = await loadStaticAuth(authScript, {
+        const harness = await loadStaticAuth(scripts, {
           responses: [
             { success: true },
             { success: true, data: { accessToken: requiredSession.accessToken, refreshToken: 'refresh-token', user: { name: requiredSession.userName, phone, role: requiredSession.userRole, id: requiredSession.userId } } },
           ],
         });
+        const apiBaseUrl = harness.apiBase();
         await advanceToOtp(harness, { phone });
         assert.deepEqual(requestJson(harness.requests[0]), { phone, purpose: 'LOGIN' });
         assert.equal(harness.requests[0].url, `${apiBaseUrl}/auth/send-otp`);
@@ -249,7 +294,7 @@ test('preservation Property 2: successful OTP inputs retain the observed request
 test('preservation Property 2: incomplete and rejected OTPs retain denial with no session or redirect', async (t) => {
   const staticServer = await serveStaticCustomerFrontend();
   t.after(staticServer.close);
-  const authScript = await (await fetch(`${staticServer.baseUrl}/js/auth.js`)).text();
+  const scripts = await fetchPageScripts(staticServer.baseUrl);
 
   await fc.assert(
     fc.asyncProperty(
@@ -264,7 +309,7 @@ test('preservation Property 2: incomplete and rejected OTPs retain denial with n
       async (caseInput) => {
         const responses = [{ success: true }];
         if (caseInput.kind === 'rejected') responses.push({ success: false, message: caseInput.message });
-        const harness = await loadStaticAuth(authScript, { responses });
+        const harness = await loadStaticAuth(scripts, { responses });
         await advanceToOtp(harness);
         fillOtp(harness, caseInput.otp);
         harness.elements.get('otpForm').dispatch('submit');
@@ -273,7 +318,7 @@ test('preservation Property 2: incomplete and rejected OTPs retain denial with n
         assert.equal(harness.alerts.at(-1), caseInput.message);
         assertUnauthenticated(harness);
         assert.equal(harness.requests.length, caseInput.kind === 'incomplete' ? 1 : 2);
-        if (caseInput.kind === 'rejected') assert.equal(harness.requests[1].url, `${apiBaseUrl}/auth/verify-otp`);
+        if (caseInput.kind === 'rejected') assert.equal(harness.requests[1].url, `${harness.apiBase()}/auth/verify-otp`);
       }
     ),
     { numRuns: 25 }
@@ -285,15 +330,14 @@ test('preservation Property 2: incomplete and rejected OTPs retain denial with n
 test('preservation Property 2: resend, change-number, OTP focus, modal, returning-user, and non-auth interactions retain their observed state', async (t) => {
   const staticServer = await serveStaticCustomerFrontend();
   t.after(staticServer.close);
-  const [htmlResponse, scriptResponse] = await Promise.all([
-    fetch(`${staticServer.baseUrl}/index.html`),
-    fetch(`${staticServer.baseUrl}/js/auth.js`),
-  ]);
-  const [indexHtml, authScript] = await Promise.all([htmlResponse.text(), scriptResponse.text()]);
+  const [htmlResponse] = await Promise.all([fetch(`${staticServer.baseUrl}/index.html`)]);
+  const indexHtml = await htmlResponse.text();
+  const scripts = await fetchPageScripts(staticServer.baseUrl);
+  const authScript = scripts.auth;
 
   await fc.assert(
     fc.asyncProperty(fc.integer({ min: 0, max: 4 }), fc.integer({ min: 0, max: 9 }), async (index, digit) => {
-      const harness = await loadStaticAuth(authScript, { responses: [{ success: true }, { success: true }] });
+      const harness = await loadStaticAuth(scripts, { responses: [{ success: true }, { success: true }] });
       await advanceToOtp(harness);
 
       harness.otpBoxes[index].value = String(digit);
@@ -305,7 +349,7 @@ test('preservation Property 2: resend, change-number, OTP focus, modal, returnin
 
       harness.elements.get('btnResendOTP').dispatch('click');
       await settle();
-      assert.equal(harness.requests[1].url, `${apiBaseUrl}/auth/send-otp`);
+      assert.equal(harness.requests[1].url, `${harness.apiBase()}/auth/send-otp`);
       assert.deepEqual(requestJson(harness.requests[1]), { phone: '9876543210', purpose: 'LOGIN' });
       assert.equal(harness.alerts.at(-1), 'OTP Resent!');
 
@@ -320,7 +364,7 @@ test('preservation Property 2: resend, change-number, OTP focus, modal, returnin
 
   for (const savedUser of [false, true]) {
     const localValues = savedUser ? { userName: 'Remembered', mobileNumber: '9123456789' } : {};
-    const harness = await loadStaticAuth(authScript, { localValues });
+    const harness = await loadStaticAuth(scripts, { localValues });
     harness.ctaButton.dispatch('click');
     assert.equal(harness.elements.get('nameGroup').style.display, savedUser ? 'none' : 'block');
     assert.equal(harness.elements.get('mobileNumber').value, savedUser ? '9123456789' : '');
@@ -335,7 +379,7 @@ test('preservation Property 2: resend, change-number, OTP focus, modal, returnin
   assert.equal(authScript.includes("querySelector('.logo-link')"), false, 'non-auth logo navigation has no auth-modal handler');
   assert.match(authScript, /\/auth\/login/, 'the supported password route may exist alongside preserved OTP behavior');
 
-  const invalidPasswordAttempt = await loadStaticAuth(authScript, {
+  const invalidPasswordAttempt = await loadStaticAuth(scripts, {
     responses: [{ success: false, message: 'Invalid password.' }],
   });
   invalidPasswordAttempt.loginButton.dispatch('click');
@@ -345,9 +389,42 @@ test('preservation Property 2: resend, change-number, OTP focus, modal, returnin
   await settle();
 
   assert.equal(invalidPasswordAttempt.requests.length, 1);
-  assert.equal(invalidPasswordAttempt.requests[0].url, `${apiBaseUrl}/auth/login`);
+  assert.equal(invalidPasswordAttempt.requests[0].url, `${invalidPasswordAttempt.apiBase()}/auth/login`);
   assert.equal(invalidPasswordAttempt.requests[0].options.credentials, 'include');
   assert.deepEqual(requestJson(invalidPasswordAttempt.requests[0]), { phone: '9876543210', password: 'wrong-password' });
   assert.equal(invalidPasswordAttempt.elements.get('passwordError').textContent, 'Invalid password.');
   assertUnauthenticated(invalidPasswordAttempt);
+});
+
+// The regression behind Task 1: the client's page was served on a port the
+// backend didn't serve, so every hardcoded `localhost:4000` call pointed at the
+// wrong machine. These pin the resolver's two branches — that a backend-served
+// page stays same-origin, and that a Live Server page targets the API by the
+// hostname the viewer actually typed, never a bare "localhost".
+test('the API base follows how the page was served, not a hardcoded host', async (t) => {
+  const staticServer = await serveStaticCustomerFrontend();
+  t.after(staticServer.close);
+  const scripts = await fetchPageScripts(staticServer.baseUrl);
+
+  // Served by the backend itself — relative, so host/port/protocol are inherited.
+  const sameOrigin = await loadStaticAuth(scripts, { page: BACKEND_SERVED_PAGE });
+  assert.equal(sameOrigin.apiBase(), '/api/v1');
+
+  // Served by Live Server on :5500, viewed over the LAN. The API is on its own
+  // port, and the host must be the one in the address bar — "localhost" here
+  // would resolve to the phone or laptop doing the viewing.
+  const liveServer = await loadStaticAuth(scripts, { page: LIVE_SERVER_PAGE });
+  assert.equal(liveServer.apiBase(), 'http://192.168.1.42:4000/api/v1');
+
+  // An explicit override wins over both.
+  const overridden = await loadStaticAuth(scripts, {
+    page: LIVE_SERVER_PAGE,
+    localValues: { torqq_api_origin: 'http://10.0.0.5:4000' },
+  });
+  assert.equal(overridden.apiBase(), 'http://10.0.0.5:4000/api/v1');
+
+  // And the resolved base is what auth.js actually calls.
+  const call = await loadStaticAuth(scripts, { page: LIVE_SERVER_PAGE, responses: [{ success: true }] });
+  await advanceToOtp(call);
+  assert.equal(call.requests[0].url, 'http://192.168.1.42:4000/api/v1/auth/send-otp');
 });
