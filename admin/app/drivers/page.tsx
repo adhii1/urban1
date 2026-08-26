@@ -63,9 +63,23 @@ export default function DriversPage() {
     try {
       if (editingDriver) {
         const { phone, password, ...updateData } = formData;
-        await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: updateData });
+        const payload: any = {
+          ...updateData,
+          vehicleCapacity: Number(updateData.vehicleCapacity) || 4,
+          areaId: updateData.areaId || null,
+        };
+        if (password && password.trim().length > 0) {
+          payload.password = password.trim();
+        }
+        await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: payload });
       } else {
-        await createDriver.mutateAsync(formData);
+        const payload: any = {
+          ...formData,
+          vehicleCapacity: Number(formData.vehicleCapacity) || 4,
+          areaId: formData.areaId || undefined,
+        };
+        if (!payload.areaId) delete payload.areaId;
+        await createDriver.mutateAsync(payload);
       }
       setShowModal(false);
     } catch (err: any) {
@@ -175,7 +189,7 @@ export default function DriversPage() {
                 <input id="field-name" type="text" className="form-input" placeholder="Driver full name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
               </div>
 
-              {!editingDriver && (
+              {!editingDriver ? (
                 <>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label htmlFor="field-phone" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone (username)</label>
@@ -186,6 +200,11 @@ export default function DriversPage() {
                     <input id="field-password" type="password" className="form-input" placeholder="Min 6 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
                   </div>
                 </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="field-password" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reset Password (Optional)</label>
+                  <input id="field-password" type="password" className="form-input" placeholder="Leave empty to keep existing password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                </div>
               )}
 
               {[

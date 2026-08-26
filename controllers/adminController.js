@@ -87,7 +87,7 @@ const createDriver = asyncWrapper(async (req, res) => {
 });
 
 const updateDriver = asyncWrapper(async (req, res) => {
-  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, status } = req.body;
+  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, status, password } = req.body;
   const driver = await Driver.findById(req.params.id);
   if (!driver) throw new NotFoundError('Driver');
 
@@ -96,11 +96,20 @@ const updateDriver = asyncWrapper(async (req, res) => {
   if (vehicleModel !== undefined) driver.vehicleModel = vehicleModel;
   if (vehicleCapacity !== undefined) driver.vehicleCapacity = vehicleCapacity;
   if (licenseNumber !== undefined) driver.licenseNumber = licenseNumber;
-  if (routeId !== undefined) driver.routeId = routeId;
+  if (routeId !== undefined) driver.routeId = routeId || null;
   if (areaId !== undefined) driver.areaId = areaId || null;
   if (status !== undefined) driver.status = status;
 
   await driver.save();
+
+  if (password) {
+    const user = await User.findById(driver.userId);
+    if (user) {
+      user.password = await hashPassword(password);
+      await user.save();
+    }
+  }
+
   return res.status(200).json(formatResponse('Driver updated successfully.', driver));
 });
 

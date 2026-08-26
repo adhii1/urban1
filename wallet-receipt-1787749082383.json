@@ -1,0 +1,18 @@
+{
+  "appliedAt": "2026-08-26T12:58:02.383Z",
+  "database": "test",
+  "amountPerCustomer": 100000,
+  "onlyBelow": false,
+  "priorBalances": [
+    {
+      "customerId": "6a870e3b210e93cec146fb2f",
+      "name": "Priya Sharma",
+      "walletBalanceBefore": 10000
+    },
+    {
+      "customerId": "6a870ebafd4fe5601d8b0894",
+      "name": "Ravi Kumar",
+      "walletBalanceBefore": 10000
+    }
+  ]
+}

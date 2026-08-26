@@ -16,17 +16,18 @@ const createDriver = Joi.object({
   vehicleModel: Joi.string().trim().max(100).required(),
   vehicleCapacity: Joi.number().integer().min(1).max(20).required(),
   licenseNumber: Joi.string().trim().max(50).required(),
-  routeId: Joi.string().hex().length(24).optional(),
-  areaId: Joi.string().hex().length(24).optional(),
+  routeId: Joi.string().hex().length(24).optional().allow(null, ''),
+  areaId: Joi.string().hex().length(24).optional().allow(null, ''),
 });
 
 const updateDriver = Joi.object({
   name: Joi.string().trim().min(1).max(100).optional(),
+  password: Joi.string().min(6).optional().allow(null, ''),
   vehicleNumber: Joi.string().trim().max(20).optional(),
   vehicleModel: Joi.string().trim().max(100).optional(),
   vehicleCapacity: Joi.number().integer().min(1).max(20).optional(),
   licenseNumber: Joi.string().trim().max(50).optional(),
-  routeId: Joi.string().hex().length(24).optional(),
+  routeId: Joi.string().hex().length(24).optional().allow(null, ''),
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_APPROVAL').optional(),
 });
