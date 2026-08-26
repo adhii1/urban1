@@ -284,6 +284,45 @@ document.addEventListener('DOMContentLoaded', () => {
         window.UTILS.showToast(`Calling customer at ${phone}...`, "info");
     };
 
+    // Listen for bundle changes while the trip is active (a passenger was
+    // added/removed or updated their pickup). Refresh the passenger header
+    // and show a banner so the driver knows to check their passenger cards.
+    window.SOCKET?.on('trip:bundle:updated', (data) => {
+        const { type, reason, trip, newPickupAddress } = data || {};
+        let msg = 'Your passenger bundle has changed.';
+        let toastType = 'info';
+        if (type === 'PASSENGER_ADDED') {
+            msg = `New passenger added to your bundle. ${reason || ''}`;
+            toastType = 'success';
+        } else if (type === 'PASSENGER_REMOVED') {
+            msg = `A passenger was removed from your bundle. ${reason || ''}`;
+            toastType = 'warning';
+        } else if (type === 'PASSENGER_LOCATION_UPDATED') {
+            msg = `Passenger pickup updated${newPickupAddress ? ` → ${newPickupAddress}` : ''}`;
+            toastType = 'info';
+        }
+        window.UTILS.showToast(msg, toastType);
+
+        // Update passenger header on the current trip card
+        if (trip && Array.isArray(trip.passengers) && trip.passengers.length > 0) {
+            const firstPassenger = trip.passengers[0];
+            if (customerName) customerName.textContent = firstPassenger.name || 'See passenger cards';
+            if (pickupAddress && type === 'PASSENGER_LOCATION_UPDATED' && newPickupAddress) {
+                pickupAddress.textContent = newPickupAddress;
+            }
+            // Push updated passengers into STATE so DRIVER_PASSENGER_CARDS re-renders
+            if (currentTrip) {
+                currentTrip.passengers = trip.passengers.map(p => ({
+                    passengerName: p.name,
+                    pickup: { address: p.pickup },
+                    drop: { address: p.drop },
+                    status: p.status || 'ASSIGNED',
+                }));
+                window.STATE.setState('currentTrip', currentTrip);
+            }
+        }
+    });
+
     // SIMULATOR CONTROLS
     simulatorToggle.onchange = (e) => {
         const isSim = e.target.checked;

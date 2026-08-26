@@ -304,6 +304,16 @@ async function dispatchBundle(bundleRides) {
  * If they've waited past BUNDLE_WAIT_TIME_MS, dispatches them as single rides.
  */
 async function runRecoveryJob() {
+  // Guard against Atlas connection outages — skip the entire job cycle when
+  // the driver is reconnecting rather than flooding logs with timeout errors.
+  try {
+    const { connectionState } = require('../config/database');
+    if (connectionState() !== 1) {
+      logger.warn('[BUNDLE_RECOVERY] Skipping — MongoDB not connected');
+      return;
+    }
+  } catch { /* ignore if database module not ready */ }
+
   try {
     const cutoffTime = new Date(Date.now() - BUNDLE_WAIT_TIME_MS);
 

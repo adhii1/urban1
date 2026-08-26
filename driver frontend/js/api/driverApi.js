@@ -28,8 +28,21 @@ const DRIVER_API = {
         console.log("🔌 [API] Calling GET /api/v1/driver/profile");
         return fetch(`${API_BASE_URL}/driver/profile`, {
             method: 'GET',
-            headers: getAuthHeaders(), credentials: "include",
+            headers: getAuthHeaders(),
             credentials: 'include'
+        })
+        .then(async res => {
+            if ((res.status === 401 || res.status === 403) && window.refreshDriverSession) {
+                const refreshed = await window.refreshDriverSession();
+                if (refreshed) {
+                    return fetch(`${API_BASE_URL}/driver/profile`, {
+                        method: 'GET',
+                        headers: getAuthHeaders(),
+                        credentials: 'include'
+                    });
+                }
+            }
+            return res;
         })
         .then(res => {
             if (!res.ok) {

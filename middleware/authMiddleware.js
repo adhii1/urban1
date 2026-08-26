@@ -36,13 +36,21 @@ function setCachedBlacklist(token, expiresAt) {
 const authenticate = async (req, res, next) => {
   let token;
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.split(' ')[1];
-  } else if (req.cookies?.accessToken) {
+  if (authHeader && typeof authHeader === 'string') {
+    const parts = authHeader.trim().split(' ');
+    if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+      const val = parts[1].trim();
+      if (val && val !== 'null' && val !== 'undefined' && val !== '""') {
+        token = val;
+      }
+    }
+  }
+  
+  if (!token && req.cookies?.accessToken) {
     token = req.cookies.accessToken;
   }
 
-  if (!token) return res.status(401).json(formatError('Access denied. Authorization token missing.'));
+  if (!token) return res.status(401).json(formatError('Access denied. Authorization token missing.', [{ code: 'TOKEN_MISSING' }]));
 
   try {
     // Check in-memory cache first, then DB on cache miss
@@ -50,23 +58,27 @@ const authenticate = async (req, res, next) => {
       const blacklisted = await TokenBlacklist.findOne({ token });
       if (blacklisted) {
         setCachedBlacklist(token, blacklisted.expiresAt);
-        return res.status(401).json(formatError('Access denied. Token revoked.'));
+        return res.status(401).json(formatError('Access denied. Token revoked.', [{ code: 'TOKEN_REVOKED' }]));
       }
     } else {
-      return res.status(401).json(formatError('Access denied. Token revoked.'));
+      return res.status(401).json(formatError('Access denied. Token revoked.', [{ code: 'TOKEN_REVOKED' }]));
     }
 
     const decoded = verifyAccessToken(token);
     const user = await User.findById(decoded.id);
-    if (!user) return res.status(401).json(formatError('Access denied. User not found.'));
-    if (user.status === 'SUSPENDED') return res.status(403).json(formatError('Access denied. Account suspended.'));
-    if (user.status === 'INACTIVE') return res.status(403).json(formatError('Access denied. Account inactive.'));
+    if (!user) return res.status(401).json(formatError('Access denied. User not found.', [{ code: 'USER_NOT_FOUND' }]));
+    if (user.status === 'SUSPENDED') return res.status(403).json(formatError('Access denied. Account suspended.', [{ code: 'ACCOUNT_SUSPENDED' }]));
+    if (user.status === 'INACTIVE') return res.status(403).json(formatError('Access denied. Account inactive.', [{ code: 'ACCOUNT_INACTIVE' }]));
 
     req.user = { id: user._id, role: user.role, status: user.status, phone: user.phone };
     req.token = token;
     next();
   } catch (error) {
-    return res.status(401).json(formatError('Access denied. Invalid or expired token.'));
+    const isExpired = error.name === 'TokenExpiredError';
+    return res.status(401).json(formatError(
+      isExpired ? 'Access denied. Token expired.' : 'Access denied. Invalid or expired token.',
+      [{ code: isExpired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID', message: error.message }]
+    ));
   }
 };
 

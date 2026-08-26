@@ -37,6 +37,15 @@ class RideExpiryService {
   }
 
   async expirePendingRides() {
+    // Skip if MongoDB is not connected to avoid timeout error storms.
+    try {
+      const { connectionState } = require('../config/database');
+      if (connectionState() !== 1) {
+        logger.warn('RideExpiryService: skipping — MongoDB not connected');
+        return;
+      }
+    } catch { /* ignore if database module not ready yet */ }
+
     const now = new Date();
 
     // Find all PENDING rides that have expired

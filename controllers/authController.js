@@ -7,28 +7,28 @@ const { generateAccessToken, generateRefreshToken } = require('../utils/jwtGener
 const isDev = process.env.NODE_ENV !== 'production';
 
 const setAuthCookies = (res, user) => {
-  const payload = { id: user.id, role: user.role };
+  const payload = { id: user.id || user._id, role: user.role };
   const accessToken = generateAccessToken(payload);
   const refreshToken = generateRefreshToken(payload);
   res.cookie('accessToken', accessToken, { httpOnly: true, secure: !isDev, sameSite: isDev ? 'lax' : 'strict' });
   res.cookie('refreshToken', refreshToken, { httpOnly: true, secure: !isDev, sameSite: isDev ? 'lax' : 'strict' });
-  return accessToken;
+  return { accessToken, refreshToken };
 };
 
 const login = asyncWrapper(async (req, res) => {
   const data = await authService.login(req.body.phone, req.body.password);
 
-  const accessToken = setAuthCookies(res, data.user);
+  const tokens = setAuthCookies(res, data.user);
 
-  res.status(200).json(formatResponse('Login successful.', { ...data, accessToken }));
+  res.status(200).json(formatResponse('Login successful.', { ...data, ...tokens }));
 });
 
 const adminLogin = asyncWrapper(async (req, res) => {
   const data = await authService.adminLogin(req.body.phone, req.body.password);
 
-  const accessToken = setAuthCookies(res, data.user);
+  const tokens = setAuthCookies(res, data.user);
 
-  res.status(200).json(formatResponse('Admin login successful.', { ...data, accessToken }));
+  res.status(200).json(formatResponse('Admin login successful.', { ...data, ...tokens }));
 });
 
 const sendOtp = asyncWrapper(async (req, res) => {
@@ -39,8 +39,8 @@ const sendOtp = asyncWrapper(async (req, res) => {
 const verifyOtp = asyncWrapper(async (req, res) => {
   const data = await authService.verifyOtp(req.body.phone, req.body.otp, req.body.purpose, req.body.name);
   if (data.user) {
-    const accessToken = setAuthCookies(res, data.user);
-    data.accessToken = accessToken;
+    const tokens = setAuthCookies(res, data.user);
+    Object.assign(data, tokens);
   }
   res.status(200).json(formatResponse('OTP verification succeeded.', data));
 });
@@ -56,7 +56,7 @@ const resetPassword = asyncWrapper(async (req, res) => {
 });
 
 const refresh = asyncWrapper(async (req, res) => {
-  const token = req.cookies.refreshToken;
+  const token = req.cookies?.refreshToken || req.body?.refreshToken || req.headers['x-refresh-token'];
   if (!token) {
     return res.status(401).json({ success: false, message: 'Refresh token required.' });
   }
@@ -65,7 +65,12 @@ const refresh = asyncWrapper(async (req, res) => {
     res.cookie('accessToken', data.accessToken, { httpOnly: true, secure: !isDev, sameSite: isDev ? 'lax' : 'strict' });
     res.cookie('refreshToken', data.refreshToken, { httpOnly: true, secure: !isDev, sameSite: isDev ? 'lax' : 'strict' });
   }
-  res.status(200).json(formatResponse('Token refreshed successfully.', { success: true }));
+  res.status(200).json(formatResponse('Token refreshed successfully.', {
+    success: true,
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user,
+  }));
 });
 
 const logout = asyncWrapper(async (req, res) => {

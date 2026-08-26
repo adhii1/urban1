@@ -23,9 +23,20 @@ const TRIP_API = {
         return fetch(`${API_BASE_URL}/driver/trips?scope=${encodeURIComponent(scope)}`, {
             method: 'GET',
             headers: getAuthHeaders(),
-            // The driver portal must use its own Bearer token, never a shared
-            // browser cookie from an admin or customer session.
             credentials: 'omit'
+        })
+        .then(async res => {
+            if ((res.status === 401 || res.status === 403) && window.refreshDriverSession) {
+                const refreshed = await window.refreshDriverSession();
+                if (refreshed) {
+                    return fetch(`${API_BASE_URL}/driver/trips?scope=${encodeURIComponent(scope)}`, {
+                        method: 'GET',
+                        headers: getAuthHeaders(),
+                        credentials: 'omit'
+                    });
+                }
+            }
+            return res;
         })
         .then(res => {
             if (!res.ok) {

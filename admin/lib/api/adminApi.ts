@@ -16,17 +16,20 @@ export async function apiFetch<T = any>(
 
   let res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
 
-  if (res.status === 401) {
-    const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-    });
+  if ((res.status === 401 || res.status === 403) && !endpoint.startsWith('/auth/login')) {
+    try {
+      const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
-    if (refreshRes.ok) {
-      res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
-    } else {
-      // Don't auto-logout — just throw so the calling code can decide
+      if (refreshRes.ok) {
+        res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+      } else {
+        throw new Error('SESSION_EXPIRED');
+      }
+    } catch {
       throw new Error('SESSION_EXPIRED');
     }
   }

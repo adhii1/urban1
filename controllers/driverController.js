@@ -59,7 +59,12 @@ const getTrips = asyncWrapper(async (req, res) => {
 
   const [tripDocs, total] = await Promise.all([
     Trip.find(filter)
-      .populate('passengers.customerId', 'name')
+      .populate({
+        path: 'passengers.customerId',
+        select: 'name phone pickupLocation dropLocation userId',
+        populate: { path: 'userId', select: 'phone' },
+      })
+      .populate('routeId')
       .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
@@ -192,7 +197,12 @@ const getTripById = asyncWrapper(async (req, res) => {
     _id: req.params.id,
     driverId: driver._id,
   })
-    .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .populate({
+      path: 'passengers.customerId',
+      select: 'name phone pickupLocation dropLocation userId',
+      populate: { path: 'userId', select: 'phone' },
+    })
+    .populate('routeId')
     .lean();
 
   if (!trip) {

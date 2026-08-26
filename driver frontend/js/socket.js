@@ -109,6 +109,13 @@ class SocketBroker {
         this.socket.on('driver:shuttle:complete-drop:ack', (data) => this.triggerEvent('driver:shuttle:complete-drop:ack', data));
         this.socket.on('driver:shuttle:complete-drop:error', (data) => this.triggerEvent('driver:shuttle:complete-drop:error', data));
         this.socket.on('driver:suspended', (data) => this.triggerEvent('driver:suspended', data));
+
+        // Bundle change: a customer rebundled to/from this driver due to a
+        // location change. Dashboard and current-trip pages both listen for this.
+        this.socket.on('trip:bundle:updated', (data) => {
+            console.log('📦 [Socket] trip:bundle:updated', data);
+            this.triggerEvent('trip:bundle:updated', data);
+        });
     }
 
     // Tell the backend this driver is online + where they are. The backend

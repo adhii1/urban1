@@ -70,4 +70,33 @@
     if (/^(https?:)?\/\//i.test(assetPath)) return assetPath;
     return window.TORQQ_API_ORIGIN + '/' + String(assetPath).replace(/^\/+/, '');
   };
+
+  /** Refresh driver authentication token when expired */
+  window.refreshDriverSession = async function () {
+    var refreshToken = localStorage.getItem('driverRefreshToken');
+    try {
+      var res = await fetch((window.TORQQ_API_BASE || '/api/v1') + '/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(refreshToken ? { 'x-refresh-token': refreshToken } : {})
+        },
+        body: JSON.stringify({ refreshToken: refreshToken || '' }),
+        credentials: 'include'
+      });
+      if (!res.ok) return false;
+      var body = await res.json();
+      var tokenData = body.data || body;
+      if (tokenData && tokenData.accessToken) {
+        localStorage.setItem('driverToken', tokenData.accessToken);
+        if (tokenData.refreshToken) {
+          localStorage.setItem('driverRefreshToken', tokenData.refreshToken);
+        }
+        return true;
+      }
+      return false;
+    } catch (err) {
+      return false;
+    }
+  };
 })();

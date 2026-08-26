@@ -70,6 +70,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.SOCKET.on('fareTick', (data) => {
         adjustActiveTripFare(data.addedAmount);
     });
+
+    // Real-time bundle change notification: a passenger was added to or removed
+    // from the driver's upcoming bundle due to a customer changing their pickup
+    // location beyond 5 km. Refresh the trips list and show a toast.
+    window.SOCKET.on('trip:bundle:updated', (data) => {
+        handleBundleUpdate(data);
+    });
 }
 
     // 5. Connect fare adjustments during active trips
@@ -338,6 +345,103 @@ function showTripOfferModal(offer) {
         window.SOCKET.on('ride:accept:error', onErr);
         window.SOCKET.emit('ride:accept', { rideRequestId });
     };
+}
+
+/**
+ * Handle a real-time bundle change pushed from the server when a customer
+ * changes their pickup location and is rebundled to/from this driver.
+ *
+ * type: 'PASSENGER_ADDED' | 'PASSENGER_REMOVED' | 'PASSENGER_LOCATION_UPDATED'
+ */
+function handleBundleUpdate(data) {
+    const { type, reason, trip, newPickupAddress } = data || {};
+
+    // Pick the right toast style and message
+    let toastType = 'info';
+    let msg = 'Your passenger bundle has been updated.';
+    if (type === 'PASSENGER_ADDED') {
+        toastType = 'success';
+        msg = `New passenger added to your bundle. ${reason || ''}`;
+    } else if (type === 'PASSENGER_REMOVED') {
+        toastType = 'warning';
+        msg = `A passenger was removed from your bundle. ${reason || ''}`;
+    } else if (type === 'PASSENGER_LOCATION_UPDATED') {
+        toastType = 'info';
+        msg = `Passenger pickup updated${newPickupAddress ? ` → ${newPickupAddress}` : ''}. ${reason || ''}`;
+    }
+
+    window.UTILS && window.UTILS.showToast(msg, toastType);
+
+    // Show a rich bundle change card if trip data is available
+    if (trip) {
+        showBundleUpdateCard(trip, type);
+    }
+
+    // Refresh the trips list so the schedule reflects the change
+    if (window.TRIP_API && window.TRIP_API.getTrips) {
+        window.TRIP_API.getTrips()
+            .then(res => {
+                if (res.success && res.trips) {
+                    window.STATE.setState('trips', res.trips);
+                    renderDriverSchedule(res.trips);
+                }
+            })
+            .catch(() => {});
+    }
+}
+
+/**
+ * Render a temporary "bundle changed" notification card on the dashboard.
+ * Auto-dismisses after 8 seconds.
+ */
+function showBundleUpdateCard(trip, type) {
+    // Remove any previous bundle card
+    const prev = document.getElementById('bundleUpdateCard');
+    if (prev) prev.remove();
+
+    const container = document.getElementById('activeTripWorkflowPlaceholder');
+    if (!container) return;
+
+    const typeLabel = {
+        PASSENGER_ADDED: '+ Passenger Added',
+        PASSENGER_REMOVED: '− Passenger Removed',
+        PASSENGER_LOCATION_UPDATED: '✎ Pickup Location Updated',
+    }[type] || 'Bundle Updated';
+
+    const badgeClass = {
+        PASSENGER_ADDED: 'badge-success',
+        PASSENGER_REMOVED: 'badge-warning',
+        PASSENGER_LOCATION_UPDATED: 'badge-info',
+    }[type] || 'badge-info';
+
+    const passengerList = Array.isArray(trip.passengers) && trip.passengers.length > 0
+        ? trip.passengers.map(p => `
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border-color);">
+                <span style="font-weight:600;font-size:12px;color:var(--text-main);">${escapeScheduleHtml(p.name || 'Passenger')}</span>
+                <span style="color:var(--text-light);font-size:11px;">→ ${escapeScheduleHtml(p.pickup || '—')}</span>
+            </div>`).join('')
+        : '<div style="font-size:12px;color:var(--text-light);">No passengers assigned.</div>';
+
+    const card = document.createElement('div');
+    card.id = 'bundleUpdateCard';
+    card.style.cssText = 'animation: fadeIn 0.3s ease; margin-bottom: 12px;';
+    card.innerHTML = `
+        <div class="glass-card" style="border:1px solid var(--color-primary);padding:14px;border-radius:var(--border-radius-md);">
+            <div class="flex-between" style="margin-bottom:10px;">
+                <span class="badge ${badgeClass}" style="font-size:10px;">${typeLabel}</span>
+                <button onclick="document.getElementById('bundleUpdateCard').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-light);font-size:16px;">&times;</button>
+            </div>
+            <div style="font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:6px;">
+                Updated bundle — ${trip.passengerCount || (trip.passengers || []).length} passenger(s)
+            </div>
+            <div>${passengerList}</div>
+        </div>`;
+
+    // Insert at top of the active trip panel
+    container.insertAdjacentElement('afterbegin', card);
+
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => { if (card.parentNode) card.remove(); }, 8000);
 }
 
 // Update Active trip viewports based on current state transitions

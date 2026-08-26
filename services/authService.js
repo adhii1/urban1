@@ -217,7 +217,12 @@ class AuthService {
       const payload = { id: user._id, role: user.role };
       const accessToken = generateAccessToken(payload);
       const refreshToken = generateRefreshToken(payload);
-      return { success: true, accessToken, refreshToken };
+      return {
+        success: true,
+        accessToken,
+        refreshToken,
+        user: { id: user._id, name: user.name, phone: user.phone, role: user.role, status: user.status },
+      };
     } catch (error) {
       this._throwError('Invalid or expired refresh token.', 401);
     }

@@ -10,7 +10,7 @@
 const Customer = require('../models/Customer');
 const Subscription = require('../models/Subscription');
 const subscriptionService = require('../services/subscriptionService');
-const { assignDriverToSubscription, rematchOnLocationChange } = require('../services/SubscriptionMatchingService');
+const { assignDriverToSubscription, rebundleOnLocationChange } = require('../services/SubscriptionMatchingService');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
@@ -177,10 +177,10 @@ const cancelBooking = asyncWrapper(async (req, res) => {
 
 /**
  * PUT /api/v1/booking/location
- * Change pickup/drop; backend re-evaluates driver assignment (PDF section 19).
+ * Change pickup/drop; backend re-evaluates driver assignment and rebundles
+ * if the new location is >5km from the existing driver's route (PDF section 19).
  * Body: { pickupLocation, dropLocation, subscriptionId } — `subscriptionId` is
- * required once the customer holds more than one active subscription, since
- * each has its own pickup point.
+ * required once the customer holds more than one active subscription.
  */
 const updateLocation = asyncWrapper(async (req, res) => {
   const customer = await Customer.findOne({ userId: req.user.id });
@@ -217,6 +217,7 @@ const updateLocation = asyncWrapper(async (req, res) => {
     [subscription] = active;
   }
 
+  // Update coordinates on the subscription document first
   if (pickupLocation?.coordinates) {
     subscription.pickupLocation = {
       address: pickupLocation.address || subscription.pickupLocation.address,
@@ -233,15 +234,42 @@ const updateLocation = asyncWrapper(async (req, res) => {
   }
   await subscription.save();
 
-  const result = await rematchOnLocationChange(subscription);
-  if (result.success && result.driver) {
-    await assignDriverToSubscription(subscription._id, result.driver._id, result.area?._id);
+  // Full rebundle: re-match driver, reconcile future trips, notify both drivers
+  const result = await rebundleOnLocationChange(subscription);
+
+  if (!result.success) {
     return res.json(formatResponse(
-      result.keptExistingDriver ? 'Location updated. Current driver still valid.' : 'Location updated. New driver assigned.',
-      { driver: { name: result.driver.name, vehicleNumber: result.driver.vehicleNumber }, distanceKm: result.distanceKm }
+      'Location updated but no eligible driver found. Admin will assign one.',
+      { reason: result.reason }
     ));
   }
-  return res.json(formatResponse('Location updated but no eligible driver found. Admin will assign one.', { reason: result.reason }));
+
+  const message = result.keptExistingDriver
+    ? 'Location updated. Your current driver can still serve your new pickup.'
+    : `Location updated. ${result.driverChanged
+        ? `You have been moved to a new driver. Your previous driver's bundle was updated.`
+        : 'Your driver assignment is unchanged.'}`;
+
+  logger.info('[Booking] Location updated and rebundled', {
+    subscriptionId: subscription._id,
+    driverChanged: result.driverChanged,
+    removedFromTrips: result.removedFromTrips,
+    addedToTrips: result.addedToTrips,
+  });
+
+  return res.json(formatResponse(message, {
+    driver: {
+      name: result.driver.name,
+      vehicleNumber: result.driver.vehicleNumber,
+      vehicleModel: result.driver.vehicleModel,
+    },
+    distanceKm: result.distanceKm,
+    driverChanged: result.driverChanged,
+    rebundle: {
+      removedFromTrips: result.removedFromTrips,
+      addedToTrips: result.addedToTrips,
+    },
+  }));
 });
 
 /**

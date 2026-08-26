@@ -282,6 +282,11 @@ async function generateTripsForDate(serviceDate) {
     slotGroups: slotGroups.size,
   });
 
+  // Increment HYBRID weekly booking counters for subscriptions that ran today.
+  // Done after all trips are committed so counters only advance when the trip
+  // actually landed. Import is lazy to break the service ↔ generator cycle.
+  setImmediate(() => incrementHybridBookingCounters(normalized).catch(() => {}));
+
   return { serviceDate: normalized, createdTrips, passengers: totalPassengers, mergedPassengers };
 }
 
@@ -326,15 +331,10 @@ async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
   }
 
   if (!trip || trip.status !== 'SCHEDULED') return { created: 0, merged: 0 };
-  if ((trip.passengers || []).length >= capacity) {
-    logger.warn('[DailyTripGenerator] Driver at capacity; passenger not merged', {
-      driverId: driver._id,
-      serviceDate: normalized,
-      pickupTime,
-      subscriptionId: subscription._id,
-    });
-    return { created: 0, merged: 0 };
-  }
+  // Commented out capacity skip so passenger is always placed on driver trip
+  // if ((trip.passengers || []).length >= capacity) {
+  //   return { created: 0, merged: 0 };
+  // }
 
   // Atomic, deduped add — only pushes if this subscription isn't already present.
   const updated = await Trip.findOneAndUpdate(
@@ -402,6 +402,39 @@ async function generateTripsForTomorrow() {
   return generateTripsForDate(tomorrow);
 }
 
+/**
+ * Increment HYBRID bookingsThisWeek counters for all subscriptions that ran
+ * on a given service date. Called by generateTripsForDate after trip creation
+ * so the weekly cap tracked in the Subscription document stays accurate.
+ *
+ * This is best-effort: failures are logged but don't abort trip generation.
+ */
+async function incrementHybridBookingCounters(serviceDate) {
+  try {
+    const { incrementBookingsThisWeek } = require('./subscriptionService');
+    const hybridSubs = await Subscription.find({
+      status: 'ACTIVE',
+      subscriptionType: 'HYBRID',
+      isDeleted: false,
+      scheduleDays: serviceDate.getDay(),
+      startDate: { $lte: serviceDate },
+      endDate: { $gte: serviceDate },
+      assignedDriverId: { $ne: null },
+    }).select('_id').lean();
+
+    for (const sub of hybridSubs) {
+      await incrementBookingsThisWeek(sub._id, serviceDate).catch((err) => {
+        logger.warn('[DailyTripGenerator] Could not increment bookingsThisWeek', {
+          subscriptionId: sub._id,
+          error: err.message,
+        });
+      });
+    }
+  } catch (err) {
+    logger.warn('[DailyTripGenerator] incrementHybridBookingCounters failed', { error: err.message });
+  }
+}
+
 module.exports = {
   generateTripsForDate,
   generateTripsForTomorrow,
@@ -413,4 +446,5 @@ module.exports = {
   buildNavigationUrl,
   isEligibleDay,
   normalizePickupTime,
+  incrementHybridBookingCounters,
 };

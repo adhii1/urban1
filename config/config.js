@@ -102,10 +102,10 @@ const config = {
   jwt: {
     secret: requireEnv("JWT_SECRET", "test-jwt-secret"),
     accessExpirationMinutes:
-      parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES, 10) || 120,
+      parseInt(process.env.JWT_ACCESS_EXPIRES_MINUTES, 10) || 10080,
     refreshSecret: requireEnv("REFRESH_SECRET", "test-refresh-secret"),
     refreshExpirationDays:
-      parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS, 10) || 7,
+      parseInt(process.env.JWT_REFRESH_EXPIRES_DAYS, 10) || 30,
   },
 
   cors: {

@@ -7,6 +7,20 @@ let intervalRef = null;
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // Every hour
 const STALE_ORDER_MS = 30 * 60 * 1000; // Abandoned Razorpay orders expire after 30 min
 
+/**
+ * Returns true if the MongoDB connection is live and usable.
+ * Used by background jobs to skip their DB work during Atlas outages
+ * instead of hammering a dead connection and filling logs with timeout errors.
+ */
+function isDbConnected() {
+  try {
+    const { connectionState } = require('../config/database');
+    return connectionState() === 1; // 1 = connected
+  } catch {
+    return false;
+  }
+}
+
 /** Release one seat of capacity per expiring subscription on its assigned driver. */
 async function releaseDriverCapacity(subscriptions) {
   const perDriver = new Map();
@@ -47,6 +61,13 @@ async function repointExpiredCustomers(terminated) {
  * driver capacity.
  */
 async function expireSubscriptions() {
+  // Skip if the MongoDB connection is not ready — avoids flooding logs with
+  // timeout errors during Atlas momentary outages while the driver reconnects.
+  if (!isDbConnected()) {
+    logger.warn('[SubscriptionExpiry] Skipping expiry check — MongoDB not connected');
+    return;
+  }
+
   const now = new Date();
 
   try {

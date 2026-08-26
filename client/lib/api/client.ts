@@ -58,7 +58,7 @@ async function request<T>(
 
   let res = await fetch(`${API_BASE_URL}${endpoint}`, { ...fetchOptions, headers });
 
-  if (res.status === 401) {
+  if (res.status === 401 || (res.status === 403 && !endpoint.startsWith('/auth/login'))) {
     const refreshed = await refreshSession();
     if (refreshed) {
       // The backend prefers a Bearer token over its freshly rotated session cookie.
@@ -74,7 +74,7 @@ async function request<T>(
       const { useDriverStore } = await import('../../stores/driverStore');
       if (useCustomerStore.getState().isLoggedIn) useCustomerStore.getState().logout();
       if (useDriverStore.getState().isLoggedIn) useDriverStore.getState().logout();
-      throw new ApiError(401, 'Session expired. Please log in again.');
+      throw new ApiError(res.status, 'Session expired or insufficient permissions. Please log in again.');
     }
   }
 

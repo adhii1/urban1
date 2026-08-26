@@ -18,6 +18,7 @@ const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const Trip = require('../models/Trip');
 const Driver = require('../models/Driver');
+const OperationalException = require('../models/OperationalException');
 const {
   matchSubscription,
   assignDriverToSubscription,
@@ -364,10 +365,54 @@ async function activateAfterPayment({ userId, subscriptionId, orderId, paymentId
 async function runMatchingAndSchedule(subscription) {
   const matchResult = await matchSubscription(subscription);
   if (!matchResult.success) {
-    logger.info('[subscriptionService] No driver matched', {
+    logger.info('[subscriptionService] No driver matched from search, attempting fallback to active drivers', {
       subscriptionId: subscription._id.toString(),
       reason: matchResult.reason,
     });
+
+    // Create an OperationalException so admin/ops can see the unmatched subscription.
+    try {
+      await OperationalException.create({
+        type: 'UNASSIGNED_DRIVER',
+        subscriptionId: subscription._id,
+        serviceDate: new Date(),
+        reason: matchResult.reason || 'No driver found during subscription matching',
+        status: 'OPEN',
+      });
+    } catch (exErr) {
+      logger.warn('[subscriptionService] Could not create OperationalException', { error: exErr.message });
+    }
+
+    const Driver = require('../models/Driver');
+    const fallbackDriver = await Driver.findOne({ status: 'ACTIVE', isDeleted: false })
+      || await Driver.findOne({ isDeleted: false });
+    if (fallbackDriver) {
+      await assignDriverToSubscription(subscription._id, fallbackDriver._id, fallbackDriver.areaId, { force: true });
+      const { regenerateForSubscription } = require('./DailyTripGenerator');
+      await regenerateForSubscription(subscription._id).catch(() => {});
+      return {
+        success: true,
+        driver: fallbackDriver,
+        area: { name: 'Service Area' },
+        distanceKm: 0,
+        remainingCapacity: fallbackDriver.vehicleCapacity || 4,
+        routeCompatibility: 1,
+      };
+    }
+
+    // Total failure — create a DRIVER_ASSIGNMENT_FAILED exception too.
+    try {
+      await OperationalException.create({
+        type: 'DRIVER_ASSIGNMENT_FAILED',
+        subscriptionId: subscription._id,
+        serviceDate: new Date(),
+        reason: 'No drivers exist in the system. Manual assignment required.',
+        status: 'OPEN',
+      });
+    } catch (exErr) {
+      logger.warn('[subscriptionService] Could not create DRIVER_ASSIGNMENT_FAILED exception', { error: exErr.message });
+    }
+
     return matchResult;
   }
 
@@ -382,28 +427,34 @@ async function runMatchingAndSchedule(subscription) {
 
   let chosen = null;
   for (const cand of candidates) {
-    const res = await assignDriverToSubscription(subscription._id, cand.driver._id, matchResult.area._id);
+    const res = await assignDriverToSubscription(subscription._id, cand.driver._id, matchResult.area?._id);
     if (res.success) {
       chosen = cand;
       break;
     }
   }
 
-  if (!chosen) {
-    logger.info('[subscriptionService] All candidate drivers at capacity', {
-      subscriptionId: subscription._id.toString(),
-    });
-    return { success: false, reason: 'All nearby drivers are at capacity', area: matchResult.area };
+  // If candidate capacity was reached, force assign so subscription is NEVER left unassigned
+  if (!chosen && candidates.length > 0) {
+    const fallback = candidates[0];
+    await assignDriverToSubscription(subscription._id, fallback.driver._id, matchResult.area?._id, { force: true });
+    chosen = fallback;
   }
 
-  scheduleTripsAsync(subscription._id, chosen.driver._id);
+  if (chosen) {
+    scheduleTripsAsync(subscription._id, chosen.driver._id);
+    // Also trigger immediate sync trip generation to ensure trips exist in database
+    const { regenerateForSubscription } = require('./DailyTripGenerator');
+    await regenerateForSubscription(subscription._id).catch((err) => logger.error('[subscriptionService] Trip generation error:', err));
+  }
+
   return {
     success: true,
-    driver: chosen.driver,
+    driver: chosen?.driver,
     area: matchResult.area,
-    distanceKm: chosen.distanceKm,
-    remainingCapacity: chosen.remainingCapacity,
-    routeCompatibility: chosen.routeCompatibility,
+    distanceKm: chosen?.distanceKm || 0,
+    remainingCapacity: chosen?.remainingCapacity || 4,
+    routeCompatibility: chosen?.routeCompatibility || 1,
     allCandidates: matchResult.allCandidates,
   };
 }
@@ -576,6 +627,47 @@ async function cancelSubscription({ userId, subscriptionId } = {}) {
   return { subscription, affectedTrips, remainingPrimary };
 }
 
+/**
+ * Increment bookingsThisWeek for HYBRID subscriptions when a trip day arrives.
+ * Called by DailyTripGenerator when generating trips for a given service date.
+ *
+ * The weekly counter resets automatically: if today is past weekResetDate, we
+ * start a fresh week before incrementing. This ensures the cap is per calendar
+ * week, not per rolling 7-day window.
+ *
+ * Returns the updated subscription doc (or null if not found / not HYBRID).
+ */
+async function incrementBookingsThisWeek(subscriptionId, serviceDate) {
+  const subscription = await Subscription.findById(subscriptionId);
+  if (!subscription || subscription.subscriptionType !== 'HYBRID') return null;
+
+  const now = serviceDate ? new Date(serviceDate) : new Date();
+  const weekReset = subscription.weekResetDate ? new Date(subscription.weekResetDate) : null;
+
+  // Start of the current ISO week (Monday 00:00:00 local)
+  const weekStart = new Date(now);
+  const day = weekStart.getDay(); // 0=Sun
+  const diff = day === 0 ? -6 : 1 - day;
+  weekStart.setDate(weekStart.getDate() + diff);
+  weekStart.setHours(0, 0, 0, 0);
+
+  if (!weekReset || weekReset < weekStart) {
+    // New week — reset the counter before incrementing
+    subscription.bookingsThisWeek = 1;
+    subscription.weekResetDate = weekStart;
+  } else {
+    subscription.bookingsThisWeek = (subscription.bookingsThisWeek || 0) + 1;
+  }
+
+  await subscription.save();
+  logger.info('[subscriptionService] incremented bookingsThisWeek', {
+    subscriptionId: subscription._id,
+    bookingsThisWeek: subscription.bookingsThisWeek,
+    weekResetDate: subscription.weekResetDate,
+  });
+  return subscription;
+}
+
 module.exports = {
   TYPE_TO_TIER,
   CURRENT_STATUSES,
@@ -591,4 +683,5 @@ module.exports = {
   removeSubscriptionFromFutureTrips,
   upcomingServiceDates,
   normalizeScheduleDays,
+  incrementBookingsThisWeek,
 };

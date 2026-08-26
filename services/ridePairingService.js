@@ -104,6 +104,20 @@ async function syncDriverAvailability(logger) {
 function startPeriodicRefresh(logger) {
   if (refreshHandle) return;
   refreshHandle = setInterval(() => {
+    // Skip the DB round-trip when Atlas is not reachable — the in-memory map
+    // stays valid from the last successful sync, and the error storms these
+    // timeout cycles produce (seen in logs) are noise, not actionable failures.
+    let dbReady = true;
+    try {
+      const { connectionState } = require('../config/database');
+      dbReady = connectionState() === 1;
+    } catch { /* ignore */ }
+
+    if (!dbReady) {
+      if (logger) logger.warn('ridePairingService: skipping refresh — MongoDB not connected');
+      return;
+    }
+
     refreshFromDatabase().then(() => {
       syncDriverAvailability(logger);
     }).catch((err) => {
