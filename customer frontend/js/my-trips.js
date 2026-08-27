@@ -1,86 +1,191 @@
 /**
- * TORQQ Shared Mobility - My Trips Orchestrator with DataTable, Search, Filter & Rating Modal
+ * TORQQ Customer — My Trips
+ * Loads real trips from GET /customer/trips and renders them in a filterable
+ * grid. Falls back to empty-state when the customer has no trips yet.
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const tableContainer = 'my-trips-table-container';
+    const container = document.getElementById('my-trips-table-container');
     const tabs = document.querySelectorAll('.trip-tab');
     let currentTab = 'all';
+    let allTrips = [];
 
-    const res = await bookingService.getBookings();
-    let bookings = res.success ? res.data : [];
+    // ── helpers ────────────────────────────────────────────────────────────
 
-    const columns = [
-        { key: 'id', label: 'Ride ID', render: (val) => `<a href="ride-details.html?id=${val}" style="color:#16C15D; font-weight:700;">${val}</a>` },
-        { key: 'modelLabel', label: 'Booking Model' },
-        { key: 'pickup', label: 'Pickup Location' },
-        { key: 'destination', label: 'Destination' },
-        { key: 'date', label: 'Date & Time', render: (val, row) => `${val} ${row.time || ''}` },
-        { key: 'estimatedFare', label: 'Fare', render: (val) => `₹${val.toFixed(2)}` },
-        {
-            key: 'stageLabel',
-            label: 'Status',
-            render: (val, row) => {
-                const isComp = row.stage === 'COMPLETED';
-                const isCanc = row.stage === 'CANCELLED';
-                const bg = isComp ? '#16C15D' : isCanc ? '#EF4444' : '#3B82F6';
-                return `<span style="background:${bg}; color:#FFF; font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700;">${val || 'Confirmed'}</span>`;
-            }
-        },
-        {
-            key: 'id',
-            label: 'Actions',
-            render: (val, row) => {
-                if (row.stage === 'COMPLETED') {
-                    return `<button style="padding:4px 10px; background:rgba(22,193,93,0.1); color:#16C15D; border-radius:6px; font-weight:600; font-size:11px;" onclick="openRateModal('${val}')">⭐ Rate Driver</button>`;
-                }
-                return `<a href="ride-details.html?id=${val}" style="padding:4px 10px; background:rgba(0,0,0,0.06); color:var(--clr-text-main); border-radius:6px; font-weight:600; font-size:11px;">Details</a>`;
-            }
-        }
-    ];
-
-    function renderTable() {
-        let filtered = [...bookings];
-        if (currentTab === 'upcoming') filtered = filtered.filter(b => b.stage !== 'COMPLETED' && b.stage !== 'CANCELLED');
-        else if (currentTab === 'completed') filtered = filtered.filter(b => b.stage === 'COMPLETED');
-        else if (currentTab === 'cancelled') filtered = filtered.filter(b => b.stage === 'CANCELLED');
-
-        UIComponents.renderDataTable({
-            containerId: tableContainer,
-            columns,
-            data: filtered,
-            searchPlaceholder: 'Search by Ride ID, Pickup, Destination...'
-        });
+    function escHtml(v) {
+        return String(v ?? '').replace(/[&<>'"]/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[c]);
     }
 
-    tabs.forEach(t => {
-        t.addEventListener('click', () => {
-            tabs.forEach(tab => {
-                tab.style.background = 'rgba(0,0,0,0.05)';
-                tab.style.color = 'var(--clr-text-main)';
-                tab.classList.remove('active');
+    function statusBadge(status) {
+        const map = {
+            SCHEDULED: { cls: 'badge-info',    label: 'Scheduled' },
+            ACCEPTED:  { cls: 'badge-info',    label: 'Accepted' },
+            IN_PROGRESS: { cls: 'badge-success', label: 'In Progress' },
+            COMPLETED: { cls: 'badge-success', label: 'Completed' },
+            CANCELLED: { cls: 'badge-danger',  label: 'Cancelled' },
+        };
+        const b = map[status] || { cls: 'badge-info', label: status || 'Upcoming' };
+        return `<span class="badge ${b.cls}" style="font-size:10px;padding:2px 7px;">${escHtml(b.label)}</span>`;
+    }
+
+    // ── shape a raw Trip API response into a display object ─────────────────
+
+    function shapTrip(t) {
+        // Pickup / drop — from myEntry first, then first/last passenger
+        const me = t.myEntry || null;
+        const passengers = Array.isArray(t.passengers) ? t.passengers : [];
+
+        const pickupAddr = me?.pickupLocation?.address
+            || passengers[0]?.pickupLocation?.address
+            || t.pickupLocation?.address
+            || '—';
+
+        const dropAddr = me?.dropLocation?.address
+            || passengers[passengers.length - 1]?.dropLocation?.address
+            || t.dropLocation?.address
+            || '—';
+
+        // Date + time
+        const serviceDate = t.serviceDate ? new Date(t.serviceDate) : null;
+        const dateStr = serviceDate
+            ? serviceDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+            : '—';
+
+        let timeStr = t.pickupTime || '';
+        if (t.pickupTime && serviceDate) {
+            const [h, m] = t.pickupTime.split(':').map(Number);
+            const d = new Date(serviceDate);
+            d.setHours(h, m, 0, 0);
+            timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+        }
+
+        // Driver info
+        const driver = t.driverId || {};
+        const driverName = driver.name || '—';
+        const vehicleNo  = driver.vehicleNumber || '—';
+
+        return {
+            _id:       t._id,
+            status:    t.status || 'SCHEDULED',
+            date:      dateStr,
+            time:      timeStr,
+            pickup:    pickupAddr,
+            drop:      dropAddr,
+            driverName,
+            vehicleNo,
+            myStatus:  me?.status || t.status || '—',
+            otp:       me?.otp?.verified ? '✓ verified' : (me?.otp?.code ? '•••• pending' : '—'),
+            passengers: passengers.length,
+            navigationUrl: t.navigationUrl || '',
+        };
+    }
+
+    // ── render ──────────────────────────────────────────────────────────────
+
+    function renderTrips() {
+        if (!container) return;
+
+        let list = allTrips;
+        if (currentTab === 'upcoming') {
+            list = list.filter(t => !['COMPLETED', 'CANCELLED'].includes(t.status));
+        } else if (currentTab === 'completed') {
+            list = list.filter(t => t.status === 'COMPLETED');
+        } else if (currentTab === 'cancelled') {
+            list = list.filter(t => t.status === 'CANCELLED');
+        }
+
+        if (list.length === 0) {
+            container.innerHTML = `
+                <div style="padding:48px 24px; text-align:center; color:var(--text-light, #94a3b8);">
+                    <div style="font-size:36px; margin-bottom:12px;">🗓️</div>
+                    <div style="font-weight:700; font-size:15px; color:var(--text-main, #0f172a);">No trips here yet</div>
+                    <div style="font-size:13px; margin-top:6px;">
+                        ${currentTab === 'all'
+                            ? 'Book a subscription to see your scheduled trips.'
+                            : `No ${currentTab} trips found.`}
+                    </div>
+                    ${currentTab === 'all' ? `<a href="booking.html" class="btn btn-primary" style="margin-top:20px; display:inline-flex; text-decoration:none;">Book a ride</a>` : ''}
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = list.map(t => `
+            <div class="glass-card fade-in" style="padding:18px 20px; margin-bottom:16px;">
+                <div class="flex-between" style="margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${statusBadge(t.status)}
+                        <span style="font-size:11px; color:var(--text-light);">${escHtml(t.date)} ${escHtml(t.time)}</span>
+                    </div>
+                    <span style="font-size:11px; color:var(--text-light);">${t.passengers} passenger${t.passengers !== 1 ? 's' : ''} in trip</span>
+                </div>
+
+                <div style="display:grid; grid-template-columns:20px 1fr; gap:4px 10px; font-size:13px; margin-bottom:14px;">
+                    <span style="color:#22c55e; font-size:16px; line-height:1.2;">●</span>
+                    <div>
+                        <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">Pickup</div>
+                        <div style="font-weight:600; color:var(--text-main);">${escHtml(t.pickup)}</div>
+                    </div>
+                    <span style="color:var(--text-light); font-size:10px; text-align:center;">│</span><span></span>
+                    <span style="color:#3b82f6; font-size:16px; line-height:1.2;">●</span>
+                    <div>
+                        <div style="font-size:10px; font-weight:700; color:var(--text-light); text-transform:uppercase;">Drop-off</div>
+                        <div style="font-weight:600; color:var(--text-main);">${escHtml(t.drop)}</div>
+                    </div>
+                </div>
+
+                <div style="font-size:12px; color:var(--text-light); border-top:1px solid var(--border-color,rgba(0,0,0,.08)); padding-top:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px;">
+                    <span>🚗 ${escHtml(t.driverName)} · ${escHtml(t.vehicleNo)}</span>
+                    <span>OTP: ${escHtml(t.otp)}</span>
+                    ${t.navigationUrl ? `<a href="${escHtml(t.navigationUrl)}" target="_blank" style="color:var(--color-primary,#16c15d); font-weight:600; text-decoration:none; font-size:11px;">📍 View route</a>` : ''}
+                </div>
+            </div>`).join('');
+    }
+
+    // ── load from API ───────────────────────────────────────────────────────
+
+    function showSkeleton() {
+        if (!container) return;
+        container.innerHTML = [1, 2, 3].map(() => `
+            <div class="glass-card skeleton-pulse" style="height:140px; margin-bottom:16px; border-radius:12px;"></div>`).join('');
+    }
+
+    async function loadTrips() {
+        showSkeleton();
+        try {
+            const payload = await CUSTOMER_API.getTrips();
+            const raw = Array.isArray(payload.data) ? payload.data : [];
+            allTrips = raw.map(shapTrip);
+            renderTrips();
+        } catch (err) {
+            console.error('[my-trips] Failed to load trips:', err);
+            if (container) {
+                container.innerHTML = `
+                    <div style="padding:32px; text-align:center; color:#ef4444; font-size:13px;">
+                        Could not load trips. ${escHtml(err.message || '')}
+                        <br><button class="btn btn-secondary" style="margin-top:16px;" onclick="location.reload()">Retry</button>
+                    </div>`;
+            }
+        }
+    }
+
+    // ── tab wiring ──────────────────────────────────────────────────────────
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+                t.style.background = 'rgba(0,0,0,0.05)';
+                t.style.color = 'var(--clr-text-main, #0f172a)';
+                t.classList.remove('active');
             });
-            t.style.background = '#16C15D';
-            t.style.color = '#FFF';
-            t.classList.add('active');
-            currentTab = t.getAttribute('data-tab');
-            renderTable();
+            tab.style.background = '#16C15D';
+            tab.style.color = '#FFF';
+            tab.classList.add('active');
+            currentTab = tab.getAttribute('data-tab') || 'all';
+            renderTrips();
         });
     });
 
-    window.openRateModal = (rideId) => {
-        const modal = document.getElementById('rate-driver-modal');
-        if (modal) modal.style.display = 'flex';
-    };
-
-    const submitRating = document.getElementById('btn-submit-rating');
-    if (submitRating) {
-        submitRating.addEventListener('click', () => {
-            const modal = document.getElementById('rate-driver-modal');
-            if (modal) modal.style.display = 'none';
-            UIComponents.showToast('Thank you! Driver rating submitted successfully.', 'success');
-        });
-    }
-
-    renderTable();
+    await loadTrips();
 });

@@ -158,17 +158,28 @@ function renderDriverSchedule(trips) {
     }
 
     timeline.innerHTML = schedules.map(trip => {
-        const isPending = trip.status === 'PENDING';
-        const label = isPending ? 'Pending offer' : trip.status === 'AVAILABLE' ? 'Scheduled' : trip.status.replaceAll('_', ' ');
-        const route = `${escapeScheduleHtml(trip.pickup)} to ${escapeScheduleHtml(trip.drop)}`;
+        const isPending  = trip.status === 'PENDING';
+        const label      = isPending ? 'Pending offer' : trip.status === 'AVAILABLE' ? 'Scheduled' : trip.status.replaceAll('_', ' ');
+        const paxCount   = trip.passengerCount || (trip.passengers || []).length || 0;
+        const paxLabel   = paxCount > 0 ? `${paxCount} Passenger${paxCount !== 1 ? 's' : ''}` : '';
+        const pickup     = trip.pickup && trip.pickup !== 'Pickup' ? trip.pickup : '—';
+        const drop       = trip.drop   && trip.drop   !== 'Drop'   ? trip.drop   : '—';
+        const route      = `${escapeScheduleHtml(pickup)} → ${escapeScheduleHtml(drop)}`;
+        const dateStr    = trip.date || '';
         return `
-            <div class="timeline-item upcoming">
-                <span class="timeline-time">${escapeScheduleHtml(trip.time)}</span>
+            <div class="timeline-item upcoming" style="cursor:pointer;" onclick="window.location.href='my-trips.html'">
+                <span class="timeline-time">${escapeScheduleHtml(trip.time || '—')}</span>
                 <div class="timeline-node"></div>
                 <div class="timeline-content">
-                    <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">${isPending ? 'Pending Shift Offer' : 'Scheduled Shift Allocation'}</h3>
-                    <p style="font-size:11px; color:var(--text-light); margin-top:2px;">${route}</p>
-                    <span class="badge ${isPending ? 'badge-warning' : 'badge-info'}" style="font-size:8px; padding:1px 4px; margin-top:4px; display:inline-flex;">${escapeScheduleHtml(label)}</span>
+                    <div class="flex-between" style="align-items:flex-start;">
+                        <h3 style="font-size:12px; font-weight:700; color:var(--text-main);">${isPending ? 'Pending Shift Offer' : 'Scheduled Shift'}</h3>
+                        ${paxLabel ? `<span style="font-size:10px;font-weight:700;color:var(--color-primary);">${escapeScheduleHtml(paxLabel)}</span>` : ''}
+                    </div>
+                    <p style="font-size:11px; color:var(--text-light); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:220px;" title="${escapeScheduleHtml(route)}">${route}</p>
+                    <div style="display:flex; align-items:center; gap:6px; margin-top:4px; flex-wrap:wrap;">
+                        <span class="badge ${isPending ? 'badge-warning' : 'badge-info'}" style="font-size:8px; padding:1px 4px; display:inline-flex;">${escapeScheduleHtml(label)}</span>
+                        ${dateStr ? `<span style="font-size:9px; color:var(--text-light);">${escapeScheduleHtml(dateStr)}</span>` : ''}
+                    </div>
                 </div>
             </div>`;
     }).join('');
