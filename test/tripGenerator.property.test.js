@@ -88,6 +88,7 @@ test('Property 7: route-date generation groups complete PENDING manifests and pr
     fc.array(fc.integer({ min: 1, max: 4 }), { minLength: 1, maxLength: 3 }),
     fc.integer({ min: 0, max: 364 }),
     async (routeCounts, dateOffset) => {
+      await db.resetData();
       const fixture = await createFixture({ routeCounts });
       const date = serviceDate(dateOffset);
       const first = await generateForServiceDate(date);
@@ -134,6 +135,7 @@ test('Property 8: generation propagates active drivers and records exceptions fo
     fc.array(fc.boolean(), { minLength: 1, maxLength: 4 }),
     fc.integer({ min: 0, max: 364 }),
     async (hasActiveDriver, dateOffset) => {
+      await db.resetData();
       const fixture = await createFixture({ routeCounts: hasActiveDriver.map(() => 1), activeDrivers: hasActiveDriver });
       const date = serviceDate(dateOffset);
       await generateForServiceDate(date);

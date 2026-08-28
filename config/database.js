@@ -254,48 +254,39 @@ const seedDatabase = async (env) => {
       driverProfile = await Driver.findOne({ userId: driverUser._id });
     }
 
-    // Convert the former demo customer account into the requested driver account.
-    // This is idempotent so it also repairs an existing development database.
-    const requestedDriverPhone = '7019268918';
-    let requestedDriverUser = await User.findOne({ phone: requestedDriverPhone });
-    if (!requestedDriverUser) {
-      requestedDriverUser = await User.create({
-        phone: requestedDriverPhone,
+    // Restore the former demo customer account without touching its existing
+    // customer profile or subscriptions. This is idempotent and repairs old
+    // databases that were seeded with the wrong role.
+    const requestedCustomerPhone = '7019268918';
+    let requestedCustomerUser = await User.findOne({ phone: requestedCustomerPhone });
+    if (!requestedCustomerUser) {
+      requestedCustomerUser = await User.create({
+        phone: requestedCustomerPhone,
         password: hashedPassword,
-        role: 'Driver',
+        role: 'Customer',
         status: 'ACTIVE',
         hasCustomPassword: true,
       });
-    } else if (requestedDriverUser.role !== 'Driver') {
-      const formerCustomer = await Customer.findOne({ userId: requestedDriverUser._id });
-      if (formerCustomer) {
-        await Subscription.deleteMany({ customerId: formerCustomer._id });
-        await Customer.deleteOne({ _id: formerCustomer._id });
-      }
-      requestedDriverUser.role = 'Driver';
-      requestedDriverUser.status = 'ACTIVE';
-      requestedDriverUser.hasCustomPassword = true;
-      await requestedDriverUser.save();
+    } else {
+      requestedCustomerUser.role = 'Customer';
+      requestedCustomerUser.status = 'ACTIVE';
+      requestedCustomerUser.hasCustomPassword = true;
+      await requestedCustomerUser.save();
     }
 
-    let requestedDriverProfile = await Driver.findOne({ userId: requestedDriverUser._id });
-    if (!requestedDriverProfile) {
-      requestedDriverProfile = await Driver.create({
-        userId: requestedDriverUser._id,
-        name: 'Driver 7019268918',
-        vehicleNumber: 'KA01AB7019',
-        vehicleModel: 'Maruti Swift',
-        vehicleCapacity: 4,
-        licenseNumber: 'KA-DL-701926',
-        routeId: route._id,
-        areaId: area._id,
-        currentLocation: { type: 'Point', coordinates: [77.6501, 12.9141] },
-        status: 'ACTIVE',
-        isOnline: false,
-        isAvailable: false,
+    await Driver.deleteMany({ userId: requestedCustomerUser._id });
+    const requestedCustomerProfile = await Customer.findOne({ userId: requestedCustomerUser._id });
+    if (!requestedCustomerProfile) {
+      await Customer.create({
+        userId: requestedCustomerUser._id,
+        name: 'Ravi Kumar',
+        homeLocation: { address: 'HSR Layout, Bangalore', coordinates: [77.6309, 12.9279] },
+        pickupLocation: { address: 'HSR Layout Sector 2', coordinates: [77.6309, 12.9279] },
+        dropLocation: { address: 'Electronic City, Bangalore', coordinates: [77.6683, 12.8489] },
+        walletBalance: 5000,
       });
     }
-    logger.info(`Seeded Driver: ${requestedDriverPhone} / password123`);
+    logger.info(`Seeded Customer: ${requestedCustomerPhone} / password123`);
 
     let customerUser = await User.findOne({ phone: '7019268917' });
     let customerProfile = null;
