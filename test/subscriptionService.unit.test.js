@@ -3,6 +3,8 @@ const test = require('node:test');
 
 const { normalizeScheduleDays, upcomingServiceDates } = require('../services/subscriptionService');
 const { optimizePickupOrder, normalizePickupTime } = require('../services/DailyTripGenerator');
+const { buildNavigationUrl } = require('../services/shuttleService');
+const { generateBundles } = require('../services/SpatialClusterService');
 const Subscription = require('../models/Subscription');
 const Trip = require('../models/Trip');
 
@@ -13,14 +15,15 @@ test('normalizeScheduleDays: WEEKDAYS and SHUTTLE are Mon–Fri', () => {
   assert.deepEqual(normalizeScheduleDays('SHUTTLE', [1, 2]), [1, 2, 3, 4, 5]);
 });
 
-test('normalizeScheduleDays: HYBRID dedupes, sorts, and caps at 3 days', () => {
+test('normalizeScheduleDays: HYBRID requires exactly 3 distinct weekdays', () => {
   assert.deepEqual(normalizeScheduleDays('HYBRID', [5, 1, 3]), [1, 3, 5]);
-  assert.deepEqual(normalizeScheduleDays('HYBRID', [1, 1, 2, 2, 3, 4]), [1, 2, 3]);
+  assert.throws(() => normalizeScheduleDays('HYBRID', [1, 1, 2]), /exactly 3 different weekdays/i);
+  assert.throws(() => normalizeScheduleDays('HYBRID', [1, 2, 3, 4]), /exactly 3 different weekdays/i);
 });
 
-test('normalizeScheduleDays: HYBRID rejects empty / out-of-range', () => {
-  assert.throws(() => normalizeScheduleDays('HYBRID', []), /select 1.?3 commute days/i);
-  assert.throws(() => normalizeScheduleDays('HYBRID', [0, 7, 9]), /Invalid schedule days/i);
+test('normalizeScheduleDays: HYBRID rejects empty / weekend days', () => {
+  assert.throws(() => normalizeScheduleDays('HYBRID', []), /exactly 3 different weekdays/i);
+  assert.throws(() => normalizeScheduleDays('HYBRID', [1, 2, 6]), /exactly 3 different weekdays/i);
 });
 
 test('upcomingServiceDates returns only scheduled weekdays, in order', () => {
@@ -119,4 +122,30 @@ test('normalizePickupTime makes lookup and create agree on one key', () => {
   assert.equal(normalizePickupTime('morning'), 'morning');
   assert.equal(normalizePickupTime('25:00'), '25:00');
   assert.equal(normalizePickupTime('08:75'), '08:75');
+});
+
+test('shuttle bundling keeps up to six compatible passengers together', () => {
+  const ride = (id) => ({
+    _id: id,
+    pickupLocation: { coordinates: [77.6 + id * 0.001, 12.9] },
+    dropLocation: { coordinates: [77.7 + id * 0.001, 12.95] },
+  });
+  const primary = ride(0);
+  const bundle = generateBundles(primary, [1, 2, 3, 4, 5, 6].map(ride));
+
+  assert.equal(bundle.length, 1);
+  assert.equal(bundle[0].length, 6);
+  assert.equal(bundle[0][0]._id, primary._id);
+});
+
+test('shuttle navigation removes duplicate shared-destination stops', () => {
+  const sequence = [
+    { type: 'PICKUP', status: 'PENDING', location: { coordinates: [77.6, 12.9] } },
+    { type: 'DROP', status: 'PENDING', location: { coordinates: [77.7, 12.95] } },
+    { type: 'DROP', status: 'PENDING', location: { coordinates: [77.7, 12.95] } },
+  ];
+  const url = buildNavigationUrl(sequence);
+
+  assert.equal(url.match(/12\.95,77\.7/g).length, 1);
+  assert.match(url, /waypoints=12\.9,77\.6/);
 });

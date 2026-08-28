@@ -64,16 +64,13 @@ function normalizeScheduleDays(subscriptionType, scheduleDays) {
     return [1, 2, 3, 4, 5];
   }
   // HYBRID
-  if (!Array.isArray(scheduleDays) || scheduleDays.length === 0) {
-    throw new ValidationError('For HYBRID, select 1–3 commute days per week.', { code: 'HYBRID_DAYS_REQUIRED' });
+  if (!Array.isArray(scheduleDays)
+    || scheduleDays.length !== 3
+    || new Set(scheduleDays).size !== 3
+    || !scheduleDays.every((day) => Number.isInteger(day) && day >= 1 && day <= 5)) {
+    throw new ValidationError('For HYBRID, select exactly 3 different weekdays from Monday to Friday.', { code: 'HYBRID_DAYS_REQUIRED' });
   }
-  const normalized = [...new Set(scheduleDays.filter((d) => Number.isInteger(d) && d >= 1 && d <= 6))]
-    .sort((a, b) => a - b)
-    .slice(0, 3);
-  if (normalized.length === 0) {
-    throw new ValidationError('Invalid schedule days. Use 1=Mon through 6=Sat.', { code: 'INVALID_HYBRID_DAYS' });
-  }
-  return normalized;
+  return [...scheduleDays].sort((a, b) => a - b);
 }
 
 /** Floor to local midnight; clamp a past start to today (don't fail the booking). */
@@ -383,21 +380,37 @@ async function runMatchingAndSchedule(subscription) {
       logger.warn('[subscriptionService] Could not create OperationalException', { error: exErr.message });
     }
 
-    const Driver = require('../models/Driver');
+    // Keep the booking covered when normal area/radius/capacity matching finds
+    // no candidate. This is an explicit operational fallback: only an active,
+    // non-deleted driver may receive it, even though capacity is overridden.
     const fallbackDriver = await Driver.findOne({ status: 'ACTIVE', isDeleted: false })
-      || await Driver.findOne({ isDeleted: false });
+      .sort({ activeSubscriptionCount: 1, updatedAt: 1 });
     if (fallbackDriver) {
-      await assignDriverToSubscription(subscription._id, fallbackDriver._id, fallbackDriver.areaId, { force: true });
-      const { regenerateForSubscription } = require('./DailyTripGenerator');
-      await regenerateForSubscription(subscription._id).catch(() => {});
-      return {
-        success: true,
-        driver: fallbackDriver,
-        area: { name: 'Service Area' },
-        distanceKm: 0,
-        remainingCapacity: fallbackDriver.vehicleCapacity || 4,
-        routeCompatibility: 1,
-      };
+      const assignment = await assignDriverToSubscription(
+        subscription._id,
+        fallbackDriver._id,
+        fallbackDriver.areaId,
+        { force: true },
+      );
+      if (assignment.success) {
+        const { regenerateForSubscription } = require('./DailyTripGenerator');
+        await regenerateForSubscription(subscription._id).catch((error) => {
+          logger.warn('[subscriptionService] Fallback trip generation failed', {
+            subscriptionId: subscription._id.toString(),
+            error: error.message,
+          });
+        });
+        return {
+          success: true,
+          driver: fallbackDriver,
+          area: { _id: fallbackDriver.areaId, name: 'Fallback assignment' },
+          distanceKm: null,
+          remainingCapacity: 0,
+          routeCompatibility: 0,
+          fallback: true,
+          reason: matchResult.reason,
+        };
+      }
     }
 
     // Total failure — create a DRIVER_ASSIGNMENT_FAILED exception too.

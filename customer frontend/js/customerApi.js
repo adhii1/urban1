@@ -67,6 +67,13 @@ const CUSTOMER_API = (() => {
             if (res.ok) {
                 const payload = await res.json();
                 if (payload.success) {
+                    const refreshedData = payload.data || payload;
+                    if (refreshedData.accessToken) {
+                        localStorage.setItem('accessToken', refreshedData.accessToken);
+                    }
+                    if (refreshedData.refreshToken) {
+                        localStorage.setItem('refreshToken', refreshedData.refreshToken);
+                    }
                     return true;
                 }
             }

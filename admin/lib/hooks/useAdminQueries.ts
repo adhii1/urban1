@@ -7,11 +7,11 @@ function useAuthState() {
 }
 
 // --- Dashboard ---
-export function useDashboardStats() {
+export function useDashboardStats(period = 'today') {
   const isAuthed = !!useAuthState();
   return useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => adminApi.getDashboard(),
+    queryKey: ['dashboard', period],
+    queryFn: () => adminApi.getDashboard(period),
     enabled: isAuthed,
     refetchInterval: 30000,
   });

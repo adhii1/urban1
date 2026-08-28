@@ -51,30 +51,33 @@ async function findCompatibleRides(primaryRide, maxDistanceKm = 5) {
 }
 
 /**
- * Generates possible bundles from a primary ride and compatible candidates.
- * For simplicity, we create bundles up to size 6 (max SUV capacity).
+ * Generates compatible bundles up to the maximum supported vehicle capacity.
+ * A bundle is valid only when every passenger is close enough to the primary
+ * passenger and to every other passenger, for both pickup and destination.
  */
 function generateBundles(primaryRide, compatibleRides) {
+  const maxPassengers = 6;
   const bundles = [];
-  
-  // Create all pairs (size 2)
-  for (const ride2 of compatibleRides) {
-    bundles.push([primaryRide, ride2]);
-    
-    // Create triples (size 3)
-    for (const ride3 of compatibleRides) {
-      if (ride2._id.toString() === ride3._id.toString()) continue;
-      
-      // Ensure ride2 and ride3 are also compatible with each other
-      const pickupDist = haversineKm(ride2.pickupLocation.coordinates, ride3.pickupLocation.coordinates);
-      const dropDist = haversineKm(ride2.dropLocation.coordinates, ride3.dropLocation.coordinates);
-      
-      if (pickupDist <= 5 && dropDist <= 5) {
-        bundles.push([primaryRide, ride2, ride3]);
-      }
-    }
+  const bundle = [primaryRide];
+
+  for (const candidate of compatibleRides) {
+    if (bundle.length >= maxPassengers) break;
+    const compatibleWithBundle = bundle.every((ride) => {
+      const pickupDistance = haversineKm(
+        ride.pickupLocation.coordinates,
+        candidate.pickupLocation.coordinates
+      );
+      const dropDistance = haversineKm(
+        ride.dropLocation.coordinates,
+        candidate.dropLocation.coordinates
+      );
+      return pickupDistance <= 5 && dropDistance <= 5;
+    });
+
+    if (compatibleWithBundle) bundle.push(candidate);
   }
 
+  if (bundle.length > 1) bundles.push(bundle);
   return bundles;
 }
 

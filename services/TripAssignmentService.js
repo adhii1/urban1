@@ -72,7 +72,7 @@ async function acceptTrip(tripId, driverUserId) {
   }
 
   // Verify this driver owns the trip
-  if (trip.driverId?.userId?.toString() !== driverUserId) {
+  if (trip.driverId?.userId?.toString() !== driverUserId?.toString()) {
     return { success: false, reason: 'Not authorized for this trip' };
   }
 
@@ -118,7 +118,7 @@ async function rejectTrip(tripId, driverUserId) {
     return { success: false, reason: 'Trip not found or already processed' };
   }
 
-  if (trip.driverId?.userId?.toString() !== driverUserId) {
+  if (trip.driverId?.userId?.toString() !== driverUserId?.toString()) {
     return { success: false, reason: 'Not authorized for this trip' };
   }
 

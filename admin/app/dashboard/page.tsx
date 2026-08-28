@@ -11,7 +11,8 @@ const DATE_FILTERS = ['Today', 'Week', 'Month', 'Custom'] as const;
 
 export default function DashboardPage() {
   const [dateFilter, setDateFilter] = useState<string>('Today');
-  const { data, isLoading } = useDashboardStats();
+  const period = dateFilter === 'Week' ? 'week' : dateFilter === 'Month' ? 'month' : 'today';
+  const { data, isLoading } = useDashboardStats(period);
   const { isConnected, onlineDrivers, onlineCustomers, activeRides, customerOperations } = useAdminSocket();
 
   // Real stats only — no mock/placeholder values

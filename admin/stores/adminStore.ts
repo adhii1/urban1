@@ -18,6 +18,7 @@ interface AdminState {
     userId: string;
     accessToken?: string;
   }) => void;
+  clearAccessToken: () => void;
   logout: () => void;
 }
 
@@ -40,6 +41,8 @@ export const useAdminStore = create<AdminState>()(
         adminUserId: authData.userId,
         accessToken: authData.accessToken || null,
       }),
+
+      clearAccessToken: () => set({ accessToken: null }),
 
       logout: () => set({
         adminName: null,

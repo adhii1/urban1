@@ -148,11 +148,11 @@ test('HYBRID: three customers share one driver on overlapping days', async () =>
   const { user: u2 } = await seedCustomer({ phone: '9000000012' });
   const { user: u3 } = await seedCustomer({ phone: '9000000013' });
 
-  // All three book HYBRID on Mon + Wed (scheduleDays [1,3])
+  // All three book HYBRID on Mon, Wed, and Fri.
   const [r1, r2, r3] = await Promise.all([
-    subscriptionService.createSubscription({ userId: u1._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3], pickupTime: '08:00' }) }),
-    subscriptionService.createSubscription({ userId: u2._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3], pickupTime: '08:00' }) }),
-    subscriptionService.createSubscription({ userId: u3._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3], pickupTime: '08:00' }) }),
+    subscriptionService.createSubscription({ userId: u1._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3, 5], pickupTime: '08:00' }) }),
+    subscriptionService.createSubscription({ userId: u2._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3, 5], pickupTime: '08:00' }) }),
+    subscriptionService.createSubscription({ userId: u3._id, ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3, 5], pickupTime: '08:00' }) }),
   ]);
 
   assert.equal(r1.subscription.status, 'ACTIVE');
@@ -202,7 +202,7 @@ test('HYBRID: incrementBookingsThisWeek resets counter on a new week', async () 
 
   const r = await subscriptionService.createSubscription({
     userId: user._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3, 5], pickupTime: '08:00' }),
   });
 
   // Set counter to 2 with a weekResetDate in the PAST (previous week)
@@ -227,7 +227,7 @@ test('HYBRID: incrementBookingsThisWeek increments within the same week', async 
 
   const r = await subscriptionService.createSubscription({
     userId: user._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 3, 5], pickupTime: '08:00' }),
   });
 
   // Set counter to 1 with THIS week's Monday
@@ -270,7 +270,7 @@ test('HYBRID: generateTripsForDate increments bookingsThisWeek for subscriptions
     userId: user._id,
     ...bookingBody({
       subscriptionType: 'HYBRID',
-      scheduleDays: [1], // only Monday
+      scheduleDays: [1, 3, 5],
       pickupTime: '08:00',
       startDate: monday,
     }),
@@ -519,6 +519,20 @@ test('OperationalException UNASSIGNED_DRIVER created when no driver exists', asy
   assert.ok(exceptions.length >= 1, 'at least one OperationalException must be created when no driver exists');
 });
 
+test('active driver fallback force-assigns when normal matching finds no capacity', async () => {
+  const area = await seedArea();
+  await seedPlans();
+  const driver = await seedDriver(area, { phone: '9000000062', vehicleCapacity: 1, locationCoords: [77.80, 13.20] });
+  const { user } = await seedCustomer({ phone: '9000000063' });
+
+  const result = await subscriptionService.createSubscription({ userId: user._id, ...bookingBody() });
+  const subscription = await Subscription.findById(result.subscription._id);
+
+  assert.equal(result.match.success, true);
+  assert.equal(result.match.fallback, true);
+  assert.equal(subscription.assignedDriverId.toString(), driver._id.toString());
+});
+
 test('OperationalException ROUTE_CHANGE_CONFLICT created on rebundle with no valid area', async () => {
   // Remove all areas so no service area can be found at all
   await seedPlans();
@@ -620,7 +634,7 @@ test('multi-customer bundle: pickup order is geographically optimised, not booki
   const r2 = await subscriptionService.createSubscription({
     userId: u2._id,
     ...bookingBody({
-      pickupLocation: { address: 'Far', coordinates: [77.70, 12.95] },
+      pickupLocation: { address: 'Far', coordinates: [77.63, 12.92] },
       pickupTime: '08:00',
     }),
   });
@@ -654,21 +668,21 @@ test('multi-customer bundle: pickup order is geographically optimised, not booki
 // 6. Edge cases
 // ═════════════════════════════════════════════════════════════════════════════
 
-test('HYBRID customers with completely disjoint days share no trips', async () => {
+test('HYBRID customers with different valid schedules keep separate weekday trips', async () => {
   const area = await seedArea();
   await seedPlans();
   const driver = await seedDriver(area);
   const { user: u1 } = await seedCustomer({ phone: '9000000100' });
   const { user: u2 } = await seedCustomer({ phone: '9000000101' });
 
-  // u1 = Mon+Tue, u2 = Thu+Fri — no shared day
+  // u1 = Mon/Tue/Wed, u2 = Wed/Thu/Fri. Wednesday is shared intentionally.
   const r1 = await subscriptionService.createSubscription({
     userId: u1._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 2], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 2, 3], pickupTime: '08:00' }),
   });
   const r2 = await subscriptionService.createSubscription({
     userId: u2._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [4, 5], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [3, 4, 5], pickupTime: '08:00' }),
   });
 
   await Trip.deleteMany({});

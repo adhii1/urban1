@@ -483,7 +483,15 @@ function buildNavigationUrl(sequence) {
   const pendingStops = sequence.filter((s) => s.status === 'PENDING');
   if (pendingStops.length === 0) return null;
 
-  const allStops = pendingStops.map((s) => s.location.coordinates);
+  const allStops = [];
+  const seenCoordinates = new Set();
+  for (const stop of pendingStops) {
+    const coordinates = stop.location.coordinates;
+    const key = `${coordinates[0]},${coordinates[1]}`;
+    if (seenCoordinates.has(key)) continue;
+    seenCoordinates.add(key);
+    allStops.push(coordinates);
+  }
 
   const dest = allStops[allStops.length - 1];
   const waypoints = allStops.slice(0, -1);

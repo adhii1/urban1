@@ -29,13 +29,17 @@ const getDashboard = asyncWrapper(async (req, res) => {
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
+  const period = ['today', 'week', 'month'].includes(req.query.period) ? req.query.period : 'today';
+  const periodStart = new Date(todayStart);
+  if (period === 'week') periodStart.setDate(periodStart.getDate() - 6);
+  if (period === 'month') periodStart.setDate(periodStart.getDate() - 29);
 
   const [totalCustomers, totalDrivers, activeTrips, completedTrips, cancelledTrips, activeSubscriptions] = await Promise.all([
     Customer.countDocuments({ isDeleted: false }),
     Driver.countDocuments({ isDeleted: false }),
-    Trip.countDocuments({ status: 'IN_PROGRESS', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'COMPLETED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'CANCELLED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'IN_PROGRESS', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'COMPLETED', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'CANCELLED', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
     Subscription.countDocuments({ status: 'ACTIVE', isDeleted: false }),
   ]);
 

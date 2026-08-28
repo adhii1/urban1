@@ -68,13 +68,6 @@ async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, requ
     }).lean();
   }
 
-  // Fallback: If no active drivers, find any driver
-  if (!drivers.length) {
-    drivers = await Driver.find({
-      isDeleted: false,
-    }).lean();
-  }
-
   if (!drivers.length) return [];
 
   const driverIds = drivers.map((d) => d._id);
@@ -121,14 +114,12 @@ async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, requ
       ? haversineKm([lng, lat], driverCoords)
       : haversineKm([lng, lat], refCoords);
 
-    // Commented out hard distance filter so drivers are not rejected when booking
-    // if (distanceKm > MAX_PICKUP_RADIUS_KM) continue;
+    if (distanceKm > MAX_PICKUP_RADIUS_KM) continue;
 
     const used = assignedCount.get(driver._id.toString()) || 0;
     const remainingCapacity = Math.max(0, (driver.vehicleCapacity || 4) - used);
 
-    // Commented out hard capacity filter so drivers are still assigned
-    // if (remainingCapacity < requiredCapacity) continue;
+    if (remainingCapacity < requiredCapacity) continue;
 
     const pickups = pickupsByDriver.get(driver._id.toString()) || [];
     const routeCompatibility = pickups.length === 0
@@ -222,21 +213,6 @@ async function matchSubscription(subscription) {
     requiredCapacity: 1,
   });
 
-  // Fallback: If no candidate drivers in the matching list, query any driver directly
-  if (!candidates.length) {
-    const anyDriver = await Driver.findOne({ status: 'ACTIVE', isDeleted: false }).lean()
-      || await Driver.findOne({ isDeleted: false }).lean();
-    if (anyDriver) {
-      candidates = [{
-        driver: anyDriver,
-        distanceKm: 1.0,
-        remainingCapacity: anyDriver.vehicleCapacity || 4,
-        routeCompatibility: 1.0,
-        score: 1.0,
-      }];
-    }
-  }
-
   if (!candidates.length) {
     return { success: false, reason: 'No registered drivers found in the system' };
   }
@@ -290,14 +266,6 @@ async function assignDriverToSubscription(subscriptionId, driverId, areaId, { fo
     { new: true }
   );
 
-  // Fallback: If capacity filter was exceeded, still force assign so the ride is covered
-  if (!reserved) {
-    reserved = await Driver.findByIdAndUpdate(
-      driverId,
-      { $inc: { activeSubscriptionCount: 1 } },
-      { new: true }
-    );
-  }
   if (!reserved) return { success: false, reason: 'Driver not found' };
 
   // Release the previous driver's seat, if reassigning.
