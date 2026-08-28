@@ -27,7 +27,7 @@ const subscriptionSchema = new mongoose.Schema(
     subscriptionType: {
       type: String,
       enum: ['WEEKDAYS', 'HYBRID', 'SHUTTLE', 'FLEXY'],
-      required: true,
+      required: function requiredForCoordinateSubscription() { return !this.routeId; },
       index: true,
     },
 
@@ -46,20 +46,20 @@ const subscriptionSchema = new mongoose.Schema(
     // The matching engine uses these coordinates to find area + driver.
     pickupLocation: {
       address: { type: String, trim: true },
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true }, // [lng, lat]
+      type: { type: String, enum: ['Point'] },
+      coordinates: { type: [Number], required: function requiredForCoordinateSubscription() { return !this.routeId; } }, // [lng, lat]
     },
     dropLocation: {
       address: { type: String, trim: true },
-      type: { type: String, enum: ['Point'], default: 'Point' },
-      coordinates: { type: [Number], required: true }, // [lng, lat]
+      type: { type: String, enum: ['Point'] },
+      coordinates: { type: [Number], required: function requiredForCoordinateSubscription() { return !this.routeId; } }, // [lng, lat]
     },
 
     // --- Pickup Time (per PDF section 6) ---
     // e.g. "08:00" — the time the customer wants to be picked up daily
     pickupTime: {
       type: String,
-      required: true,
+      required: function requiredForCoordinateSubscription() { return !this.routeId; },
       trim: true,
     },
 

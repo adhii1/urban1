@@ -12,7 +12,10 @@ const Subscription = require('../models/Subscription');
 const Customer = require('../models/Customer');
 const EmergencyContact = require('../models/EmergencyContact');
 const SosAlert = require('../models/SosAlert');
+const Route = require('../models/Route');
+const mongoose = require('mongoose');
 const subscriptionService = require('../services/subscriptionService');
+const { validateRecurringSubscription } = require('../services/subscriptionPolicyService');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
@@ -41,6 +44,65 @@ const browsePlans = asyncWrapper(async (req, res) => {
  */
 const initiatePurchase = asyncWrapper(async (req, res) => {
   const { subscriptionType, pickupLocation, dropLocation, scheduleDays, pickupTime, startDate } = req.body;
+
+  // Legacy route/stop clients still submit planId + routeId. Keep this path
+  // compatible while canonical clients use the coordinate purchase contract.
+  if (req.body.planId && req.body.routeId) {
+    const [customer, plan] = await Promise.all([
+      Customer.findOne({ userId: req.user.id }),
+      Plan.findOne({ _id: req.body.planId, isActive: true, isDeleted: false }),
+    ]);
+    const route = await Route.findOne({ _id: req.body.routeId })
+      || await Route.collection.findOne({ _id: new mongoose.Types.ObjectId(req.body.routeId) });
+    if (!customer || !plan || !route) throw new NotFoundError('Customer, plan, or route');
+
+    const policy = validateRecurringSubscription({
+      customer,
+      plan,
+      route,
+      selectedWeekdays: req.body.selectedWeekdays,
+      pickupStopId: req.body.pickupStopId,
+      dropStopId: req.body.dropStopId,
+      pickupStopIndex: req.body.pickupStopIndex,
+      dropStopIndex: req.body.dropStopIndex,
+    });
+    const legacyStart = new Date(req.body.startDate || Date.now());
+    legacyStart.setHours(0, 0, 0, 0);
+    const legacyEnd = new Date(legacyStart);
+    legacyEnd.setDate(legacyEnd.getDate() + (plan.durationDays || 30));
+    const subscription = await Subscription.create({
+      customerId: customer._id,
+      planId: plan._id,
+      routeId: route._id,
+      subscriptionType: plan.tier === 'Hybrid' ? 'HYBRID' : plan.tier === 'Weekday' ? 'WEEKDAYS' : 'SHUTTLE',
+      scheduleDays: policy.normalizedWeekdays,
+      selectedWeekdays: policy.normalizedWeekdays,
+      pickupLocation: customer.pickupLocation,
+      dropLocation: customer.dropLocation,
+      pickupTime: req.body.pickupTime || '08:00',
+      pickupStopId: policy.pickupStopId,
+      dropStopId: policy.dropStopId,
+      pickupStopSequence: policy.pickupStopSequence,
+      dropStopSequence: policy.dropStopSequence,
+      pickupStopIndex: req.body.pickupStopIndex,
+      dropStopIndex: req.body.dropStopIndex,
+      startDate: legacyStart,
+      endDate: legacyEnd,
+      remainingPauseDays: plan.pauseDaysAllowed || 0,
+      status: 'PENDING_PAYMENT',
+      isCurrent: true,
+      payment: { method: 'razorpay', amount: plan.price, status: 'pending' },
+    });
+    const order = await require('../services/paymentService').createOrder({
+      amount: Math.round(plan.price * 100), currency: 'INR', receipt: `sub_${subscription._id}`,
+      notes: { subscriptionId: subscription._id.toString(), customerId: customer._id.toString(), planName: plan.name },
+    });
+    subscription.payment.orderId = order.orderId;
+    await subscription.save();
+    return res.status(201).json(formatResponse('Subscription order created. Complete payment to activate.', {
+      subscriptionId: subscription._id, orderId: order.orderId, amount: Math.round(plan.price * 100), currency: 'INR',
+    }));
+  }
 
   const result = await subscriptionService.createSubscription({
     userId: req.user.id,

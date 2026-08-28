@@ -8,6 +8,7 @@
 // `pretest` hook and `npm test` — failed on every other clone.
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
+process.env.NODE_ENV = 'test';
 const app = require(ROOT + '/app');
 const Joi = require(ROOT + '/node_modules/joi');
 const { purchaseSubscription } = require(ROOT + '/validations/subscriptionValidation');

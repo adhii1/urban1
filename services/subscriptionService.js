@@ -349,6 +349,10 @@ async function activateAfterPayment({ userId, subscriptionId, orderId, paymentId
 
   await Customer.findByIdAndUpdate(customer._id, { subscriptionId: subscription._id });
   const match = await runMatchingAndSchedule(subscription);
+  if (subscription.routeId) {
+    const { generateForServiceDate } = require('./tripGenerator');
+    await generateForServiceDate(subscription.startDate, { routeIds: [subscription.routeId] });
+  }
 
   return { verified: true, subscription, match };
 }
