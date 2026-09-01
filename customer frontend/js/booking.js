@@ -27,6 +27,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalBackButton = document.getElementById('globalBackButton');
     const bookingPageTitle = document.getElementById('bookingPageTitle');
 
+    // --- Location search suggestions dropdown (shared helper) ---
+    function hideSuggestions(inputEl) {
+        const existing = inputEl.parentElement.querySelector('.loc-suggest-box');
+        if (existing) existing.remove();
+    }
+
+    function showSuggestions(inputEl, items, onPick) {
+        hideSuggestions(inputEl);
+        if (!items.length) return;
+        // Ensure the input's parent can anchor the dropdown
+        if (getComputedStyle(inputEl.parentElement).position === 'static') {
+            inputEl.parentElement.style.position = 'relative';
+        }
+        const box = document.createElement('div');
+        box.className = 'loc-suggest-box';
+        box.style.cssText = 'position:absolute;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid #E2E8F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:50;max-height:220px;overflow-y:auto;';
+        items.forEach((item, idx) => {
+            const row = document.createElement('button');
+            row.type = 'button';
+            row.style.cssText = `width:100%;text-align:left;padding:10px 14px;border:none;background:none;cursor:pointer;font-size:12.5px;color:#0F172A;${idx < items.length - 1 ? 'border-bottom:1px solid #F1F5F9;' : ''}`;
+            row.innerHTML = `<span style="color:#16C15D;margin-right:6px;">📍</span>${item.name.length > 70 ? item.name.slice(0, 70) + '…' : item.name}`;
+            row.addEventListener('click', () => { onPick(item); hideSuggestions(inputEl); });
+            box.appendChild(row);
+        });
+        inputEl.parentElement.appendChild(box);
+    }
+
     function updateTitle() {
         if (!bookingPageTitle) return;
         const titles = {
@@ -140,15 +167,43 @@ document.addEventListener('DOMContentLoaded', () => {
             p.addEventListener('click', () => {
                 const name = p.getAttribute('data-stop-name');
                 if (input) input.value = name;
+                // Capture coordinates for the known stop
+                if (typeof locationService !== 'undefined') {
+                    const match = locationService.PREDEFINED_BUS_STOPS.find((s) => s.name === name);
+                    if (match) bookingData.pickupCoords = [match.lng, match.lat];
+                }
             });
         });
+
+        // Live search suggestions (real places via Nominatim + known stops)
+        if (input && typeof locationService !== 'undefined') {
+            let debounce;
+            input.addEventListener('input', () => {
+                bookingData.pickupCoords = null; // typing invalidates previous pin
+                clearTimeout(debounce);
+                const q = input.value.trim();
+                debounce = setTimeout(async () => {
+                    if (q.length < 3) { hideSuggestions(input); return; }
+                    const result = await locationService.searchStops(q);
+                    showSuggestions(input, result.data || [], (item) => {
+                        input.value = item.name;
+                        bookingData.pickupCoords = [item.lng, item.lat];
+                    });
+                }, 350);
+            });
+        }
 
         if (detectBtn && typeof locationService !== 'undefined') {
             detectBtn.addEventListener('click', async () => {
                 detectBtn.disabled = true;
                 detectBtn.textContent = 'Detecting...';
                 const loc = await locationService.detectCurrentLocation();
-                if (input && loc.success) input.value = loc.data.address;
+                if (loc.success) {
+                    if (input) input.value = loc.data.address;
+                    bookingData.pickupCoords = [loc.data.lng, loc.data.lat];
+                } else {
+                    showValidationToast(loc.message || 'Could not detect location.');
+                }
                 detectBtn.disabled = false;
                 detectBtn.textContent = 'Detect Location';
             });
@@ -199,6 +254,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     const stopName = item.getAttribute('data-stop-name');
                     if (searchInput) searchInput.value = stopName;
                     bookingData.destination = stopName;
+                    if (typeof locationService !== 'undefined') {
+                        const match = locationService.PREDEFINED_BUS_STOPS.find((s) => s.name === stopName);
+                        if (match) bookingData.dropCoords = [match.lng, match.lat];
+                    }
                 }
             });
         }
@@ -364,16 +423,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Resolves lat/lng for a saved address string. The current booking UI
-    // only ever stores address text in bookingData (no real geocoder is
-    // wired in yet), so this looks the address up against
-    // locationService's known TORQQ stop list first, and falls back to a
-    // default city-center coordinate for free-typed addresses that don't
-    // match a known stop.
-    function resolveCoordinates(address) {
-        if (typeof locationService !== 'undefined' && Array.isArray(locationService.PREDEFINED_BUS_STOPS)) {
-            const match = locationService.PREDEFINED_BUS_STOPS.find((s) => s.name === address);
-            if (match) return [match.lng, match.lat];
+    // Resolves lat/lng for a saved address string. Prefers coordinates that
+    // were captured at selection time (bookingData.pickupCoords /
+    // dropCoords), then real geocoding via locationService, and finally a
+    // city-center fallback so a booking never fails outright.
+    async function resolveCoordinates(address, cached) {
+        if (Array.isArray(cached) && cached.length === 2) return cached;
+        if (typeof locationService !== 'undefined') {
+            if (typeof locationService.geocodeAddress === 'function') {
+                const geo = await locationService.geocodeAddress(address);
+                if (geo) return [geo.lng, geo.lat];
+            }
+            if (Array.isArray(locationService.PREDEFINED_BUS_STOPS)) {
+                const match = locationService.PREDEFINED_BUS_STOPS.find((s) => s.name === address);
+                if (match) return [match.lng, match.lat];
+            }
         }
         return [77.6389, 12.9116]; // Fallback: HSR Layout, Bangalore
     }
@@ -391,11 +455,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     const pickup = {
                         address: bookingData.pickup,
-                        coordinates: resolveCoordinates(bookingData.pickup),
+                        coordinates: await resolveCoordinates(bookingData.pickup, bookingData.pickupCoords),
                     };
                     const drop = {
                         address: bookingData.destination,
-                        coordinates: resolveCoordinates(bookingData.destination),
+                        coordinates: await resolveCoordinates(bookingData.destination, bookingData.dropCoords),
                     };
 
                     // For recurring models (3-day, 5-day, shuttle): create subscription via REST

@@ -27,35 +27,89 @@ const locationService = (() => {
         { id: 'STP-19', name: 'HSR Layout', lat: 12.9116, lng: 77.6389, corridor: 'ORR South Line' }
     ];
 
+    // Search known stops first, then fall back to real place search via
+    // OpenStreetMap Nominatim (free, no API key required).
     async function searchStops(query = '') {
+        const q = (query || '').toLowerCase().trim();
+        if (!q) return { success: true, count: 0, data: [] };
+
+        // 1. Match predefined stops
+        const stopMatches = PREDEFINED_BUS_STOPS
+            .filter(s => s.name.toLowerCase().includes(q) || s.corridor.toLowerCase().includes(q));
+
+        // 2. Real place search (Nominatim), restricted to India
+        let placeMatches = [];
+        if (q.length >= 3) {
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=6`,
+                    { headers: { 'Accept-Language': 'en' } }
+                );
+                const data = await res.json();
+                placeMatches = (data || []).map((p, i) => ({
+                    id: `OSM-${p.place_id || i}`,
+                    name: p.display_name,
+                    lat: parseFloat(p.lat),
+                    lng: parseFloat(p.lon),
+                    corridor: 'Search result',
+                }));
+            } catch { /* ignore network errors, fall back to stops only */ }
+        }
+
+        const combined = [...stopMatches, ...placeMatches];
+        return { success: true, count: combined.length, data: combined };
+    }
+
+    // Real GPS current location + reverse geocode to a human address.
+    async function detectCurrentLocation() {
         return new Promise((resolve) => {
-            setTimeout(() => {
-                const q = query.toLowerCase();
-                const filtered = PREDEFINED_BUS_STOPS.filter(s => s.name.toLowerCase().includes(q) || s.corridor.toLowerCase().includes(q));
-                resolve({ success: true, count: filtered.length, data: filtered });
-            }, getDelay());
+            if (!navigator.geolocation) {
+                resolve({ success: false, message: 'Geolocation not supported', data: null });
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    let address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+                    try {
+                        const res = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+                            { headers: { 'Accept-Language': 'en' } }
+                        );
+                        const data = await res.json();
+                        if (data?.display_name) address = data.display_name;
+                    } catch { /* keep coordinate string */ }
+                    resolve({ success: true, data: { address, lat, lng } });
+                },
+                () => resolve({ success: false, message: 'Could not get your location. Allow location access and try again.', data: null }),
+                { enableHighAccuracy: true, timeout: 10000 }
+            );
         });
     }
 
-    async function detectCurrentLocation() {
-        return new Promise((resolve) => {
-            setTimeout(() => {
-                resolve({
-                    success: true,
-                    data: {
-                        address: 'HSR Layout Sector 4, 27th Main Rd, Bangalore',
-                        lat: 12.9116,
-                        lng: 77.6389
-                    }
-                });
-            }, 600);
-        });
+    // Geocode a free-typed address to coordinates. Checks predefined stops
+    // first, then Nominatim. Returns { lat, lng } or null.
+    async function geocodeAddress(address) {
+        if (!address) return null;
+        const match = PREDEFINED_BUS_STOPS.find(s => s.name === address);
+        if (match) return { lat: match.lat, lng: match.lng };
+        try {
+            const res = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=in&limit=1`,
+                { headers: { 'Accept-Language': 'en' } }
+            );
+            const data = await res.json();
+            if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+        } catch { /* ignore */ }
+        return null;
     }
 
     return {
         PREDEFINED_BUS_STOPS,
         searchStops,
-        detectCurrentLocation
+        detectCurrentLocation,
+        geocodeAddress,
     };
 })();
 

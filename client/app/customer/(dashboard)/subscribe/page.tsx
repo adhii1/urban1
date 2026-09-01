@@ -1,19 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users, Wallet, CreditCard } from 'lucide-react';
+import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users, Wallet, CreditCard, LocateFixed } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/stores/toastStore';
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
+import LocationSelector from '../profile/LocationSelector';
 
 declare global {
   interface Window {
     Razorpay: any;
   }
 }
-
-const LeafletMap = dynamic(() => import('../profile/LeafletMap'), { ssr: false });
 
 const DAYS = [
   { value: 0, label: 'Sun' },
@@ -63,15 +61,13 @@ export default function SubscribePage() {
 
   // Form state
   const [model, setModel] = useState<BookingModel | ''>('');
-  const [pickupAddress, setPickupAddress] = useState('');
-  const [pickupLat, setPickupLat] = useState('12.9279');
-  const [pickupLng, setPickupLng] = useState('77.6309');
-  const [dropAddress, setDropAddress] = useState('');
-  const [dropLat, setDropLat] = useState('12.8489');
-  const [dropLng, setDropLng] = useState('77.6683');
+  // Location as { address, coordinates: [lng, lat] }
+  const [pickup, setPickup] = useState<{ address: string; coordinates: [number, number] } | null>(null);
+  const [drop, setDrop] = useState<{ address: string; coordinates: [number, number] } | null>(null);
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const [pickupTime, setPickupTime] = useState('08:00');
-  const [mapMode, setMapMode] = useState<'pickup' | 'drop'>('pickup');
+  // Which location the picker modal is editing ('pickup' | 'drop' | null)
+  const [locationPicker, setLocationPicker] = useState<'pickup' | 'drop' | null>(null);
 
   // Payment
   const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'razorpay'>('wallet');
@@ -118,20 +114,21 @@ export default function SubscribePage() {
     setStep('location');
   };
 
-  const handleMapClick = (lat: number, lng: number) => {
-    if (mapMode === 'pickup') { setPickupLat(lat.toFixed(6)); setPickupLng(lng.toFixed(6)); }
-    else { setDropLat(lat.toFixed(6)); setDropLng(lng.toFixed(6)); }
+  const handleLocationSelect = (loc: { address: string; coordinates: [number, number] }) => {
+    if (locationPicker === 'pickup') setPickup(loc);
+    else if (locationPicker === 'drop') setDrop(loc);
+    setLocationPicker(null);
   };
 
   const buildBody = (method: 'wallet' | 'razorpay') => ({
     subscriptionType: model,
     pickupLocation: {
-      address: pickupAddress || `${pickupLat}, ${pickupLng}`,
-      coordinates: [parseFloat(pickupLng), parseFloat(pickupLat)],
+      address: pickup?.address || '',
+      coordinates: pickup?.coordinates || [0, 0],
     },
     dropLocation: {
-      address: dropAddress || `${dropLat}, ${dropLng}`,
-      coordinates: [parseFloat(dropLng), parseFloat(dropLat)],
+      address: drop?.address || '',
+      coordinates: drop?.coordinates || [0, 0],
     },
     scheduleDays: selectedDays,
     pickupTime,
@@ -147,7 +144,7 @@ export default function SubscribePage() {
 
   const handleSubmit = async () => {
     if (!model) { showToast('Select a booking model', 'error'); return; }
-    if (!pickupLat || !pickupLng || !dropLat || !dropLng) { showToast('Set pickup and drop locations', 'error'); return; }
+    if (!pickup || !drop) { showToast('Set pickup and drop locations', 'error'); return; }
     if (model === 'HYBRID' && selectedDays.length !== 3) { showToast('Select exactly 3 weekdays for the Hybrid plan', 'error'); return; }
 
     setLoading(true);
@@ -258,54 +255,51 @@ export default function SubscribePage() {
             <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#0F172A' }}>{modelInfo.title} — Set Locations</h3>
           </div>
 
-          <p style={{ fontSize: '11px', color: '#64748B', marginBottom: '12px' }}>
-            Tap the map to set your {mapMode} point, or enter coordinates manually.
+          <p style={{ fontSize: '11px', color: '#64748B', marginBottom: '16px' }}>
+            Search for a place, drop a pin on the map, or use your current location.
           </p>
 
-          {/* Map mode toggle */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-            <button onClick={() => setMapMode('pickup')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: mapMode === 'pickup' ? '2px solid #16C15D' : '1px solid #E2E8F0', background: mapMode === 'pickup' ? '#F0FDF4' : '#fff', fontSize: '12px', fontWeight: 700, color: mapMode === 'pickup' ? '#16C15D' : '#64748B', cursor: 'pointer' }}>
-              <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} /> Set Pickup
-            </button>
-            <button onClick={() => setMapMode('drop')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: mapMode === 'drop' ? '2px solid #3B82F6' : '1px solid #E2E8F0', background: mapMode === 'drop' ? '#EFF6FF' : '#fff', fontSize: '12px', fontWeight: 700, color: mapMode === 'drop' ? '#3B82F6' : '#64748B', cursor: 'pointer' }}>
-              <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} /> Set Drop
-            </button>
-          </div>
-
-          {/* Map */}
-          <div style={{ height: '220px', borderRadius: '12px', overflow: 'hidden', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
-            <LeafletMap
-              lat={mapMode === 'pickup' ? parseFloat(pickupLat) : parseFloat(dropLat)}
-              lng={mapMode === 'pickup' ? parseFloat(pickupLng) : parseFloat(dropLng)}
-              onMapClick={handleMapClick}
-              markerColor={mapMode === 'pickup' ? '#16C15D' : '#3B82F6'}
-            />
-          </div>
-
-          {/* Coordinate inputs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
-            <div>
-              <label style={{ fontSize: '9px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup Lat, Lng</label>
-              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                <input type="text" value={pickupLat} onChange={(e) => setPickupLat(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
-                <input type="text" value={pickupLng} onChange={(e) => setPickupLng(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+          {/* Pickup picker */}
+          <button
+            onClick={() => setLocationPicker('pickup')}
+            style={{ width: '100%', textAlign: 'left', padding: '14px', marginBottom: '12px', borderRadius: '12px', border: pickup ? '2px solid #16C15D' : '1px dashed #CBD5E1', background: pickup ? '#F0FDF4' : '#fff', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#DCFCE7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MapPin size={16} color="#16C15D" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: '10px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup Location</p>
+                <p style={{ fontSize: '13px', color: '#0F172A', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {pickup ? pickup.address : 'Tap to set pickup'}
+                </p>
               </div>
             </div>
-            <div>
-              <label style={{ fontSize: '9px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop Lat, Lng</label>
-              <div style={{ display: 'flex', gap: '4px', marginTop: '4px' }}>
-                <input type="text" value={dropLat} onChange={(e) => setDropLat(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
-                <input type="text" value={dropLng} onChange={(e) => setDropLng(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #E2E8F0', borderRadius: '6px', fontSize: '11px' }} />
+          </button>
+
+          {/* Drop picker */}
+          <button
+            onClick={() => setLocationPicker('drop')}
+            style={{ width: '100%', textAlign: 'left', padding: '14px', marginBottom: '20px', borderRadius: '12px', border: drop ? '2px solid #3B82F6' : '1px dashed #CBD5E1', background: drop ? '#EFF6FF' : '#fff', cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <MapPin size={16} color="#3B82F6" />
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: '10px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop Location</p>
+                <p style={{ fontSize: '13px', color: '#0F172A', fontWeight: 600, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {drop ? drop.address : 'Tap to set drop'}
+                </p>
               </div>
             </div>
-          </div>
+          </button>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-            <input type="text" placeholder="Pickup address (optional)" value={pickupAddress} onChange={(e) => setPickupAddress(e.target.value)} style={{ padding: '9px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
-            <input type="text" placeholder="Drop address (optional)" value={dropAddress} onChange={(e) => setDropAddress(e.target.value)} style={{ padding: '9px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
-          </div>
-
-          <button onClick={() => setStep('schedule')} className="btn-redesign-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
+          <button
+            onClick={() => { if (!pickup || !drop) { showToast('Set both pickup and drop', 'error'); return; } setStep('schedule'); }}
+            className="btn-redesign-primary"
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', opacity: pickup && drop ? 1 : 0.6 }}
+          >
             Continue <ArrowRight size={16} />
           </button>
           <button onClick={() => { setStep('model'); setModel(''); }} style={{ width: '100%', padding: '12px', marginTop: '8px', background: 'none', border: 'none', color: '#64748B', fontSize: '13px', cursor: 'pointer' }}>
@@ -437,11 +431,11 @@ export default function SubscribePage() {
             <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid #F1F5F9' }}>
               <div style={{ marginBottom: '8px' }}>
                 <span style={{ fontSize: '9px', fontWeight: 700, color: '#16C15D', textTransform: 'uppercase' }}>Pickup</span>
-                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{pickupAddress || `${pickupLat}, ${pickupLng}`}</p>
+                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{pickup?.address || 'Not set'}</p>
               </div>
               <div>
                 <span style={{ fontSize: '9px', fontWeight: 700, color: '#3B82F6', textTransform: 'uppercase' }}>Drop</span>
-                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{dropAddress || `${dropLat}, ${dropLng}`}</p>
+                <p style={{ fontSize: '12px', color: '#0F172A', marginTop: '2px' }}>{drop?.address || 'Not set'}</p>
               </div>
             </div>
           </div>
@@ -529,6 +523,17 @@ export default function SubscribePage() {
             Go to Dashboard
           </Link>
         </div>
+      )}
+
+      {/* Location picker modal (search + current location + map) */}
+      {locationPicker && (
+        <LocationSelector
+          type={locationPicker}
+          initialAddress={locationPicker === 'pickup' ? pickup?.address : drop?.address}
+          initialCoordinates={locationPicker === 'pickup' ? pickup?.coordinates : drop?.coordinates}
+          onLocationSelect={handleLocationSelect}
+          onCancel={() => setLocationPicker(null)}
+        />
       )}
     </div>
   );
