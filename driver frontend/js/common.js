@@ -80,11 +80,11 @@ async function loadReusableComponents() {
                     <span id="sidebarOnlineIndicator" style="position:absolute; bottom:2px; right:2px; width:12px; height:12px; border-radius:50%; background:#EF4444; border:2px solid var(--bg-card-solid);"></span>
                 </div>
                 <div style="flex-grow:1; min-width:0;">
-                    <h2 id="sidebarDriverName" style="font-size:14px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px;">John Doe</h2>
+                    <h2 id="sidebarDriverName" style="font-size:14px; font-weight:700; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px;">Loading…</h2>
                     <div style="display:flex; align-items:center; gap:4px;">
                         <span style="color:#F59E0B; font-size:12px;">★</span>
-                        <span id="sidebarDriverRating" style="font-size:12px; font-weight:600; color:var(--text-main);">4.85</span>
-                        <span style="font-size:11px; color:var(--text-light);">(KA-01-MJ-4321)</span>
+                        <span id="sidebarDriverRating" style="font-size:12px; font-weight:600; color:var(--text-main);">—</span>
+                        <span id="sidebarDriverVehicle" style="font-size:11px; color:var(--text-light);"></span>
                     </div>
                 </div>
             </div>
@@ -123,7 +123,7 @@ async function loadReusableComponents() {
                 <button id="mobileMenuToggleBtn" style="display:none; padding:8px; border-radius:8px; background:var(--bg-hover); color:var(--text-main); cursor:pointer; border:none; font-size:20px;"><i class="lucide-menu"></i></button>
                 <div>
                     <span id="navGreeting" style="font-size:12px; font-weight:600; color:var(--text-light); text-transform:uppercase;">Good Morning</span>
-                    <h1 id="navDriverGreetingName" style="font-size:18px; font-weight:700; color:var(--text-main);">Welcome Back, John</h1>
+                    <h1 id="navDriverGreetingName" style="font-size:18px; font-weight:700; color:var(--text-main);">Welcome back</h1>
                 </div>
             </div>
             <div class="nav-search-container" style="flex-grow:1; max-width:320px; margin:0 32px; position:relative;">
@@ -205,22 +205,38 @@ function initializeStateSync() {
     });
 
     // Driver Profile Info sync
+    //
+    // Every field is read defensively. Previously `driver.rating.toFixed(2)` threw
+    // on the real API payload (which has no `rating`), and the exception escaped
+    // through setState into a swallowed .catch — so any widget updated after the
+    // rating line silently never ran.
     window.STATE.subscribe('currentDriver', (driver) => {
-        const avatars = [document.getElementById('sidebarDriverAvatar'), document.getElementById('navDriverAvatar')];
-        const names = [document.getElementById('sidebarDriverName'), document.getElementById('navDriverGreetingName')];
-        const rating = document.getElementById('sidebarDriverRating');
+        if (!driver) return;
 
-        avatars.forEach(img => { if (img) img.src = driver.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150"; });
-        names.forEach(n => {
-            if (n) {
-                if (n.id === 'navDriverGreetingName') {
-                    n.textContent = `Welcome Back, ${driver.name.split(' ')[0]}`;
-                } else {
-                    n.textContent = driver.name;
-                }
-            }
+        const avatars = [document.getElementById('sidebarDriverAvatar'), document.getElementById('navDriverAvatar')];
+        const sidebarName = document.getElementById('sidebarDriverName');
+        const navName = document.getElementById('navDriverGreetingName');
+        const rating = document.getElementById('sidebarDriverRating');
+        const vehicle = document.getElementById('sidebarDriverVehicle');
+
+        const name = String(driver.name || '').trim();
+
+        avatars.forEach(img => {
+            if (!img) return;
+            img.src = driver.avatar || window.UTILS.initialsAvatar(name, 96);
+            img.alt = name ? `${name} profile photo` : 'Driver profile photo';
         });
-        if (rating) rating.textContent = driver.rating.toFixed(2);
+
+        if (sidebarName) sidebarName.textContent = name || 'Driver';
+        if (navName) navName.textContent = name ? `Welcome Back, ${name.split(' ')[0]}` : 'Welcome back';
+
+        if (rating) {
+            const score = Number(driver.rating);
+            rating.textContent = Number.isFinite(score) && score > 0 ? score.toFixed(2) : 'New';
+        }
+        if (vehicle) {
+            vehicle.textContent = driver.vehicleNumber ? `(${driver.vehicleNumber})` : '';
+        }
     });
 
     // Online/Offline Status sync

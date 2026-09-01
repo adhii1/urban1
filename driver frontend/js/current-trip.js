@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tripStatusBadge = document.getElementById('tripStatusBadge');
     const bookingIdDisplay = document.getElementById('bookingIdDisplay');
     const customerName = document.getElementById('customerName');
+    const customerAvatar = document.getElementById('customerAvatar');
     const customerPhone = document.getElementById('customerPhone');
     const pickupAddress = document.getElementById('pickupAddress');
     const destinationAddress = document.getElementById('destinationAddress');
@@ -61,22 +62,54 @@ document.addEventListener('DOMContentLoaded', () => {
         initTripDetails(trip);
     });
 
+    // The next rider to act on: the first passenger who has not been dropped
+    // off or marked a no-show, in the optimizer's pickup order. Showing
+    // `passengers[0]` unconditionally meant the header kept naming someone the
+    // driver had already finished with.
+    function nextPassengerOf(trip) {
+        const riders = Array.isArray(trip.passengers) && trip.passengers.length > 0
+            ? trip.passengers
+            : (Array.isArray(trip.manifest) ? trip.manifest : []);
+        if (riders.length === 0) return null;
+
+        const settled = new Set(['COMPLETED', 'DROPPED', 'NO_SHOW']);
+        const ordered = [...riders].sort((a, b) => {
+            const left = Number(a.pickupOrder);
+            const right = Number(b.pickupOrder);
+            if (Number.isFinite(left) && Number.isFinite(right)) return left - right;
+            return 0;
+        });
+        return ordered.find((rider) => !settled.has(rider.status || rider.lifecycle)) || ordered[0];
+    }
+
+    function renderNextPassenger(trip) {
+        const rider = nextPassengerOf(trip);
+        const name = window.UTILS.riderName(rider, 'No passenger assigned yet');
+        const phone = window.UTILS.riderPhone(rider);
+
+        customerName.textContent = name;
+        customerName.title = name;
+        customerPhone.textContent = phone || 'Phone not available';
+        if (customerAvatar) {
+            customerAvatar.src = window.UTILS.initialsAvatar(rider ? name : '', 72);
+            customerAvatar.alt = rider ? `${name} avatar` : '';
+        }
+        return rider;
+    }
+
     function initTripDetails(trip) {
         isTripStarted = ['STARTED', 'TRIP_STARTED'].includes(trip.status);
         bookingIdDisplay.textContent = `Booking ID: ${trip.id}`;
-        
-        // The structured passenger cards own passenger identity and lifecycle.
-        // This navigation summary may show one real passenger, but never a
-        // placeholder that could be mistaken for an assigned rider.
-        const customer = trip.passengers && trip.passengers[0] ? trip.passengers[0] : null;
-        customerName.textContent = customer?.passengerName || customer?.name || 'See assigned passenger cards';
-        customerPhone.textContent = customer?.phone || customer?.customerPhone || '—';
+
+        // Passenger identity comes from the trip manifest the server sent. The
+        // structured passenger cards below still own per-rider lifecycle.
+        const customer = renderNextPassenger(trip);
 
         const addressOf = (location) => typeof location === 'string'
             ? location
             : location?.address || location?.stopName || '—';
-        pickupAddress.textContent = addressOf(trip.pickup || customer?.pickup);
-        destinationAddress.textContent = addressOf(trip.drop || customer?.drop);
+        pickupAddress.textContent = addressOf(customer?.pickup || customer?.pickupLocation || trip.pickup);
+        destinationAddress.textContent = addressOf(customer?.drop || customer?.dropLocation || trip.drop);
 
         // Initialize sync service
         LocationService.init(trip.id);
@@ -280,8 +313,14 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     callCustomerBtn.onclick = () => {
-        const phone = customerPhone.textContent;
-        window.UTILS.showToast(`Calling customer at ${phone}...`, "info");
+        const rider = currentTrip ? nextPassengerOf(currentTrip) : null;
+        const phone = window.UTILS.riderPhone(rider);
+        if (!phone) {
+            window.UTILS.showToast('No contact number on file for this passenger.', 'warning');
+            return;
+        }
+        // Hand off to the device dialer rather than only reporting the number.
+        window.location.href = `tel:${String(phone).replace(/[^\d+]/g, '')}`;
     };
 
     // Listen for bundle changes while the trip is active (a passenger was
@@ -305,20 +344,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update passenger header on the current trip card
         if (trip && Array.isArray(trip.passengers) && trip.passengers.length > 0) {
-            const firstPassenger = trip.passengers[0];
-            if (customerName) customerName.textContent = firstPassenger.name || 'See passenger cards';
-            if (pickupAddress && type === 'PASSENGER_LOCATION_UPDATED' && newPickupAddress) {
-                pickupAddress.textContent = newPickupAddress;
-            }
-            // Push updated passengers into STATE so DRIVER_PASSENGER_CARDS re-renders
+            // Push updated passengers into STATE so DRIVER_PASSENGER_CARDS re-renders.
+            // Identity fields are carried through rather than collapsed onto
+            // `name` only, so a rebundle cannot erase a rider's phone or ID.
             if (currentTrip) {
                 currentTrip.passengers = trip.passengers.map(p => ({
-                    passengerName: p.name,
-                    pickup: { address: p.pickup },
-                    drop: { address: p.drop },
+                    ...p,
+                    passengerName: window.UTILS.riderName(p, null),
+                    passengerPhone: window.UTILS.riderPhone(p),
+                    pickup: typeof p.pickup === 'string' ? { address: p.pickup } : p.pickup || p.pickupLocation,
+                    drop: typeof p.drop === 'string' ? { address: p.drop } : p.drop || p.dropLocation,
                     status: p.status || 'ASSIGNED',
                 }));
                 window.STATE.setState('currentTrip', currentTrip);
+                renderNextPassenger(currentTrip);
+            }
+            if (pickupAddress && type === 'PASSENGER_LOCATION_UPDATED' && newPickupAddress) {
+                pickupAddress.textContent = newPickupAddress;
             }
         }
     });

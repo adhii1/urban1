@@ -35,14 +35,20 @@
                 <div style="display:flex; gap:12px; width:100%; max-width:480px;">
                     <div style="position:relative; flex:2;">
                         <i class="lucide-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-light); font-size:16px;"></i>
-                        <input type="text" id="passengersSearchInput" placeholder="Search passenger name..." class="form-input" style="padding-left:36px; font-size:12px;">
+                        <label for="passengersSearchInput" class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;">Search passengers</label>
+                        <input type="search" id="passengersSearchInput" placeholder="Search name, number or stop…" class="form-input" style="padding-left:36px; font-size:12px;">
                     </div>
                     <div style="flex:1;">
+                        <!-- Filters on boarding state, which the manifest actually
+                             reports. The previous gender filter had no backing
+                             field on the customer record, so every option but
+                             "all" silently emptied the list. -->
+                        <label for="passengerFilterSelect" class="sr-only" style="position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;">Filter passengers</label>
                         <select id="passengerFilterSelect" class="form-input" style="font-size:12px; height: 100%;">
-                            <option value="ALL">All Genders</option>
-                            <option value="MALE">Male Only</option>
-                            <option value="FEMALE">Female Only</option>
-                            <option value="WOMEN_ONLY">Women Only (Shuttle)</option>
+                            <option value="ALL">All passengers</option>
+                            <option value="ONBOARD">Currently on board</option>
+                            <option value="WAITING">Awaiting pickup</option>
+                            <option value="DONE">Completed</option>
                         </select>
                     </div>
                 </div>
@@ -76,6 +82,11 @@
     <script src="../js/utils.js"></script>
     
     <script src="../js/api/authApi.js"></script>
+    <!-- tripApi supplies the real passenger directory; driverApi the signed-in
+         driver's own identity. Neither was loaded here, so this page could only
+         ever render placeholder people. -->
+    <script src="../js/api/driverApi.js"></script>
+    <script src="../js/api/tripApi.js"></script>
     <script src="../js/api/notificationApi.js"></script>
     <script src="../js/common.js"></script>
     <script src="../js/passengers.js"></script>

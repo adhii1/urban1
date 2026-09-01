@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/lib/apiBase';
+import { useAdminStore } from '../../stores/adminStore';
 
 
 export async function apiFetch<T = any>(
@@ -14,9 +15,17 @@ export async function apiFetch<T = any>(
     },
   };
 
+  const accessToken = useAdminStore.getState().accessToken;
+  if (accessToken) {
+    fetchOptions.headers = {
+      ...(fetchOptions.headers as Record<string, string>),
+      Authorization: `Bearer ${accessToken}`,
+    };
+  }
+
   let res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
 
-  if ((res.status === 401 || res.status === 403) && !endpoint.startsWith('/auth/login')) {
+  if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
     try {
       const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
@@ -25,11 +34,16 @@ export async function apiFetch<T = any>(
       });
 
       if (refreshRes.ok) {
+        useAdminStore.getState().clearAccessToken();
+        const retryHeaders = { ...(fetchOptions.headers as Record<string, string>) };
+        delete retryHeaders.Authorization;
+        fetchOptions.headers = retryHeaders;
         res = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
       } else {
         throw new Error('SESSION_EXPIRED');
       }
     } catch {
+      useAdminStore.getState().logout();
       throw new Error('SESSION_EXPIRED');
     }
   }
@@ -53,7 +67,7 @@ export async function apiFetch<T = any>(
 
 export const adminApi = {
   // Dashboard
-  getDashboard: () => apiFetch('/admin/dashboard'),
+  getDashboard: (period = 'today') => apiFetch(`/admin/dashboard?period=${encodeURIComponent(period)}`),
 
   // Drivers
   getDrivers: () => apiFetch('/admin/drivers'),

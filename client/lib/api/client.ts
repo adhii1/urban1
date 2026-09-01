@@ -58,7 +58,7 @@ async function request<T>(
 
   let res = await fetch(`${API_BASE_URL}${endpoint}`, { ...fetchOptions, headers });
 
-  if (res.status === 401 || (res.status === 403 && !endpoint.startsWith('/auth/login'))) {
+  if (res.status === 401 && !endpoint.startsWith('/auth/login')) {
     const refreshed = await refreshSession();
     if (refreshed) {
       // The backend prefers a Bearer token over its freshly rotated session cookie.

@@ -6,14 +6,48 @@ const asyncWrapper = require('../middleware/asyncWrapper');
 const { toTripView } = require('../utils/tripView');
 const { NotFoundError, ValidationError } = require('../utils/AppError');
 
+/**
+ * Populate specs shared by every driver-facing trip read.
+ *
+ * Both rider collections have to be populated. `passengers.customerId` covers
+ * area-based (subscription) trips and `manifest.customer` covers route-based
+ * ones; populating only the first is why route-based trips reached the driver
+ * with no identifiable riders at all.
+ */
+const RIDER_POPULATE = [
+  {
+    path: 'passengers.customerId',
+    select: 'name userId pickupLocation dropLocation',
+    populate: { path: 'userId', select: 'phone' },
+  },
+  {
+    path: 'manifest.customer',
+    select: 'name userId pickupLocation dropLocation',
+    populate: { path: 'userId', select: 'phone' },
+  },
+];
+
 const getProfile = asyncWrapper(async (req, res) => {
   const driver = await Driver.findOne({ userId: req.user.id }).populate('routeId');
   if (!driver) {
     throw new NotFoundError('Driver profile');
   }
 
+  // The profile card reports a lifetime completed-trip count. Both trip
+  // generations count: scheduled Trips and accepted on-demand RideRequests.
+  const RideRequestModel = require('../models/RideRequest');
+  const [completedTrips, completedRides] = await Promise.all([
+    Trip.countDocuments({ driverId: driver._id, status: 'COMPLETED' }),
+    RideRequestModel.countDocuments({
+      acceptedDriverId: driver._id,
+      status: 'COMPLETED',
+      isDeleted: false,
+    }),
+  ]);
+
   const profile = {
     id: driver._id,
+    userId: driver.userId,
     name: driver.name,
     phone: req.user.phone,
     vehicleNumber: driver.vehicleNumber,
@@ -22,6 +56,14 @@ const getProfile = asyncWrapper(async (req, res) => {
     licenseNumber: driver.licenseNumber,
     route: driver.routeId,
     status: driver.status,
+    isOnline: driver.isOnline,
+    isAvailable: driver.isAvailable,
+    // The sidebar/navbar widget reads `rating` and renders it with toFixed(2);
+    // sending the field it actually reads (rather than omitting it and letting
+    // the widget throw mid-update) is what keeps the driver's own name on screen.
+    rating: driver.averageRating || 0,
+    totalRatings: driver.totalRatings || 0,
+    completedTrips: completedTrips + completedRides,
   };
 
   return res.status(200).json(formatResponse('Driver profile retrieved.', profile));
@@ -57,13 +99,11 @@ const getTrips = asyncWrapper(async (req, res) => {
   }
   // scope === 'all' uses no date filter
 
+  const tripQuery = Trip.find(filter);
+  RIDER_POPULATE.forEach((spec) => tripQuery.populate(spec));
+
   const [tripDocs, total] = await Promise.all([
-    Trip.find(filter)
-      .populate({
-        path: 'passengers.customerId',
-        select: 'name phone pickupLocation dropLocation userId',
-        populate: { path: 'userId', select: 'phone' },
-      })
+    tripQuery
       .populate('routeId')
       .sort({ serviceDate: -1 })
       .skip(skip)
@@ -71,7 +111,7 @@ const getTrips = asyncWrapper(async (req, res) => {
       .lean(),
     Trip.countDocuments(filter),
   ]);
-  const trips = tripDocs.map((t) => toTripView(t));
+  const trips = tripDocs.map((t) => toTripView(t, { viewer: 'driver' }));
 
   // Also get pending/accepted ride requests assigned to this driver
   const RideRequest = require('../models/RideRequest');
@@ -88,19 +128,69 @@ const getTrips = asyncWrapper(async (req, res) => {
     isDeleted: false,
   }).sort({ createdAt: -1 }).limit(10).lean();
 
+  const rides = [...activeRides, ...pendingOffers];
+
+  // `customerName` is denormalized onto the ride at creation time, but rides
+  // created before that field existed (or through a path that never resolved
+  // the socket's customer name) carry nothing. Resolve those from the Customer
+  // record rather than shipping a literal 'Customer' the driver cannot act on.
+  const unnamedRideUserIds = rides
+    .filter((r) => !String(r.customerName || '').trim())
+    .map((r) => r.customerId)
+    .filter(Boolean);
+
+  const customersByUserId = new Map();
+  if (unnamedRideUserIds.length > 0) {
+    const resolved = await Customer.find({ userId: { $in: unnamedRideUserIds } })
+      .select('name userId')
+      .populate('userId', 'phone')
+      .lean();
+    for (const c of resolved) {
+      customersByUserId.set(String(c.userId?._id || c.userId), c);
+    }
+  }
+
   // Convert rides to trip-like format for the frontend
-  const rideAsTrips = [...activeRides, ...pendingOffers].map(r => ({
-    _id: r._id,
-    type: 'RIDE',
-    status: r.status,
-    serviceDate: r.requestedAt || r.createdAt,
-    tripDate: r.requestedAt || r.createdAt,
-    pickup: r.pickupLocation,
-    drop: r.dropLocation,
-    customerName: r.customerName,
-    fare: r.fare,
-    manifest: [{ customer: { name: r.customerName || 'Customer' }, status: r.status === 'COMPLETED' ? 'DROPPED' : 'PENDING' }],
-  }));
+  const rideAsTrips = rides.map((r) => {
+    const resolved = customersByUserId.get(String(r.customerId));
+    const riderName = String(r.customerName || '').trim() || resolved?.name || null;
+    const riderPhone = r.customerPhone || resolved?.userId?.phone || null;
+    const legacyStatus = r.status === 'COMPLETED' ? 'DROPPED'
+      : r.status === 'IN_PROGRESS' ? 'BOARDED'
+        : 'PENDING';
+
+    const entry = {
+      rideRequestId: r._id,
+      customerId: r.customerId,
+      customer: riderName ? { _id: r.customerId, name: riderName } : r.customerId,
+      passengerName: riderName,
+      passengerPhone: riderPhone,
+      pickupLocation: r.pickupLocation,
+      dropLocation: r.dropLocation,
+      status: legacyStatus,
+      canonicalStatus: r.status,
+      lifecycle: r.passengerLifecycle || legacyStatus,
+      shuttleSessionId: r.shuttleSessionId || null,
+      // The driver is the party that types this code in, so it stays visible here.
+      otp: r.otp ? { code: r.otp.code, verified: Boolean(r.otp.verified) } : undefined,
+    };
+
+    return {
+      _id: r._id,
+      type: 'RIDE',
+      status: r.status,
+      serviceDate: r.requestedAt || r.createdAt,
+      tripDate: r.requestedAt || r.createdAt,
+      pickup: r.pickupLocation,
+      drop: r.dropLocation,
+      customerName: riderName,
+      customerPhone: riderPhone,
+      shuttleSessionId: r.shuttleSessionId || null,
+      fare: r.fare,
+      passengers: [entry],
+      manifest: [entry],
+    };
+  });
 
   const allTrips = [...rideAsTrips, ...trips];
 
@@ -193,23 +283,19 @@ const getTripById = asyncWrapper(async (req, res) => {
     throw new NotFoundError('Driver profile');
   }
 
-  const trip = await Trip.findOne({
+  const tripQuery = Trip.findOne({
     _id: req.params.id,
     driverId: driver._id,
-  })
-    .populate({
-      path: 'passengers.customerId',
-      select: 'name phone pickupLocation dropLocation userId',
-      populate: { path: 'userId', select: 'phone' },
-    })
-    .populate('routeId')
-    .lean();
+  });
+  RIDER_POPULATE.forEach((spec) => tripQuery.populate(spec));
+
+  const trip = await tripQuery.populate('routeId').lean();
 
   if (!trip) {
     throw new NotFoundError('Trip');
   }
 
-  return res.status(200).json(formatResponse('Trip retrieved.', toTripView(trip)));
+  return res.status(200).json(formatResponse('Trip retrieved.', toTripView(trip, { viewer: 'driver' })));
 });
 
 const getTripCustomers = asyncWrapper(async (req, res) => {
@@ -218,23 +304,24 @@ const getTripCustomers = asyncWrapper(async (req, res) => {
     throw new NotFoundError('Driver profile');
   }
 
-  const trip = await Trip.findOne({
+  const tripQuery = Trip.findOne({
     _id: req.params.id,
     driverId: driver._id,
-  })
-    .populate({
-      path: 'passengers.customerId',
-      select: 'name',
-      populate: { path: 'userId', select: 'phone' },
-    })
-    .lean();
+  });
+  RIDER_POPULATE.forEach((spec) => tripQuery.populate(spec));
+
+  const trip = await tripQuery.lean();
 
   if (!trip) {
     throw new NotFoundError('Trip');
   }
 
-  const view = toTripView(trip);
-  return res.status(200).json(formatResponse('Trip customers retrieved.', view.passengers));
+  const view = toTripView(trip, { viewer: 'driver' });
+  // Route-based trips carry their riders in `manifest`, area-based ones in
+  // `passengers`; return whichever is populated so this never answers with an
+  // empty list for a trip that does have riders.
+  const riders = view.passengers.length > 0 ? view.passengers : view.manifest;
+  return res.status(200).json(formatResponse('Trip customers retrieved.', riders));
 });
 
 const emitTripLifecycle = async (trip, event, customerId) => {
@@ -335,6 +422,100 @@ const completeTrip = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Trip completed.', trip));
 });
 
+/**
+ * PUT /api/v1/driver/trips/status   Body: { tripId, status }
+ *
+ * The driver app drives a trip through ARRIVING -> ARRIVED -> STARTED ->
+ * COMPLETED and has always called this endpoint, but it was never mounted: every
+ * "Mark arrived" / "Start trip" / "Complete trip" tap returned 404, so a trip
+ * could not reach IN_PROGRESS and no passenger action (including OTP boarding)
+ * was ever reachable.
+ *
+ * ARRIVING and ARRIVED are per-passenger facts in the canonical model — a shared
+ * trip has many pickups — so they advance the pending riders rather than the
+ * trip row. STARTED and COMPLETED are trip-level and reuse the same guards as
+ * the PATCH endpoints.
+ */
+const DRIVER_APP_TRIP_STATUSES = {
+  ARRIVING: { passengerFrom: ['ASSIGNED'], passengerTo: 'DRIVER_EN_ROUTE' },
+  DRIVER_ARRIVING: { passengerFrom: ['ASSIGNED'], passengerTo: 'DRIVER_EN_ROUTE' },
+  ARRIVED: { passengerFrom: ['ASSIGNED', 'DRIVER_EN_ROUTE'], passengerTo: 'DRIVER_ARRIVED' },
+  DRIVER_ARRIVED: { passengerFrom: ['ASSIGNED', 'DRIVER_EN_ROUTE'], passengerTo: 'DRIVER_ARRIVED' },
+  STARTED: { tripTo: 'IN_PROGRESS' },
+  IN_PROGRESS: { tripTo: 'IN_PROGRESS' },
+  COMPLETED: { tripTo: 'COMPLETED' },
+};
+
+const updateTripStatus = asyncWrapper(async (req, res) => {
+  const { tripId, status } = req.body || {};
+  if (!tripId) throw new ValidationError('tripId is required.');
+
+  const transition = DRIVER_APP_TRIP_STATUSES[String(status || '').toUpperCase()];
+  if (!transition) {
+    throw new ValidationError(
+      `Unsupported trip status "${status}". Expected one of: ${Object.keys(DRIVER_APP_TRIP_STATUSES).join(', ')}.`
+    );
+  }
+
+  const driver = await Driver.findOne({ userId: req.user.id });
+  if (!driver) throw new NotFoundError('Driver profile');
+
+  const trip = await Trip.findOne({ _id: tripId, driverId: driver._id });
+  if (!trip) throw new NotFoundError('Trip');
+
+  let event = status;
+
+  if (transition.tripTo === 'IN_PROGRESS') {
+    if (trip.status === 'IN_PROGRESS') {
+      // Idempotent: the app auto-fires this on load, and a repeat tap must not
+      // read as a failure to the driver.
+      event = 'ALREADY_STARTED';
+    } else if (!['SCHEDULED', 'ACCEPTED'].includes(trip.status)) {
+      throw new ValidationError(`Trip cannot be started from ${trip.status}.`);
+    } else {
+      trip.status = 'IN_PROGRESS';
+      trip.startedAt = new Date();
+      event = 'STARTED';
+    }
+  } else if (transition.tripTo === 'COMPLETED') {
+    if (trip.status !== 'IN_PROGRESS') {
+      throw new ValidationError('Trip can only be completed from IN_PROGRESS status.');
+    }
+    const boardedNotDropped = (trip.passengers || []).filter((p) => ['RIDE_STARTED', 'DROPPING_OFF'].includes(p.status));
+    if (boardedNotDropped.length > 0) {
+      throw new ValidationError('All boarded passengers must be dropped off before completing the trip.');
+    }
+    for (const p of trip.passengers || []) {
+      if (!['COMPLETED', 'NO_SHOW'].includes(p.status)) p.status = 'NO_SHOW';
+    }
+    trip.status = 'COMPLETED';
+    trip.completedAt = new Date();
+    event = 'COMPLETED';
+  } else {
+    // Approach notifications: advance only the riders still waiting. Passengers
+    // already boarded or dropped are untouched.
+    let advanced = 0;
+    for (const p of trip.passengers || []) {
+      if (transition.passengerFrom.includes(p.status)) {
+        p.status = transition.passengerTo;
+        advanced += 1;
+      }
+    }
+    if (advanced === 0) event = `${status}_NOOP`;
+  }
+
+  await trip.save();
+  await emitTripLifecycle(trip, event);
+
+  const updatedQuery = Trip.findById(trip._id);
+  RIDER_POPULATE.forEach((spec) => updatedQuery.populate(spec));
+  const updated = await updatedQuery.populate('routeId').lean();
+
+  return res.status(200).json(
+    formatResponse(`Trip status updated to ${status}.`, toTripView(updated, { viewer: 'driver' }))
+  );
+});
+
 // Canonical per-passenger transitions on trip.passengers[]. OTP verification
 // (PDF section 15) is enforced on verify-otp, and optionally on board.
 const PASSENGER_TRANSITIONS = {
@@ -396,11 +577,13 @@ const updateManifestStatus = asyncWrapper(async (req, res) => {
   await trip.save();
   await emitTripLifecycle(trip, `PASSENGER_${transition.to}`, entry.customerId);
 
-  const updated = await Trip.findById(trip._id)
-    .populate('passengers.customerId', 'name pickupLocation dropLocation')
-    .lean();
+  const updatedQuery = Trip.findById(trip._id);
+  RIDER_POPULATE.forEach((spec) => updatedQuery.populate(spec));
+  const updated = await updatedQuery.lean();
 
-  return res.status(200).json(formatResponse(`Passenger marked ${transition.to}.`, toTripView(updated)));
+  return res.status(200).json(
+    formatResponse(`Passenger marked ${transition.to}.`, toTripView(updated, { viewer: 'driver' }))
+  );
 });
 
 module.exports = {
@@ -411,5 +594,6 @@ module.exports = {
   getTripCustomers,
   startTrip,
   completeTrip,
+  updateTripStatus,
   updateManifestStatus,
 };

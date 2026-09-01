@@ -94,14 +94,24 @@ const DRIVER_API = {
         });
     },
 
-    uploadDocument: (docType, fileName) => {
-        console.log(`🔌 [API] Calling POST /api/v1/driver/documents/upload for type: ${docType}`);
+    /**
+     * Upload a compliance document.
+     * `type` must be one of license | vehicleRC | insurance — the backend
+     * rejects anything else. This used to send a `documentType` field (which the
+     * backend never reads) together with a fabricated text blob standing in for
+     * the driver's actual file, so no real document could ever be submitted.
+     */
+    uploadDocument: (type, file, expiryDate) => {
+        console.log(`🔌 [API] Calling POST /api/v1/driver/documents/upload for type: ${type}`);
         const token = localStorage.getItem('driverToken');
+        if (!(file instanceof Blob)) {
+            return Promise.reject(new Error('Choose a document file to upload.'));
+        }
+
         const formData = new FormData();
-        formData.append('documentType', docType);
-        
-        const blob = new Blob(["Simulated Document content"], { type: "text/plain" });
-        formData.append('document', blob, fileName || 'doc.pdf');
+        formData.append('type', type);
+        formData.append('document', file, file.name || 'document');
+        if (type === 'insurance' && expiryDate) formData.append('expiryDate', expiryDate);
 
         return fetch(`${API_BASE_URL}/driver/documents/upload`, {
             method: 'POST',

@@ -43,8 +43,10 @@ const getTrips = asyncWrapper(async (req, res) => {
 
   const [trips, total] = await Promise.all([
     Trip.find(filter)
-      .populate('driverId', 'name vehicleNumber')
+      .populate('driverId', 'name vehicleNumber vehicleModel')
       .populate('passengers.customerId', 'name')
+      .populate('manifest.customer', 'name')
+      .populate('routeId', 'name startLocation endLocation stops')
       .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
@@ -52,7 +54,10 @@ const getTrips = asyncWrapper(async (req, res) => {
     Trip.countDocuments(filter),
   ]);
 
-  const views = trips.map((trip) => toTripView(trip, { customerId: customer._id }));
+  // viewer: 'customer' keeps this customer's own boarding OTP on `myEntry` and
+  // strips every co-passenger's code from the response. The trip is shared, so
+  // without the scope one rider could read the codes of everyone in the vehicle.
+  const views = trips.map((trip) => toTripView(trip, { customerId: customer._id, viewer: 'customer' }));
 
   return res.status(200).json(
     formatResponse('Trips retrieved successfully.', views, {
@@ -76,13 +81,20 @@ const getTripById = asyncWrapper(async (req, res) => {
   })
     .populate('driverId', 'name vehicleNumber vehicleModel')
     .populate('passengers.customerId', 'name')
+    .populate('manifest.customer', 'name')
+    .populate('routeId', 'name startLocation endLocation stops')
     .lean();
 
   if (!trip) {
     throw new NotFoundError('Trip not found.');
   }
 
-  return res.status(200).json(formatResponse('Trip retrieved successfully.', toTripView(trip, { customerId: customer._id })));
+  return res.status(200).json(
+    formatResponse(
+      'Trip retrieved successfully.',
+      toTripView(trip, { customerId: customer._id, viewer: 'customer' })
+    )
+  );
 });
 
 /**

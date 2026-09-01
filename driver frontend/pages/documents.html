@@ -26,53 +26,40 @@
             <!-- Documents layouts -->
             <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
                 
-                <div style="display:flex; flex-direction:column; gap:16px;">
-                    <!-- DL Card -->
-                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
-                        <div style="display:flex; align-items:center; gap:16px;">
-                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-file-text" style="font-size:24px;"></i></div>
-                            <div>
-                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Permanent Driving License</h3>
-                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: KA-51-2024-0012345 • Expires: Dec 2029</div>
-                            </div>
-                        </div>
-                        <span class="badge badge-success">Approved</span>
-                    </div>
+                <!-- Rendered from GET /driver/documents. These three cards used to
+                     be hardcoded as "Approved" with sample licence and RC numbers,
+                     so every driver appeared fully verified regardless of what
+                     they had actually uploaded. -->
+                <div id="documentsList" style="display:flex; flex-direction:column; gap:16px;"></div>
 
-                    <!-- RC Card -->
-                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
-                        <div style="display:flex; align-items:center; gap:16px;">
-                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-car" style="font-size:24px;"></i></div>
-                            <div>
-                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Vehicle Registration Certificate (RC)</h3>
-                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: KA-01-MJ-4321 • Expires: Mar 2035</div>
-                            </div>
-                        </div>
-                        <span class="badge badge-success">Approved</span>
-                    </div>
-
-                    <!-- Insurance Certificate -->
-                    <div class="glass-card" style="padding:20px; display:flex; align-items:center; justify-content:space-between; gap:16px;">
-                        <div style="display:flex; align-items:center; gap:16px;">
-                            <div style="background:var(--bg-hover); padding:12px; border-radius:10px; color:var(--color-primary);"><i class="lucide-shield" style="font-size:24px;"></i></div>
-                            <div>
-                                <h3 style="font-size:14px; font-weight:700; color:var(--text-main);">Commercial Vehicle Insurance</h3>
-                                <div style="font-size:11px; color:var(--text-light); margin-top:3px;">No: INS-90023412 • Expires: Sep 2026</div>
-                            </div>
-                        </div>
-                        <span class="badge badge-warning">Expiring Soon</span>
-                    </div>
-                </div>
-
-                <!-- Right sidebar uploaders -->
+                <!-- Right sidebar uploader -->
                 <div>
-                    <div class="glass-card" style="padding:24px; text-align:center;">
-                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Upload Documents</h2>
-                        <div style="border: 2px dashed var(--border-color); border-radius: var(--border-radius-md); padding: 32px 16px; cursor:pointer;" onclick="window.UTILS.showToast('Selecting file from filesystem...', 'info')">
-                            <i class="lucide-upload-cloud" style="font-size:36px; color:var(--text-light); margin-bottom:12px; display:inline-flex;"></i>
-                            <div style="font-size:13px; font-weight:600; color:var(--text-main);">Choose File or Drag here</div>
-                            <div style="font-size:11px; color:var(--text-light); margin-top:4px;">Supports JPG, PNG or PDF (Max 5MB)</div>
+                    <div class="glass-card" style="padding:24px;">
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Upload a document</h2>
+
+                        <div class="form-group">
+                            <label for="documentTypeSelect">Document type</label>
+                            <select id="documentTypeSelect" class="form-input" style="font-size:13px;">
+                                <option value="license">Driving licence</option>
+                                <option value="vehicleRC">Vehicle registration certificate</option>
+                                <option value="insurance">Vehicle insurance</option>
+                            </select>
                         </div>
+
+                        <div class="form-group" id="insuranceExpiryGroup" style="display:none;">
+                            <label for="documentExpiryInput">Insurance expiry date</label>
+                            <input type="date" id="documentExpiryInput" class="form-input" style="font-size:13px;">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="documentFileInput">File</label>
+                            <input type="file" id="documentFileInput" class="form-input" accept=".jpg,.jpeg,.png,.webp,.pdf" style="font-size:12px;">
+                            <div style="font-size:11px; color:var(--text-light); margin-top:6px;">JPG, PNG, WEBP or PDF.</div>
+                        </div>
+
+                        <button id="documentUploadBtn" class="btn btn-primary" style="width:100%; justify-content:center;">
+                            <i class="lucide-upload-cloud"></i> Upload for verification
+                        </button>
                     </div>
                 </div>
 
@@ -89,8 +76,12 @@
     <script src="../js/utils.js"></script>
     
     <script src="../js/api/authApi.js"></script>
+    <!-- driverApi resolves the signed-in driver's own identity. Without it the
+         sidebar/navbar keep the markup's placeholder name on this page. -->
+    <script src="../js/api/driverApi.js"></script>
     <script src="../js/api/notificationApi.js"></script>
     <script src="../js/common.js"></script>
+    <script src="../js/documents.js"></script>
 
     <script>
         setTimeout(() => lucide.createIcons(), 600);

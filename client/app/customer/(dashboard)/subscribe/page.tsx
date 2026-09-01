@@ -97,6 +97,10 @@ export default function SubscribePage() {
   const planPrice: number | null = planForModel?.price ?? null;
 
   const toggleDay = (day: number) => {
+    if (model === 'HYBRID' && (day === 0 || day === 6)) {
+      showToast('Hybrid plans run on weekdays only', 'error');
+      return;
+    }
     if (model === 'HYBRID' && !selectedDays.includes(day) && selectedDays.length >= 3) {
       showToast('Hybrid plan allows max 3 days per week', 'error');
       return;
@@ -144,7 +148,7 @@ export default function SubscribePage() {
   const handleSubmit = async () => {
     if (!model) { showToast('Select a booking model', 'error'); return; }
     if (!pickupLat || !pickupLng || !dropLat || !dropLng) { showToast('Set pickup and drop locations', 'error'); return; }
-    if (model === 'HYBRID' && selectedDays.length === 0) { showToast('Select your commute days', 'error'); return; }
+    if (model === 'HYBRID' && selectedDays.length !== 3) { showToast('Select exactly 3 weekdays for the Hybrid plan', 'error'); return; }
 
     setLoading(true);
     try {

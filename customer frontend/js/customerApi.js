@@ -67,6 +67,13 @@ const CUSTOMER_API = (() => {
             if (res.ok) {
                 const payload = await res.json();
                 if (payload.success) {
+                    const refreshedData = payload.data || payload;
+                    if (refreshedData.accessToken) {
+                        localStorage.setItem('accessToken', refreshedData.accessToken);
+                    }
+                    if (refreshedData.refreshToken) {
+                        localStorage.setItem('refreshToken', refreshedData.refreshToken);
+                    }
                     return true;
                 }
             }
@@ -176,9 +183,19 @@ const CUSTOMER_API = (() => {
             body: JSON.stringify(subscriptionId ? { date, subscriptionId } : { date })
         }),
 
-        // Trips
+        // Trips (scheduled subscription runs)
         getTrips: () => request('/customer/trips'),
         getTripDetails: (id) => request(`/customer/trips/${id}`),
+
+        // On-demand rides. A customer's upcoming journeys span both models:
+        // scheduled Trips and Flexy RideRequests, and each carries its own
+        // boarding OTP, so both have to be read to show a complete list.
+        getMyRides: (status) => request(`/rides/my${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+        getActiveRide: () => request('/rides/active'),
+        cancelRide: (id, reason) => request(`/rides/${id}/cancel`, {
+            method: 'PATCH',
+            body: JSON.stringify({ reason })
+        }),
 
         // Live Tracking
         getTracking: (tripId) => request(`/tracking/${tripId}`),

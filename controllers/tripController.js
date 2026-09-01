@@ -13,6 +13,7 @@ const getTrips = asyncWrapper(async (req, res) => {
     Trip.find()
       .populate('driverId', 'name')
       .populate('passengers.customerId', 'name')
+      .populate('manifest.customer', 'name')
       .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
@@ -34,6 +35,7 @@ const getTripById = asyncWrapper(async (req, res) => {
   const trip = await Trip.findById(req.params.id)
     .populate('driverId', 'name vehicleNumber')
     .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .populate('manifest.customer', 'name pickupLocation dropLocation')
     .lean();
   if (!trip) throw new NotFoundError('Trip');
   return res.status(200).json(formatResponse('Trip retrieved.', toTripView(trip)));

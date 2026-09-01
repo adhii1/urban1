@@ -3,9 +3,11 @@ const RideRequest = require('../models/RideRequest');
 const ShuttleSession = require('../models/ShuttleSession');
 const { generateOtp } = require('../utils/otpHelper');
 const { AppError } = require('../utils/AppError');
+const { haversineKm } = require('../utils/geoHelper');
 
 const ACTIVE_SESSION_STATUSES = ['ACCEPTED', 'ARRIVING', 'PICKUP_IN_PROGRESS', 'IN_PROGRESS'];
 const OTP_TTL_MS = 30 * 60 * 1000;
+const MAX_BUNDLE_DISTANCE_KM = 5;
 
 class ShuttleLifecycleError extends AppError {
   constructor(code, message, statusCode = 400) {
@@ -27,6 +29,23 @@ function assertDistinctRideIds(rideRequestIds) {
     throw new ShuttleLifecycleError('INVALID_BUNDLE', 'Ride request identifiers must be distinct');
   }
   return ids;
+}
+
+function assertCompatibleRides(rides) {
+  for (let firstIndex = 0; firstIndex < rides.length; firstIndex += 1) {
+    for (let secondIndex = firstIndex + 1; secondIndex < rides.length; secondIndex += 1) {
+      const first = rides[firstIndex];
+      const second = rides[secondIndex];
+      const pickupDistance = haversineKm(first.pickupLocation.coordinates, second.pickupLocation.coordinates);
+      const dropDistance = haversineKm(first.dropLocation.coordinates, second.dropLocation.coordinates);
+      if (pickupDistance > MAX_BUNDLE_DISTANCE_KM || dropDistance > MAX_BUNDLE_DISTANCE_KM) {
+        throw new ShuttleLifecycleError(
+          'INCOMPATIBLE_RIDES',
+          `All shuttle pickups and destinations must be within ${MAX_BUNDLE_DISTANCE_KM} km of one another`
+        );
+      }
+    }
+  }
 }
 
 function passengerProjection(ride, shuttleSessionId) {
@@ -65,6 +84,7 @@ async function acceptBundle({ driverId, rideRequestIds, driverLocation }) {
   if (rides.length !== requestedIds.length) {
     throw new ShuttleLifecycleError('RIDES_UNAVAILABLE', 'One or more rides are no longer available', 409);
   }
+  assertCompatibleRides(rides);
 
   // Resolve lazily to avoid a module cycle: shuttleService delegates bundle
   // creation here while retaining route-sequencing helpers for compatibility.

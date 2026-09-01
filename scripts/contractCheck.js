@@ -3,7 +3,11 @@
  * 2) Push the exact Subscribe-page payload through the backend's real validators.
  * 3) Confirm the trip serializer emits the aliases the FE screens read.
  */
-const ROOT = '/Users/umesh/Downloads/carpool/urban1';
+// Resolved from this file's location. It was previously a hardcoded absolute path
+// from one developer's machine, so `npm run check:contract` — and therefore the
+// `pretest` hook and `npm test` — failed on every other clone.
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
 const app = require(ROOT + '/app');
 const Joi = require(ROOT + '/node_modules/joi');
 const { purchaseSubscription } = require(ROOT + '/validations/subscriptionValidation');
@@ -34,6 +38,16 @@ const has = (method, path) => routes.some(r => r === `${method} ${path}` || r.st
 
 // The exact calls the customer client makes (path is after the /api/v1 base).
 const clientCalls = [
+  // Customer boarding-code sources. A customer's journeys span both trip models,
+  // and each carries its own OTP, so both are read by the my-trips/dashboard screens.
+  ['GET', '/api/v1/rides/my'],
+  ['GET', '/api/v1/rides/active'],
+  // Driver trip lifecycle. PUT /driver/trips/status is what the driver app has
+  // always called; it went unmounted for a long time, which 404'd every
+  // arrive/start/complete tap and made OTP boarding unreachable.
+  ['PUT', '/api/v1/driver/trips/status'],
+  ['GET', '/api/v1/driver/trips'],
+  ['PATCH', '/api/v1/driver/trips/:id/manifest/:customerId/:action'],
   ['POST', '/api/v1/book'],
   ['GET', '/api/v1/booking'],
   ['POST', '/api/v1/booking/cancel'],
@@ -91,5 +105,54 @@ console.log(`  has manifest alias (driver current-trip): ${Array.isArray(view.ma
 console.log(`  manifest[0].status mapped to legacy:     ${view.manifest[0].status} (canonical RIDE_STARTED -> BOARDED)`);
 console.log(`  myEntry resolved for customer:           ${view.myEntry ? 'YES' : 'NO'}`);
 
-console.log(`\n=== SUMMARY: ${missing === 0 ? 'all client paths mounted' : missing + ' MISSING paths'}; Joi ${j.error ? 'reject' : 'accept'} ===\n`);
-process.exit(0);
+// ---- 4. Boarding-OTP disclosure -------------------------------------------
+// A trip is shared, so passengers[].otp.code is per-rider secret material: the
+// driver needs every code, a customer must receive only their own.
+console.log('\n=== 4. Boarding OTP disclosure by viewer ===');
+const otherId = new mongoose.Types.ObjectId();
+const sharedTrip = {
+  _id: new mongoose.Types.ObjectId(),
+  serviceDate: new Date('2026-08-24T00:00:00'),
+  status: 'SCHEDULED',
+  passengers: [
+    { customerId: custId, status: 'ASSIGNED', otp: { code: '111111', verified: false } },
+    { customerId: otherId, status: 'ASSIGNED', otp: { code: '222222', verified: false } },
+  ],
+};
+
+const driverView = toTripView(sharedTrip, { viewer: 'driver' });
+const customerView = toTripView(sharedTrip, { customerId: custId, viewer: 'customer' });
+const ownCode = customerView.myEntry?.otp?.code;
+const otherCode = customerView.passengers.find(
+  (p) => String(p.customerId) === String(otherId)
+)?.otp?.code;
+
+const driverSeesAll = driverView.passengers.every((p) => Boolean(p.otp?.code));
+let otpFailures = 0;
+if (!driverSeesAll) otpFailures += 1;
+if (ownCode !== '111111') otpFailures += 1;
+if (otherCode !== undefined) otpFailures += 1;
+
+console.log(`  driver sees every boarding code:         ${driverSeesAll ? 'YES' : 'NO (FAIL)'}`);
+console.log(`  customer sees their own code:            ${ownCode === '111111' ? 'YES' : 'NO (FAIL)'}`);
+console.log(`  co-passenger code withheld:              ${otherCode === undefined ? 'YES' : 'NO (FAIL — leaked ' + otherCode + ')'}`);
+
+// ---- 5. Route-based manifest survives serialization ------------------------
+// Route-based trips keep riders in `manifest` and have an empty `passengers` by
+// design. The serializer used to overwrite `manifest` with a projection of
+// `passengers`, which erased those riders from every screen.
+const routeTrip = {
+  _id: new mongoose.Types.ObjectId(),
+  serviceDate: new Date('2026-08-24T00:00:00'),
+  status: 'SCHEDULED',
+  passengers: [],
+  manifest: [{ customer: { _id: custId, name: 'Real Rider' }, status: 'PENDING', pickupStop: { stopName: 'Stop A' } }],
+};
+const routeView = toTripView(routeTrip, { viewer: 'driver' });
+const keptRider = routeView.manifest.length === 1 && routeView.manifest[0].passengerName === 'Real Rider';
+if (!keptRider) otpFailures += 1;
+console.log(`  route-based manifest riders preserved:   ${keptRider ? 'YES' : 'NO (FAIL)'}`);
+
+const failed = missing > 0 || Boolean(j.error) || otpFailures > 0;
+console.log(`\n=== SUMMARY: ${missing === 0 ? 'all client paths mounted' : missing + ' MISSING paths'}; Joi ${j.error ? 'reject' : 'accept'}; serializer ${otpFailures === 0 ? 'OK' : otpFailures + ' FAILURES'} ===\n`);
+process.exit(failed ? 1 : 0);

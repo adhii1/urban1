@@ -274,12 +274,19 @@ function showTripOfferModal(offer) {
             <div style="background:var(--bg-app); border-radius: var(--border-radius-md); padding:12px; margin-bottom: 24px; border:1px solid var(--border-color);">
                 <div style="font-size:11px; font-weight:600; color:var(--text-light); margin-bottom:8px;">ASSIGNED PASSENGERS</div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    ${passengersList.map(p => `
+                    ${passengersList.length === 0
+                        ? '<span style="font-size:11px; color:var(--text-light);">Passenger details arrive with the assignment.</span>'
+                        : passengersList.map(p => {
+                            // Real name from the offer, or an explicit placeholder
+                            // chip. An initials avatar keeps distinct riders
+                            // visually distinct without a remote stock portrait.
+                            const name = window.UTILS.riderName(p, null);
+                            return `
                         <div style="display:flex; align-items:center; gap:6px; background:var(--bg-card-solid); padding:4px 10px; border-radius:30px; font-size:11px; border:1px solid var(--border-color);">
-                            <img src="${p.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150'}" style="width:18px; height:18px; border-radius:50%; object-fit:cover;">
-                            <span style="font-weight:600; color:var(--text-main);">${p.name}</span>
-                        </div>
-                    `).join('')}
+                            <img src="${escapeScheduleHtml(window.UTILS.initialsAvatar(name || '', 36))}" alt="" style="width:18px; height:18px; border-radius:50%;">
+                            <span style="font-weight:600; color:${name ? 'var(--text-main)' : 'var(--text-light)'};">${escapeScheduleHtml(name || 'Name pending')}</span>
+                        </div>`;
+                        }).join('')}
                 </div>
             </div>
 
@@ -426,11 +433,14 @@ function showBundleUpdateCard(trip, type) {
     }[type] || 'badge-info';
 
     const passengerList = Array.isArray(trip.passengers) && trip.passengers.length > 0
-        ? trip.passengers.map(p => `
+        ? trip.passengers.map(p => {
+            const name = window.UTILS.riderName(p, null);
+            return `
             <div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border-color);">
-                <span style="font-weight:600;font-size:12px;color:var(--text-main);">${escapeScheduleHtml(p.name || 'Passenger')}</span>
+                <span style="font-weight:600;font-size:12px;color:${name ? 'var(--text-main)' : 'var(--text-light)'};">${escapeScheduleHtml(name || 'Name pending')}</span>
                 <span style="color:var(--text-light);font-size:11px;">→ ${escapeScheduleHtml(p.pickup || '—')}</span>
-            </div>`).join('')
+            </div>`;
+        }).join('')
         : '<div style="font-size:12px;color:var(--text-light);">No passengers assigned.</div>';
 
     const card = document.createElement('div');
@@ -483,10 +493,16 @@ function renderActiveTripCard(trip) {
     if (normalizedStatus === 'TRIP_STARTED') normalizedStatus = 'STARTED';
     if (normalizedStatus === 'TRIP_COMPLETED') normalizedStatus = 'COMPLETED';
 
-    // Passenger lifecycle state is rendered only by DRIVER_PASSENGER_CARDS.
-    // This legacy trip-status panel must never invent passengers or carry a
-    // second mutable copy of their pickup/drop lifecycle.
-    const passengers = [];
+    // Passenger lifecycle state is owned by DRIVER_PASSENGER_CARDS, which renders
+    // into every [data-driver-passenger-cards] container from the server's
+    // acknowledgements. This panel embeds a container and never keeps a second
+    // mutable copy of a rider's lifecycle — the previous version hardcoded an
+    // empty list to avoid exactly that, which meant the driver saw no passengers
+    // here at all.
+    const passengers = Array.isArray(trip.passengers) ? trip.passengers : [];
+    const paxCount = trip.passengerCount ?? passengers.length;
+    const fare = window.UTILS.formatCurrency(trip.earnings || trip.estimatedEarnings || 0);
+    const manifestSlot = '<div data-driver-passenger-cards style="display:flex; flex-direction:column; gap:10px;"></div>';
 
     switch (normalizedStatus) {
         case 'ACCEPTED':
@@ -500,42 +516,17 @@ function renderActiveTripCard(trip) {
                         </div>
                         <div style="text-align:right;">
                             <div style="font-size:11px; font-weight:600; color:var(--text-light);">EST. EARNINGS</div>
-                            <div style="font-size:16px; font-weight:700; color:var(--color-primary);">${window.UTILS.formatCurrency(trip.earnings || trip.estimatedEarnings || 410)}</div>
+                            <div style="font-size:16px; font-weight:700; color:var(--color-primary);">${fare}</div>
                         </div>
                     </div>
 
                     <!-- Passenger Boarding Cards List -->
                     <div style="margin-bottom:20px;">
-                        <div style="font-size:11px; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:10px;">ASSIGNED PASSENGERS LIST</div>
-                        <div style="display:flex; flex-direction:column; gap:10px;">
-                            ${passengers.map((p, idx) => `
-                                <div class="glass-card" style="padding:14px; border:1px solid var(--border-color); font-size:12.5px;">
-                                    <div class="flex-between" style="margin-bottom:8px;">
-                                        <div style="display:flex; align-items:center; gap:10px;">
-                                            <img src="${p.avatar}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;">
-                                            <div>
-                                                <strong style="color:var(--text-main); font-size:13px;">${p.name}</strong>
-                                                <span style="font-size:11px; color:var(--text-light); display:block;">${p.seat || 'Seat #' + (idx + 1)}</span>
-                                            </div>
-                                        </div>
-                                        <span class="badge ${p.pickupStatus === 'Picked Up' ? 'badge-success' : 'badge-warning'}" style="font-size:10px;">${p.pickupStatus || 'Waiting'}</span>
-                                    </div>
-                                    <div style="font-size:11.5px; color:var(--text-light); margin-bottom:8px; display:flex; flex-direction:column; gap:2px;">
-                                        <div>📍 <strong>Pickup:</strong> ${p.pickup || trip.pickup}</div>
-                                        <div>🏁 <strong>Drop:</strong> ${p.drop || trip.drop}</div>
-                                    </div>
-                                    <div style="display:flex; gap:8px; margin-top:8px;">
-                                        <button class="btn btn-secondary btn-sm" onclick="window.UTILS.showToast('Calling ${p.name}: ${p.phone || '+91 98765 43210'}', 'info')" style="padding:4px 8px; font-size:11px;"><i class="lucide-phone"></i> Call</button>
-                                        <button class="btn btn-secondary btn-sm" onclick="window.UTILS.showToast('Navigating to pickup: ${p.pickup || trip.pickup}', 'info')" style="padding:4px 8px; font-size:11px;"><i class="lucide-navigation"></i> Nav</button>
-                                        ${p.pickupStatus !== 'Picked Up' ? `
-                                            <button class="btn btn-primary btn-sm" onclick="promptPickupCode('${trip.id}', '${p.id}', '${p.verificationCode}')" style="padding:4px 10px; font-size:11px; background:#16C15D; margin-left:auto;">Verify Code & Pick Up</button>
-                                        ` : `
-                                            <span style="color:#16C15D; font-weight:700; font-size:11px; margin-left:auto; display:flex; align-items:center; gap:4px;">✓ Picked Up</span>
-                                        `}
-                                    </div>
-                                </div>
-                            `).join('')}
+                        <div class="flex-between" style="margin-bottom:10px;">
+                            <span style="font-size:11px; font-weight:700; color:var(--text-light); text-transform:uppercase;">Assigned passengers</span>
+                            <span style="font-size:11px; font-weight:700; color:var(--color-primary);">${paxCount} on manifest</span>
                         </div>
+                        ${manifestSlot}
                     </div>
 
                     <div style="display:flex; gap:12px;">
@@ -543,11 +534,14 @@ function renderActiveTripCard(trip) {
                             <button id="navigatePickupBtn" class="btn btn-secondary" style="flex:1;"><i class="lucide-navigation"></i> Navigate</button>
                             <button id="markArrivedBtn" class="btn btn-primary" style="flex:2;">Mark Arrived at Pickup</button>
                         ` : `
-                            <button id="startTripBtn" class="btn btn-primary" style="width:100%; justify-content:center;" ${passengers.every(p => p.pickupStatus === 'Picked Up') ? '' : 'disabled'}>
+                            <button id="startTripBtn" class="btn btn-primary" style="width:100%; justify-content:center;">
                                 <i class="lucide-play"></i> Start Ride
                             </button>
                         `}
                     </div>
+                    <p style="font-size:11px; color:var(--text-light); margin-top:10px; text-align:center;">
+                        Start the ride first, then verify each passenger's boarding code as they board.
+                    </p>
                 </div>
             `;
             break;
@@ -562,47 +556,27 @@ function renderActiveTripCard(trip) {
                         </div>
                         <div style="text-align:right;">
                             <div style="font-size:11px; font-weight:600; color:var(--text-light);">EST. FARE</div>
-                            <div style="font-size:18px; font-weight:700; color:var(--color-primary);">${window.UTILS.formatCurrency(trip.earnings || trip.estimatedEarnings || 410)}</div>
+                            <div id="liveAccruedFare" style="font-size:18px; font-weight:700; color:var(--color-primary);">${fare}</div>
                         </div>
                     </div>
 
-                    <!-- Passenger Drop Status Checklist -->
+                    <!-- Passenger boarding / drop checklist -->
                     <div style="margin-bottom:20px;">
-                        <div style="font-size:11px; font-weight:700; color:var(--text-light); text-transform:uppercase; margin-bottom:10px;">PASSENGERS & DROP STATUS</div>
-                        <div style="display:flex; flex-direction:column; gap:10px;">
-                            ${passengers.map((p, idx) => `
-                                <div class="glass-card" style="padding:14px; border:1px solid var(--border-color); font-size:12.5px;">
-                                    <div class="flex-between" style="margin-bottom:6px;">
-                                        <div style="display:flex; align-items:center; gap:10px;">
-                                            <img src="${p.avatar}" style="width:34px; height:34px; border-radius:50%; object-fit:cover;">
-                                            <div>
-                                                <strong style="color:var(--text-main); font-size:13px;">${p.name}</strong>
-                                                <span style="font-size:11px; color:var(--text-light); display:block;">${p.seat || 'Seat #' + (idx + 1)}</span>
-                                            </div>
-                                        </div>
-                                        <span class="badge ${p.dropStatus === 'Dropped Successfully' ? 'badge-success' : 'badge-warning'}" style="font-size:10px;">${p.dropStatus || 'Pending'}</span>
-                                    </div>
-                                    <div style="font-size:11.5px; color:var(--text-light); margin-bottom:8px;">
-                                        🏁 <strong>Destination:</strong> ${p.drop || trip.drop}
-                                    </div>
-                                    <div style="display:flex; gap:8px;">
-                                        <button class="btn btn-secondary btn-sm" onclick="window.UTILS.showToast('Calling ${p.name}: ${p.phone || '+91 98765 43210'}', 'info')" style="padding:4px 8px; font-size:11px;"><i class="lucide-phone"></i> Call</button>
-                                        <button class="btn btn-secondary btn-sm" onclick="window.UTILS.showToast('Navigating to drop-off: ${p.drop || trip.drop}', 'info')" style="padding:4px 8px; font-size:11px;"><i class="lucide-navigation"></i> Nav</button>
-                                        ${p.dropStatus !== 'Dropped Successfully' ? `
-                                            <button class="btn btn-success btn-sm" onclick="markPassengerDropped('${trip.id}', '${p.id}')" style="padding:4px 10px; font-size:11px; color:#FFF; margin-left:auto;">Complete Drop</button>
-                                        ` : `
-                                            <span style="color:#16C15D; font-weight:700; font-size:11px; margin-left:auto; display:flex; align-items:center; gap:4px;">✓ Dropped</span>
-                                        `}
-                                    </div>
-                                </div>
-                            `).join('')}
+                        <div class="flex-between" style="margin-bottom:10px;">
+                            <span style="font-size:11px; font-weight:700; color:var(--text-light); text-transform:uppercase;">Passengers &amp; drop status</span>
+                            <span style="font-size:11px; font-weight:700; color:var(--color-primary);">${paxCount} on manifest</span>
                         </div>
+                        ${manifestSlot}
                     </div>
 
                     <div style="display:flex; gap:12px;">
                         <button id="navigateDropBtn" class="btn btn-secondary" style="flex:1;"><i class="lucide-navigation"></i> Navigate Route</button>
-                        <button id="completeTripBtn" class="btn btn-success" style="flex:2; color:#FFFFFF;" ${passengers.every(p => p.dropStatus === 'Dropped Successfully') ? '' : 'disabled'}>Finish & Complete Trip</button>
+                        <button id="completeTripBtn" class="btn btn-success" style="flex:2; color:#FFFFFF;" ${allRidersSettled(passengers) ? '' : 'disabled'}>Finish &amp; Complete Trip</button>
                     </div>
+                    ${allRidersSettled(passengers) ? '' : `
+                        <p style="font-size:11px; color:var(--text-light); margin-top:10px; text-align:center;">
+                            Drop off or mark a no-show for every passenger before completing the trip.
+                        </p>`}
                 </div>
             `;
             break;
@@ -620,12 +594,12 @@ function renderActiveTripCard(trip) {
                             <strong style="color:var(--text-main);">${trip.id}</strong>
                         </div>
                         <div class="flex-between" style="margin-bottom:8px;">
-                            <span style="color:var(--text-light);">Passengers Dropped:</span>
-                            <strong style="color:#16C15D;">${passengers.length} Boarders</strong>
+                            <span style="color:var(--text-light);">Passengers dropped:</span>
+                            <strong style="color:#16C15D;">${passengers.filter(p => p.status === 'COMPLETED' || p.status === 'DROPPED').length} of ${paxCount}</strong>
                         </div>
                         <div class="flex-between" style="border-top:1px solid var(--border-color); padding-top:8px; margin-top:8px;">
                             <span style="font-weight:700; color:var(--text-main);">Earnings Credited:</span>
-                            <span style="font-weight:800; color:var(--color-primary); font-size:18px;">${window.UTILS.formatCurrency(trip.earnings || trip.estimatedEarnings || 410)}</span>
+                            <span style="font-weight:800; color:var(--color-primary); font-size:18px;">${fare}</span>
                         </div>
                     </div>
 
@@ -638,48 +612,23 @@ function renderActiveTripCard(trip) {
     }
 
     panel.innerHTML = cardContent;
+
+    // The manifest container was just replaced, so ask the passenger-card
+    // component to paint into the new node. It renders the server's view of each
+    // rider — nothing here mutates passenger lifecycle locally.
+    window.DRIVER_PASSENGER_CARDS?.hydrateCurrentTrip?.(trip);
+    window.DRIVER_PASSENGER_CARDS?.render?.();
+
     bindTripActions(trip);
 }
 
-// Global helper for Ride Verification Code entry
-window.promptPickupCode = function(tripId, passengerId, expectedCode) {
-    const trip = window.STATE.getState('currentTrip');
-    if (!trip) return;
-    
-    const passenger = (trip.passengers || []).find(p => p.id === passengerId);
-    const codeInput = prompt(`Enter Ride Verification Code for ${passenger ? passenger.name : 'Passenger'} (Format: e.g. ${expectedCode || 'AB4K'}):`);
-    if (!codeInput) return;
-    
-    if (codeInput.trim().toUpperCase() === (expectedCode || 'AB4K').toUpperCase()) {
-        if (passenger) {
-            passenger.pickupStatus = 'Picked Up';
-        }
-        window.UTILS.showToast(`Code accepted! ${passenger ? passenger.name : 'Passenger'} marked Picked Up.`, "success");
-        renderActiveTripCard(trip);
-    } else {
-        window.UTILS.showToast("Invalid Ride Verification Code! Please re-check with passenger.", "error");
-    }
-};
-
-window.markPassengerDropped = function(tripId, passengerId) {
-    const trip = window.STATE.getState('currentTrip');
-    if (!trip) return;
-    
-    const passenger = (trip.passengers || []).find(p => p.id === passengerId);
-    if (passenger) {
-        passenger.dropStatus = 'Dropped Successfully';
-    }
-    window.UTILS.showToast(`${passenger ? passenger.name : 'Passenger'} dropped successfully!`, "success");
-    
-    const allDropped = (trip.passengers || []).every(p => p.dropStatus === 'Dropped Successfully');
-    if (allDropped) {
-        trip.status = 'COMPLETED';
-        if (window.TRIP_API && window.TRIP_API.updateTripStatus) {
-            window.TRIP_API.updateTripStatus(trip.id, 'COMPLETED');
-        }
-    }
-    renderActiveTripCard(trip);
-};
+// A trip may only be completed once every rider has reached a terminal state.
+// Mirrors the server-side guard in driverController.completeTrip so the button
+// is not offered when the request would be rejected.
+function allRidersSettled(passengers) {
+    const terminal = new Set(['COMPLETED', 'DROPPED', 'NO_SHOW']);
+    return passengers.length > 0 && passengers.every(p => terminal.has(p.status));
+}
 
 // Bind clicks to active trip layout actions
 function bindTripActions(trip) {
@@ -741,80 +690,6 @@ function bindTripActions(trip) {
             window.UTILS.showToast("Returned to duty! Ready for next allocation.", "success");
         };
     }
-}
-
-// Display dialog modal to review passenger behavior
-function showRatePassengersModal(trip) {
-    let modal = document.getElementById('ratePassengersModal');
-    if (modal) modal.remove();
-
-    modal = document.createElement('div');
-    modal.id = 'ratePassengersModal';
-    modal.className = 'sos-overlay fade-in';
-    modal.innerHTML = `
-        <div class="glass-card scale-in" style="
-            background: var(--bg-card-solid);
-            width: 100%;
-            max-width: 400px;
-            border-radius: var(--border-radius-lg);
-            padding: 24px;
-            box-shadow: var(--shadow-premium);
-        ">
-            <h3 style="font-size: 16px; font-weight: 800; color: var(--text-main); margin-bottom: 16px; text-align:center;">Rate Boarding Passengers</h3>
-            
-            <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:24px;">
-                ${trip.passengers.map((p, idx) => `
-                    <div style="border-bottom:1px solid var(--border-color); padding-bottom:12px;">
-                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                            <img src="${p.avatar}" style="width:28px; height:28px; border-radius:50%; object-fit:cover;">
-                            <span style="font-size:13px; font-weight:700; color:var(--text-main);">${p.name}</span>
-                        </div>
-                        <div style="display:flex; gap:8px;" id="stars-row-${idx}">
-                            ${[1,2,3,4,5].map(star => `
-                                <span class="review-star" data-idx="${idx}" data-star="${star}" style="font-size:24px; cursor:pointer; color:#E2E8F0;">★</span>
-                            `).join('')}
-                        </div>
-                    </div>
-                `).join('')}
-            </div>
-
-            <button id="submitRatingsBtn" class="btn btn-primary" style="width:100%; justify-content:center;">Submit & Go Free</button>
-        </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Bind rating clicks
-    const ratingValues = trip.passengers.map(() => 5); // default 5 star
-    
-    document.querySelectorAll('.review-star').forEach(starEl => {
-        starEl.onclick = (e) => {
-            const passengerIdx = parseInt(e.target.getAttribute('data-idx'));
-            const starVal = parseInt(e.target.getAttribute('data-star'));
-            
-            ratingValues[passengerIdx] = starVal;
-            
-            // Re-render star row colors
-            const starRow = document.getElementById(`stars-row-${passengerIdx}`);
-            const stars = starRow.querySelectorAll('.review-star');
-            stars.forEach((st, i) => {
-                if (i < starVal) {
-                    st.style.color = '#F59E0B';
-                } else {
-                    st.style.color = '#E2E8F0';
-                }
-            });
-        };
-    });
-
-    document.getElementById('submitRatingsBtn').onclick = () => {
-        window.TRIP_API.ratePassenger(trip.id, ratingValues)
-            .then(() => {
-                modal.remove();
-                window.STATE.setState('currentTrip', null); // Reset to search new rides
-                window.UTILS.showToast("Review submitted. You are now free for new ride invites.", "success");
-            });
-    };
 }
 
 // Live tick simulations for fare additions (WebSocket triggered)

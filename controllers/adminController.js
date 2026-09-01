@@ -29,13 +29,17 @@ const getDashboard = asyncWrapper(async (req, res) => {
   todayStart.setHours(0, 0, 0, 0);
   const todayEnd = new Date();
   todayEnd.setHours(23, 59, 59, 999);
+  const period = ['today', 'week', 'month'].includes(req.query.period) ? req.query.period : 'today';
+  const periodStart = new Date(todayStart);
+  if (period === 'week') periodStart.setDate(periodStart.getDate() - 6);
+  if (period === 'month') periodStart.setDate(periodStart.getDate() - 29);
 
   const [totalCustomers, totalDrivers, activeTrips, completedTrips, cancelledTrips, activeSubscriptions] = await Promise.all([
     Customer.countDocuments({ isDeleted: false }),
     Driver.countDocuments({ isDeleted: false }),
-    Trip.countDocuments({ status: 'IN_PROGRESS', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'COMPLETED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
-    Trip.countDocuments({ status: 'CANCELLED', serviceDate: { $gte: todayStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'IN_PROGRESS', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'COMPLETED', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
+    Trip.countDocuments({ status: 'CANCELLED', serviceDate: { $gte: periodStart, $lte: todayEnd }, isDeleted: false }),
     Subscription.countDocuments({ status: 'ACTIVE', isDeleted: false }),
   ]);
 
@@ -231,6 +235,9 @@ const getTrips = asyncWrapper(async (req, res) => {
   const trips = await Trip.find(filter)
     .populate('driverId', 'name')
     .populate('passengers.customerId', 'name')
+    // Route-based trips keep their riders in `manifest`; without this the admin
+    // console listed them as unidentified entries.
+    .populate('manifest.customer', 'name')
     .sort({ serviceDate: 1 })
     .lean();
   return res.status(200).json(formatResponse('Trips listed successfully.', trips.map((t) => toTripView(t))));
@@ -240,6 +247,7 @@ const getTripById = asyncWrapper(async (req, res) => {
   const trip = await Trip.findById(req.params.id)
     .populate('driverId', 'name vehicleNumber')
     .populate('passengers.customerId', 'name pickupLocation dropLocation')
+    .populate('manifest.customer', 'name pickupLocation dropLocation')
     .lean();
   if (!trip) throw new NotFoundError('Trip');
   return res.status(200).json(formatResponse('Trip details retrieved.', toTripView(trip)));

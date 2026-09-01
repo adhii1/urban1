@@ -7,11 +7,24 @@ import { api } from '@/lib/api/client';
 
 export default function CustomerDashboardPage() {
   const [booking, setBooking] = useState<any>(null);
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [nextTrip, setNextTrip] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get<any>('/booking')
-      .then((res) => setBooking(res.data))
+    Promise.all([
+      api.get<any>('/booking'),
+      api.get<any>('/customer/subscriptions'),
+      api.get<any>('/customer/trips?page=1&limit=10'),
+    ])
+      .then(([bookingRes, subscriptionsRes, tripsRes]) => {
+        setBooking(bookingRes.data);
+        setSubscriptions(subscriptionsRes.data?.subscriptions || []);
+        const trips = tripsRes.data || [];
+        setNextTrip([...trips].sort((a: any, b: any) =>
+          new Date(a.serviceDate || a.tripDate).getTime() - new Date(b.serviceDate || b.tripDate).getTime()
+        )[0] || null);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -96,6 +109,30 @@ export default function CustomerDashboardPage() {
             </Link>
           </div>
         )}
+      </section>
+
+      <section className="dashboard-section">
+        <div className="glass-card" style={{ padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+            <div>
+              <h2 className="section-heading" style={{ marginBottom: '4px' }}>Next trip</h2>
+              <p style={{ fontSize: '12px', color: '#64748B' }}>
+                {nextTrip
+                  ? `${new Date(nextTrip.serviceDate || nextTrip.tripDate).toLocaleDateString('en-IN')} · ${nextTrip.pickupTime || '08:00'}`
+                  : subscriptions.length ? 'Your next scheduled trip is being prepared.' : 'No scheduled trips yet.'}
+              </p>
+            </div>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#16A34A' }}>
+              {subscriptions.length} active subscription{subscriptions.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          {nextTrip && (
+            <p style={{ marginTop: '10px', fontSize: '12px', color: '#475569' }}>
+              Status: <strong>{nextTrip.status || 'SCHEDULED'}</strong>
+              {nextTrip.driverId?.name ? ` · Driver: ${nextTrip.driverId.name}` : ''}
+            </p>
+          )}
+        </div>
       </section>
 
       {/* Quick Actions */}

@@ -9,13 +9,17 @@ class StateManager {
         this.state = {
             currentDriver: this.getSavedDriver() || {
                 id: "",
-                name: "Loading...",
+                // Deliberately not a sample name: an unresolved profile has to
+                // look unresolved, or the panel reads as if it belongs to
+                // whoever the placeholder names.
+                name: "",
                 phone: "",
                 email: "",
-                avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
-                rating: 5.0,
-                acceptanceRate: 100.0,
-                cancellationRate: 0.0,
+                // Empty means "render an initials avatar for whoever this is".
+                avatar: "",
+                rating: 0,
+                acceptanceRate: 0,
+                cancellationRate: 0,
                 experience: "N/A",
                 completedTrips: 0,
                 vehicle: {

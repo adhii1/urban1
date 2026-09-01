@@ -13,6 +13,8 @@ router.use(authorize('Driver'));
 router.get('/profile', driverController.getProfile);
 router.get('/trips', driverController.getTrips);
 router.get('/earnings', driverController.getEarnings);
+// Declared before '/trips/:id' so the literal path is not captured as an id.
+router.put('/trips/status', driverController.updateTripStatus);
 router.get('/trips/:id', driverController.getTripById);
 router.get('/trips/:id/customers', driverController.getTripCustomers);
 router.patch('/trips/:id/start', driverController.startTrip);
@@ -117,16 +119,31 @@ router.get('/assigned-trips', async (req, res) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
+  const { toTripView } = require('../../utils/tripView');
+
   const trips = await Trip.find({
     driverId: driver._id,
     serviceDate: { $gte: today },
     isDeleted: false,
   })
-    .populate('passengers.customerId', 'name')
+    .populate({
+      path: 'passengers.customerId',
+      select: 'name userId',
+      populate: { path: 'userId', select: 'phone' },
+    })
+    .populate({
+      path: 'manifest.customer',
+      select: 'name userId',
+      populate: { path: 'userId', select: 'phone' },
+    })
+    .populate('routeId')
     .sort({ serviceDate: 1 })
     .lean();
 
-  res.json({ success: true, data: trips });
+  // Serialize through the same view as GET /driver/trips. Returning raw docs
+  // here meant the manifest alias the driver screens read was absent, so every
+  // rider rendered as an unnamed placeholder on this endpoint only.
+  res.json({ success: true, data: trips.map((t) => toTripView(t, { viewer: 'driver' })) });
 });
 
 // Accept trip assignment

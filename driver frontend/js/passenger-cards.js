@@ -2,9 +2,9 @@
 // Server acknowledgements are authoritative; this client never advances lifecycle optimistically.
 (function () {
     const lifecycleActionLabels = {
-        VERIFY_PICKUP_OTP: 'Verify pickup OTP',
+        VERIFY_PICKUP_OTP: 'Verify boarding code',
         COMPLETE_DROP: 'Complete drop',
-        BOARD_SCHEDULED_PASSENGER: 'Board scheduled passenger',
+        BOARD_SCHEDULED_PASSENGER: 'Confirm boarded',
         NONE: 'No action permitted'
     };
 
@@ -47,11 +47,18 @@
             rideRequestId,
             tripId,
             shuttleSessionId,
-            passengerName: raw.passengerName || raw.customerName || raw.name || raw.customer?.name || 'Passenger',
+            customerId,
+            // null, not 'Passenger'. A generic default is indistinguishable from
+            // a real name once rendered, which is how a manifest with missing
+            // identities looked like a vehicle full of the same person.
+            passengerName: window.UTILS?.riderName?.(raw, null) || null,
+            passengerPhone: window.UTILS?.riderPhone?.(raw) || '',
             pickup: addressOf(raw.pickup || raw.pickupLocation || raw.pickupStop),
             drop: addressOf(raw.drop || raw.dropLocation || raw.dropStop),
             lifecycle,
             permittedAction,
+            // Present for scheduled trips so the card can offer OTP boarding.
+            otpVerified: Boolean(raw.otp?.verified),
             boardedAt: raw.boardedAt || raw.pickupAt || null,
             droppedAt: raw.droppedAt || raw.completedAt || null
         };
@@ -159,18 +166,53 @@
             });
         }
 
+        /**
+         * How a rider's permitted action can actually be executed.
+         *
+         *  'shuttle'   — over the socket, keyed on shuttleSessionId + rideRequestId.
+         *  'scheduled' — over REST against the trip manifest, keyed on customerId.
+         *  null        — not actionable right now.
+         */
+        channelFor(passenger) {
+            if (!['VERIFY_PICKUP_OTP', 'COMPLETE_DROP', 'BOARD_SCHEDULED_PASSENGER'].includes(passenger.permittedAction)) {
+                return null;
+            }
+            if (passenger.shuttleSessionId && passenger.rideRequestId) return 'shuttle';
+            if (passenger.tripId && passenger.customerId) return 'scheduled';
+            return null;
+        }
+
         cardMarkup(passenger) {
             const isRide = Boolean(passenger.rideRequestId);
             const identifierLabel = isRide ? 'Ride ID' : 'Trip ID';
             const identifier = isRide ? passenger.rideRequestId : passenger.tripId;
             const action = lifecycleActionLabels[passenger.permittedAction] || passenger.permittedAction.replaceAll('_', ' ');
-            const canAct = ['VERIFY_PICKUP_OTP', 'COMPLETE_DROP'].includes(passenger.permittedAction) &&
-                passenger.shuttleSessionId && passenger.rideRequestId;
+            const canAct = Boolean(this.channelFor(passenger));
+
+            // A missing name is stated as missing. Rendering a generic
+            // "Passenger" here is what made every rider on every trip look like
+            // the same anonymous person.
+            const name = passenger.passengerName;
+            const nameMarkup = name
+                ? `<strong style="font-size:14px;color:var(--text-main);">${escapeHtml(name)}</strong>`
+                : '<em style="font-size:13px;color:var(--text-light);font-style:normal;">Passenger details unavailable</em>';
+
+            const settled = ['DROPPED', 'COMPLETED'].includes(passenger.lifecycle);
+            const onBoard = ['BOARDED', 'RIDE_STARTED', 'DROPPING_OFF', 'OTP_VERIFIED'].includes(passenger.lifecycle);
+
             return `
                 <article class="glass-card" data-passenger-card-id="${escapeHtml(passenger.passengerId)}" style="padding:14px;border:1px solid var(--border-color);font-size:12px;">
                     <div class="flex-between" style="gap:12px;margin-bottom:10px;">
-                        <strong style="font-size:14px;color:var(--text-main);">${escapeHtml(passenger.passengerName)}</strong>
-                        <span class="badge ${passenger.lifecycle === 'DROPPED' ? 'badge-success' : passenger.lifecycle === 'BOARDED' ? 'badge-info' : 'badge-warning'}">${escapeHtml(passenger.lifecycle)}</span>
+                        <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                            <img src="${escapeHtml(window.UTILS.initialsAvatar(name || '', 64))}" alt="" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;">
+                            <div style="min-width:0;">
+                                ${nameMarkup}
+                                ${passenger.passengerPhone
+                                    ? `<a href="tel:${escapeHtml(String(passenger.passengerPhone).replace(/[^\d+]/g, ''))}" style="display:block;font-size:11px;color:var(--color-primary);text-decoration:none;">${escapeHtml(passenger.passengerPhone)}</a>`
+                                    : '<span style="display:block;font-size:11px;color:var(--text-light);">No contact number</span>'}
+                            </div>
+                        </div>
+                        <span class="badge ${settled ? 'badge-success' : onBoard ? 'badge-info' : 'badge-warning'}">${escapeHtml(passenger.lifecycle)}</span>
                     </div>
                     <div style="display:grid;grid-template-columns:auto 1fr;gap:5px 10px;color:var(--text-light);">
                         <span>${identifierLabel}</span><strong style="color:var(--text-main);overflow-wrap:anywhere;">${escapeHtml(identifier || 'Pending assignment')}</strong>
@@ -182,25 +224,86 @@
                 </article>`;
         }
 
+        /**
+         * Ask the driver for the boarding code the customer is shown in their own
+         * app. Returns null when the driver cancels or types nothing usable.
+         */
+        promptForOtp(passenger) {
+            const who = passenger.passengerName || 'this passenger';
+            const entered = window.prompt(`Ask ${who} for their 6-digit boarding code:`);
+            if (entered === null) return null;
+            const otp = entered.replace(/\D/g, '');
+            if (!otp) {
+                window.UTILS?.showToast?.('Enter the numeric boarding code shown in the passenger\'s app.', 'warning');
+                return null;
+            }
+            return otp;
+        }
+
         handleAction(event) {
             const button = event.target.closest('[data-passenger-action]');
             if (!button) return;
             const passenger = this.passengers.get(button.dataset.passengerId);
-            if (!passenger || !window.SOCKET) return;
-            if (passenger.permittedAction === 'VERIFY_PICKUP_OTP') {
-                const otp = window.prompt(`Enter OTP for ${passenger.passengerName}`);
-                if (!otp) return;
-                window.SOCKET.emit('driver:shuttle:pickup-verify', {
-                    shuttleSessionId: passenger.shuttleSessionId,
-                    rideRequestId: passenger.rideRequestId,
-                    otp: otp.trim()
-                });
-            } else if (passenger.permittedAction === 'COMPLETE_DROP') {
-                window.SOCKET.emit('driver:shuttle:complete-drop', {
-                    shuttleSessionId: passenger.shuttleSessionId,
-                    rideRequestId: passenger.rideRequestId
-                });
+            if (!passenger) return;
+
+            const channel = this.channelFor(passenger);
+            if (!channel) return;
+
+            if (channel === 'shuttle') {
+                if (!window.SOCKET) return;
+                if (passenger.permittedAction === 'VERIFY_PICKUP_OTP') {
+                    const otp = this.promptForOtp(passenger);
+                    if (!otp) return;
+                    window.SOCKET.emit('driver:shuttle:pickup-verify', {
+                        shuttleSessionId: passenger.shuttleSessionId,
+                        rideRequestId: passenger.rideRequestId,
+                        otp
+                    });
+                } else if (passenger.permittedAction === 'COMPLETE_DROP') {
+                    window.SOCKET.emit('driver:shuttle:complete-drop', {
+                        shuttleSessionId: passenger.shuttleSessionId,
+                        rideRequestId: passenger.rideRequestId
+                    });
+                }
+                return;
             }
+
+            // Scheduled trip: the manifest endpoint is authoritative and returns
+            // the updated trip, so the projection is refreshed from the response
+            // rather than advanced optimistically.
+            this.runScheduledAction(passenger, button);
+        }
+
+        runScheduledAction(passenger, button) {
+            if (!window.TRIP_API?.updatePassengerStatus) return;
+
+            const actionToEndpoint = {
+                VERIFY_PICKUP_OTP: 'verify-otp',
+                BOARD_SCHEDULED_PASSENGER: 'board',
+                COMPLETE_DROP: 'drop'
+            };
+            const endpoint = actionToEndpoint[passenger.permittedAction];
+            if (!endpoint) return;
+
+            let otp;
+            if (endpoint === 'verify-otp') {
+                otp = this.promptForOtp(passenger);
+                if (!otp) return;
+            }
+
+            button.disabled = true;
+            const restore = () => { button.disabled = false; };
+
+            window.TRIP_API.updatePassengerStatus(passenger.tripId, passenger.customerId, endpoint, otp)
+                .then((result) => {
+                    window.UTILS?.showToast?.(result.message || 'Passenger updated.', 'success');
+                    // setState('currentTrip') inside the API client re-hydrates
+                    // these cards from the server's response.
+                })
+                .catch((error) => {
+                    restore();
+                    this.showLifecycleError(error);
+                });
         }
     }
 

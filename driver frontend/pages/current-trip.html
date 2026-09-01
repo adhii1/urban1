@@ -163,18 +163,20 @@
                             </div>
                         </div>
 
-                        <!-- Customer Details -->
+                        <!-- Next passenger on the route. The full manifest lives in
+                             the "Assigned passengers" card below; this is the
+                             navigation summary for whoever is next. -->
                         <div style="margin-bottom:20px;">
-                            <div style="font-size:11px; font-weight:600; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Customer Information</div>
+                            <div style="font-size:11px; font-weight:600; color:var(--text-light); margin-bottom:8px; text-transform:uppercase;">Next Passenger</div>
                             <div style="display:flex; align-items:center; gap:12px; padding:12px; background:var(--bg-hover); border-radius:var(--border-radius-md); border:1px solid var(--border-color); position:relative;">
-                                <img id="customerAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=150" style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
+                                <img id="customerAvatar" src="" alt="" style="width:36px; height:36px; border-radius:50%; object-fit:cover; flex-shrink:0;">
                                 <div style="flex-grow:1; min-width:0;">
-                                    <h2 id="customerName" style="font-size:14px; font-weight:700; color:var(--text-main); margin:0;">Loading...</h2>
+                                    <h2 id="customerName" style="font-size:14px; font-weight:700; color:var(--text-main); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Loading…</h2>
                                     <div style="display:flex; align-items:center; gap:4px; margin-top:2px;">
-                                        <span id="customerPhone" style="font-size:11px; color:var(--text-light);">+91 99887-76655</span>
+                                        <span id="customerPhone" style="font-size:11px; color:var(--text-light);">—</span>
                                     </div>
                                 </div>
-                                <button id="callCustomerBtn" class="btn btn-secondary" style="padding:6px 12px; font-size:12px;"><i class="lucide-phone"></i></button>
+                                <button id="callCustomerBtn" class="btn btn-secondary" aria-label="Call the next passenger" style="padding:6px 12px; font-size:12px;"><i class="lucide-phone"></i></button>
                             </div>
                         </div>
 
@@ -262,6 +264,15 @@
     <!-- Decoupled UI Map Component -->
     <script src="../js/mapComponent.js"></script>
     
+    <!-- API clients. authApi provides the route guard, driverApi the signed-in
+         driver's identity and tripApi the trip and its real passenger manifest.
+         All three were missing here, so this page ran with no auth guard, a
+         placeholder driver name, and window.TRIP_API undefined — every status
+         action threw and no passenger could ever be resolved. -->
+    <script src="../js/api/authApi.js"></script>
+    <script src="../js/api/driverApi.js"></script>
+    <script src="../js/api/tripApi.js"></script>
+
     <!-- Page Controllers -->
     <script src="../js/api/notificationApi.js"></script>
     <script src="../js/common.js"></script>

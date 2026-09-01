@@ -22,21 +22,82 @@ function legacyPassengerStatus(status) {
   }
 }
 
+function refId(value) {
+  if (!value) return '';
+  if (typeof value === 'object') return String(value._id || value.id || '');
+  return String(value);
+}
+
+/**
+ * The display name for a manifest/passenger entry, taken only from real data.
+ *
+ * Deliberately returns null rather than a placeholder like 'Passenger': a
+ * generic string is indistinguishable from a real name in the UI, which is how
+ * every driver screen ended up showing the same person for every customer. The
+ * frontends decide how to render an unresolved rider.
+ */
+function displayName(customerRef) {
+  if (!customerRef || typeof customerRef !== 'object') return null;
+  const name = typeof customerRef.name === 'string' ? customerRef.name.trim() : '';
+  return name || null;
+}
+
+function displayPhone(customerRef) {
+  if (!customerRef || typeof customerRef !== 'object') return null;
+  return customerRef.userId?.phone || customerRef.phone || null;
+}
+
+/**
+ * Boarding OTP visibility.
+ *
+ * A trip is shared, so `passengers[].otp.code` is per-rider secret material:
+ * the driver needs every code to board the vehicle, but a customer must only
+ * ever receive their own. `viewer: 'customer'` keeps the requester's code and
+ * reduces everyone else's entry to its verification flag.
+ */
+function scopeOtp(otp, { revealCode }) {
+  if (!otp) return otp;
+  const verified = Boolean(otp.verified);
+  if (!revealCode) return { verified };
+  return { code: otp.code, verified, ...(otp.expiresAt ? { expiresAt: otp.expiresAt } : {}) };
+}
+
 /**
  * @param {object} trip  A lean Trip document (passengers[] + serviceDate).
- * @param {object} opts  { customerId?: ObjectId } to attach `myEntry`.
+ * @param {object} opts
+ *   customerId  attach `myEntry` for this customer.
+ *   viewer      'driver' | 'admin' | 'customer'. A customer viewer only ever
+ *               receives their own boarding OTP code.
  */
-function toTripView(trip, { customerId } = {}) {
+function toTripView(trip, { customerId, viewer = 'driver' } = {}) {
   if (!trip) return trip;
+
+  const scopesOtp = viewer === 'customer';
+  const isViewer = (entry) => Boolean(customerId) && refId(entry.customerId) === String(customerId);
+
   const passengers = (trip.passengers || []).map((p) => ({
     ...p,
     // Legacy alias: old screens read `entry.customer`.
     customer: p.customerId,
+    passengerName: displayName(p.customerId),
+    passengerPhone: displayPhone(p.customerId),
     legacyStatus: legacyPassengerStatus(p.status),
+    otp: scopeOtp(p.otp, { revealCode: !scopesOtp || isViewer(p) }),
   }));
 
-  const manifest = passengers.map((p) => ({
+  // `manifest` is the legacy alias every older driver/customer screen reads.
+  // Area-based trips (subscriptions) derive it from passengers[]; route-based
+  // trips already store real manifest entries and must keep them.
+  //
+  // Previously this always projected passengers[], so a route-based trip — which
+  // has an empty passengers[] by design — was serialized with `manifest: []`
+  // and its riders disappeared from every screen, leaving the UI to fall back
+  // on placeholder names.
+  const derivedManifest = passengers.map((p) => ({
     customer: p.customerId,
+    customerId: p.customerId,
+    passengerName: p.passengerName,
+    passengerPhone: p.passengerPhone,
     status: legacyPassengerStatus(p.status),
     canonicalStatus: p.status,
     pickupLocation: p.pickupLocation,
@@ -44,6 +105,16 @@ function toTripView(trip, { customerId } = {}) {
     pickupOrder: p.pickupOrder,
     otp: p.otp,
   }));
+
+  const storedManifest = (trip.manifest || []).map((entry) => ({
+    ...entry,
+    customerId: entry.customer,
+    passengerName: displayName(entry.customer),
+    passengerPhone: displayPhone(entry.customer),
+    canonicalStatus: entry.status,
+  }));
+
+  const manifest = passengers.length > 0 ? derivedManifest : storedManifest;
 
   const view = {
     ...trip,
@@ -54,10 +125,9 @@ function toTripView(trip, { customerId } = {}) {
   };
 
   if (customerId) {
-    view.myEntry = passengers.find((p) => {
-      const ref = p.customerId && typeof p.customerId === 'object' ? p.customerId._id : p.customerId;
-      return ref && String(ref) === String(customerId);
-    }) || null;
+    view.myEntry = passengers.find(isViewer)
+      || storedManifest.find((entry) => refId(entry.customer) === String(customerId))
+      || null;
   }
 
   return view;

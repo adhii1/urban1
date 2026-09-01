@@ -227,7 +227,71 @@ const UTILS = {
             document.getElementById('acceptConfirmBtn').onclick = () => cleanup(true);
             modal.onclick = (e) => { if (e.target === modal) cleanup(false); };
         });
-    }
+    },
+
+    escapeHtml: (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+    })[character]),
+
+    /**
+     * The name to display for a rider, taken only from real data.
+     *
+     * Returns an explicitly provisional label when the server sent no name, so
+     * an unresolved rider is visibly unresolved. A generic default like
+     * "Passenger" reads as a real name and is why every driver screen appeared
+     * to show the same person for every customer.
+     */
+    riderName: (rider, fallback = 'Awaiting passenger details') => {
+        if (!rider) return fallback;
+        const candidates = [
+            rider.passengerName,
+            rider.customerName,
+            rider.name,
+            rider.customer && typeof rider.customer === 'object' ? rider.customer.name : null,
+            rider.customerId && typeof rider.customerId === 'object' ? rider.customerId.name : null,
+        ];
+        for (const candidate of candidates) {
+            const value = typeof candidate === 'string' ? candidate.trim() : '';
+            if (value) return value;
+        }
+        return fallback;
+    },
+
+    riderPhone: (rider) => {
+        if (!rider) return '';
+        return rider.passengerPhone
+            || rider.phone
+            || rider.customerPhone
+            || rider.customer?.userId?.phone
+            || rider.customer?.phone
+            || rider.customerId?.userId?.phone
+            || rider.customerId?.phone
+            || '';
+    },
+
+    /**
+     * Initials avatar as an inline SVG data URI.
+     *
+     * Riders have no uploaded photo, so the screens used to point every avatar at
+     * the same remote stock portrait — which made distinct passengers look like
+     * one person and put a third-party request on the critical path.
+     */
+    initialsAvatar: (name, size = 96) => {
+        const label = String(name || '').trim();
+        const initials = label
+            ? label.split(/\s+/).slice(0, 2).map((part) => part[0].toUpperCase()).join('')
+            : '?';
+        // Deterministic hue per name so the same rider keeps the same colour.
+        let hash = 0;
+        for (let i = 0; i < label.length; i += 1) hash = (hash * 31 + label.charCodeAt(i)) % 360;
+        const hue = label ? hash : 215;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`
+            + `<rect width="${size}" height="${size}" rx="${size / 2}" fill="hsl(${hue} 65% 92%)"/>`
+            + `<text x="50%" y="50%" dy="0.35em" text-anchor="middle"`
+            + ` font-family="Poppins, Segoe UI, sans-serif" font-size="${size * 0.4}" font-weight="700"`
+            + ` fill="hsl(${hue} 55% 32%)">${initials}</text></svg>`;
+        return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    },
 };
 
 // Make it available in global scope

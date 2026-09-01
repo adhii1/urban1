@@ -23,7 +23,7 @@
                 </a>
                 <div>
                     <p class="greeting-text">Welcome Back,</p>
-                    <h2 class="user-name" id="userNameDisplay">Adhikshitha V. 👋</h2>
+                    <h2 class="user-name" id="userNameDisplay">…</h2>
                 </div>
             </div>
             
@@ -36,46 +36,42 @@
 
     <main class="dashboard-main container">
         
-        <!-- Active Ride / Live Trip Card -->
-        <section class="dashboard-section">
+        <!-- Active ride and upcoming journeys. Both are filled by js/dashboard.js
+             from GET /rides/active and GET /customer/trips + /rides/my; nothing
+             here is sample content. Upcoming cards carry the boarding code the
+             driver asks for at pickup. -->
+        <section class="dashboard-section" id="activeRideSection" hidden>
             <div class="card active-trip-card" style="border: 2px solid #16C15D;">
                 <div class="card-header-flex">
-                    <span class="badge badge-green">Active Shared Ride</span>
-                    <span class="eta">ETA: 18 mins</span>
+                    <span class="badge badge-green" id="activeRideBadge">Active ride</span>
+                    <span class="eta" id="activeRideStatus"></span>
                 </div>
                 <div class="route-info">
-                    <div class="route-point"><div class="dot green-dot"></div><span>HSR Layout Sector 4</span></div>
+                    <div class="route-point"><div class="dot green-dot"></div><span id="activeRidePickup">—</span></div>
                     <div class="route-line"></div>
-                    <div class="route-point"><div class="dot blue-dot"></div><span>Electronic City Phase 1</span></div>
+                    <div class="route-point"><div class="dot blue-dot"></div><span id="activeRideDrop">—</span></div>
                 </div>
-                
+
                 <div class="vehicle-info" style="margin-top:16px;">
-                    <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250" alt="Driver" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-                    <div style="flex:1; margin-left:10px;">
-                        <p class="vehicle-no" style="font-weight:800;">KA 05 EV 1284</p>
-                        <p class="driver-name" style="font-size:12px; color:var(--clr-text-light);">Rajesh Kumar • Tata Tigor EV</p>
+                    <img id="activeRideDriverAvatar" src="" alt="" style="width:40px; height:40px; border-radius:50%;">
+                    <div style="flex:1; margin-left:10px; min-width:0;">
+                        <p class="vehicle-no" style="font-weight:800;" id="activeRideVehicle">—</p>
+                        <p class="driver-name" style="font-size:12px; color:var(--clr-text-light);" id="activeRideDriver">Driver being assigned</p>
                     </div>
                     <a class="btn-primary btn-sm" href="active-ride.html" style="text-decoration:none;">Active Card</a>
                     <a class="btn-primary btn-sm" href="tracking.html" style="background:#3B82F6; text-decoration:none; margin-left:6px;">Live Map</a>
                 </div>
+
+                <div id="activeRideOtp" style="margin-top:14px;"></div>
             </div>
         </section>
 
-        <!-- Upcoming Ride Card -->
         <section class="dashboard-section">
-            <div class="glass-card" style="padding:18px; border-left: 4px solid #3B82F6;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                    <span style="font-size:11px; font-weight:700; color:#3B82F6; text-transform:uppercase;">UPCOMING SCHEDULED RIDE</span>
-                    <span style="font-size:12px; font-weight:600; color:var(--clr-text-light);">Tomorrow • 08:45 AM</span>
-                </div>
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <div>
-                        <div style="font-weight:700; font-size:14px;">Koramangala 8th Block ➔ Prestige Tech Park</div>
-                        <div style="font-size:12px; color:var(--clr-text-light);">Model: Home to Stop (3-Day Pass)</div>
-                    </div>
-                    <a href="ride-details.html?id=TRQ-BK-7729" style="padding:6px 14px; background:rgba(59,130,246,0.1); color:#3B82F6; border-radius:8px; font-weight:600; font-size:12px; text-decoration:none;">Details</a>
-                </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h3 class="section-heading" style="margin:0;">Upcoming Rides</h3>
+                <a href="my-trips.html" style="font-size:13px; font-weight:600; color:#16C15D; text-decoration:none;">View all →</a>
             </div>
+            <div id="upcomingRidesContainer" aria-live="polite"></div>
         </section>
 
         <!-- Quick Book / Quick Actions Grid -->
@@ -105,76 +101,27 @@
         <section class="dashboard-section">
             <div class="glass-card" style="padding:18px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
                 <div>
-                    <span style="font-size:11px; font-weight:700; color:#16C15D; text-transform:uppercase;">ACTIVE PASS & WALLET SUMMARY</span>
-                    <div style="font-size:22px; font-weight:800;" id="dashPassCount">18 Passes Available</div>
-                    <span style="font-size:12px; color:var(--clr-text-light);">TORQQ Wallet Cash Balance: ₹1,250.00</span>
+                    <span style="font-size:11px; font-weight:700; color:#16C15D; text-transform:uppercase;">Active pass &amp; wallet</span>
+                    <div style="font-size:22px; font-weight:800;" id="dashPassCount">—</div>
+                    <span style="font-size:12px; color:var(--clr-text-light);" id="dashWalletBalance">Wallet balance loading…</span>
                 </div>
                 <a href="passes.html" class="btn-redesign-primary" style="padding:8px 16px; font-size:13px; text-decoration:none;">Manage Passes →</a>
             </div>
         </section>
 
-        <!-- Recent Destinations -->
-        <section class="dashboard-section">
-            <h3 class="section-heading">Recent Destinations</h3>
-            <div style="display:flex; gap:10px; overflow-x:auto; padding-bottom:4px;">
-                <div class="glass-card" style="padding:10px 14px; white-space:nowrap; cursor:pointer;" onclick="location.href='booking.html'">
-                    <span style="font-size:13px; font-weight:600;">📍 Electronic City Phase 1</span>
-                </div>
-                <div class="glass-card" style="padding:10px 14px; white-space:nowrap; cursor:pointer;" onclick="location.href='booking.html'">
-                    <span style="font-size:13px; font-weight:600;">📍 Whitefield ITPL</span>
-                </div>
-                <div class="glass-card" style="padding:10px 14px; white-space:nowrap; cursor:pointer;" onclick="location.href='booking.html'">
-                    <span style="font-size:13px; font-weight:600;">📍 Manyata Tech Park</span>
-                </div>
-                <div class="glass-card" style="padding:10px 14px; white-space:nowrap; cursor:pointer;" onclick="location.href='booking.html'">
-                    <span style="font-size:13px; font-weight:600;">📍 Silk Board Junction</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Saved Locations Manager -->
+        <!-- Saved Locations, from the customer's own saved profile addresses. -->
         <section class="dashboard-section">
             <h3 class="section-heading">Saved Locations</h3>
-            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:12px;">
-                <div class="glass-card" style="padding:14px; cursor:pointer;" onclick="location.href='booking.html'">
-                    <div style="font-size:18px;">🏠</div>
-                    <div style="font-weight:700; font-size:14px;">Home</div>
-                    <div style="font-size:11px; color:var(--clr-text-light);">HSR Layout Sector 4</div>
-                </div>
-                <div class="glass-card" style="padding:14px; cursor:pointer;" onclick="location.href='booking.html'">
-                    <div style="font-size:18px;">🏢</div>
-                    <div style="font-weight:700; font-size:14px;">Office</div>
-                    <div style="font-size:11px; color:var(--clr-text-light);">Embassy TechVillage</div>
-                </div>
-                <div class="glass-card" style="padding:14px; cursor:pointer;" onclick="location.href='booking.html'">
-                    <div style="font-size:18px;">🏋️</div>
-                    <div style="font-weight:700; font-size:14px;">Gym</div>
-                    <div style="font-size:11px; color:var(--clr-text-light);">Gold Gym 14th Main</div>
-                </div>
-            </div>
+            <div id="savedLocationsGrid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px;"></div>
         </section>
 
-        <!-- Ride History Preview -->
+        <!-- Recent completed trips, from GET /customer/trips + /rides/my. -->
         <section class="dashboard-section" style="margin-bottom:24px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h3 class="section-heading" style="margin:0;">Ride History Preview</h3>
+                <h3 class="section-heading" style="margin:0;">Recent Rides</h3>
                 <a href="my-trips.html" style="font-size:13px; font-weight:600; color:#16C15D; text-decoration:none;">View All Trips →</a>
             </div>
-            
-            <div class="glass-card" style="padding:16px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,0,0,0.05); padding-bottom:12px; margin-bottom:12px;">
-                    <div>
-                        <div style="font-size:14px; font-weight:700;">Indiranagar ➔ Manyata Tech Park</div>
-                        <div style="font-size:12px; color:var(--clr-text-light);">TRQ-BK-6610 • 21 Jul 2026, 09:00 AM</div>
-                    </div>
-                    <span style="background:rgba(22,193,93,0.1); color:#16C15D; font-size:11px; padding:3px 10px; border-radius:10px; font-weight:700;">COMPLETED</span>
-                </div>
-                <div style="display:flex; gap:10px;">
-                    <a href="ride-details.html?id=TRQ-BK-6610" style="padding:6px 12px; background:rgba(0,0,0,0.05); border-radius:8px; font-size:12px; font-weight:600; text-decoration:none; color:var(--clr-text-main);">View Details</a>
-                    <a href="ride-details.html?id=TRQ-BK-6610" style="padding:6px 12px; background:rgba(59,130,246,0.1); color:#3B82F6; border-radius:8px; font-size:12px; font-weight:600; text-decoration:none;">View Invoice</a>
-                    <a href="booking.html" style="padding:6px 12px; background:rgba(22,193,93,0.1); color:#16C15D; border-radius:8px; font-size:12px; font-weight:600; text-decoration:none;">Book Again</a>
-                </div>
-            </div>
+            <div id="recentRidesContainer" aria-live="polite"></div>
         </section>
 
     </main>
@@ -210,8 +157,9 @@
     <script src="js/config/routes.js"></script>
     <script src="js/customerApi.js"></script>
     <script src="js/rideSocket.js"></script>
-    <script src="js/mock/mockData.js"></script>
-    <script src="js/services/customerService.js"></script>
+    <!-- customerService/mockData are fixture generators that fabricate a profile,
+         wallet balance and saved addresses. The dashboard reads the real account
+         through CUSTOMER_API instead, so they are no longer loaded here. -->
     <script src="js/services/notificationService.js"></script>
     <script src="js/components/uiComponents.js"></script>
     <script src="js/dashboard.js"></script>

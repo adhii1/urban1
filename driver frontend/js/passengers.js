@@ -6,40 +6,75 @@ let passengersList = [];
 document.addEventListener('DOMContentLoaded', () => {
     if (!document.getElementById('passengersListContainer')) return;
 
-    // Load live passenger records from driver's completed trips
-    if (window.TRIP_API && window.TRIP_API.getTrips) {
-        console.trace("TRIP_API.getTrips() - passengers.js");
-        window.TRIP_API.getTrips()
-            .then(res => {
-                if (res.success && res.trips) {
-                    const uniquePassengers = new Map();
-                    res.trips.forEach(trip => {
-                        if (trip.passengers && Array.isArray(trip.passengers)) {
-                            trip.passengers.forEach(p => {
-                                const id = p.id || p._id || p.phone || p.name;
-                                uniquePassengers.set(id, {
-                                    id: id,
-                                    name: p.name,
-                                    phone: p.phone || 'N/A',
-                                    gender: p.gender || 'Unknown',
-                                    isWomenOnly: p.isWomenOnly || false,
-                                    avatar: p.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150'
-                                });
-                            });
-                        }
-                    });
-                    passengersList = Array.from(uniquePassengers.values());
-                    renderPassengersGrid();
-                }
-            })
-            .catch(err => {
-                console.error("Failed to load passenger directory:", err);
-                renderPassengersGrid();
-            });
+    if (!window.TRIP_API || !window.TRIP_API.getTrips) {
+        // Previously this page shipped without tripApi.js loaded, so this guard
+        // failed silently and the directory rendered nothing at all.
+        renderDirectoryMessage('The trip API is unavailable, so the passenger directory cannot load.');
+        return;
     }
+
+    renderDirectorySkeleton();
+
+    // Load live passenger records from the driver's assigned trips.
+    window.TRIP_API.getTrips()
+        .then(res => {
+            if (!res.success || !res.trips) {
+                renderDirectoryMessage('No passenger records were returned.');
+                return;
+            }
+
+            // De-duplicate by customer identity, not by display name: two riders
+            // can legitimately share a name, and keying on the name silently
+            // merged them into one directory entry.
+            const uniquePassengers = new Map();
+            res.trips.forEach(trip => {
+                (trip.passengers || []).forEach(p => {
+                    const id = p.customerId || p.rideRequestId || p.passengerId || p.id;
+                    if (!id) return;
+                    const key = String(id);
+                    const existing = uniquePassengers.get(key) || {};
+                    uniquePassengers.set(key, {
+                        id: key,
+                        tripId: p.tripId || existing.tripId,
+                        name: p.name || existing.name || null,
+                        phone: p.phone || existing.phone || '',
+                        pickup: p.pickup || existing.pickup || '',
+                        drop: p.drop || existing.drop || '',
+                        trips: (existing.trips || 0) + 1,
+                        lastStatus: p.status || existing.lastStatus || '',
+                    });
+                });
+            });
+
+            passengersList = Array.from(uniquePassengers.values())
+                .sort((a, b) => String(a.name || '\uffff').localeCompare(String(b.name || '\uffff')));
+            renderPassengersGrid();
+        })
+        .catch(err => {
+            console.error("Failed to load passenger directory:", err);
+            renderDirectoryMessage(err.message || 'Could not load the passenger directory.');
+        });
 
     setupPassengersListeners();
 });
+
+function renderDirectorySkeleton() {
+    const container = document.getElementById('passengersListContainer');
+    if (!container) return;
+    container.innerHTML = [1, 2, 3].map(() =>
+        '<div class="glass-card skeleton-pulse" style="height:92px; border-radius:12px;"></div>'
+    ).join('');
+}
+
+function renderDirectoryMessage(message) {
+    const container = document.getElementById('passengersListContainer');
+    if (!container) return;
+    container.innerHTML = `
+        <div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text-light);">
+            <div style="font-weight: 700; font-size: 15px; color: var(--text-main);">Passenger directory unavailable</div>
+            <div style="font-size: 13px; margin-top: 6px;">${window.UTILS.escapeHtml(message)}</div>
+        </div>`;
+}
 
 // Render cards
 function renderPassengersGrid() {
@@ -47,22 +82,32 @@ function renderPassengersGrid() {
     if (!container) return;
 
     const searchVal = document.getElementById('passengersSearchInput')?.value.toLowerCase();
-    const genderFilter = document.getElementById('passengerFilterSelect')?.value; // ALL, MALE, FEMALE, WOMEN_ONLY
+    const stateFilter = document.getElementById('passengerFilterSelect')?.value || 'ALL';
+
+    const ONBOARD = new Set(['RIDE_STARTED', 'DROPPING_OFF', 'BOARDED', 'OTP_VERIFIED']);
+    const DONE = new Set(['COMPLETED', 'DROPPED', 'NO_SHOW']);
 
     let list = passengersList;
 
-    // Search filter
-    if (searchVal) {
-        list = list.filter(p => p.name.toLowerCase().includes(searchVal) || p.phone.includes(searchVal));
+    if (stateFilter === 'ONBOARD') {
+        list = list.filter(p => ONBOARD.has(p.lastStatus));
+    } else if (stateFilter === 'DONE') {
+        list = list.filter(p => DONE.has(p.lastStatus));
+    } else if (stateFilter === 'WAITING') {
+        list = list.filter(p => !ONBOARD.has(p.lastStatus) && !DONE.has(p.lastStatus));
     }
 
-    // Dropdown filters
-    if (genderFilter === 'MALE') {
-        list = list.filter(p => p.gender === 'Male');
-    } else if (genderFilter === 'FEMALE') {
-        list = list.filter(p => p.gender === 'Female');
-    } else if (genderFilter === 'WOMEN_ONLY') {
-        list = list.filter(p => p.isWomenOnly);
+    // Search across name, phone and stops. `p.name` may legitimately be null,
+    // so this no longer calls .toLowerCase() on it unguarded — that threw and
+    // left the grid frozen on the first keystroke.
+    if (searchVal) {
+        list = list.filter(p =>
+            [p.name, p.phone, p.pickup, p.drop]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+                .includes(searchVal)
+        );
     }
 
     if (list.length === 0) {
@@ -76,25 +121,43 @@ function renderPassengersGrid() {
         return;
     }
 
-    container.innerHTML = list.map(p => `
-        <div class="glass-card fade-in" style="padding: 20px; display: flex; align-items: center; justify-content: space-between;">
-            <div style="display:flex; align-items:center; gap:16px;">
-                <img src="${p.avatar}" style="width: 50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid var(--border-color);" alt="${p.name}">
-                <div>
-                    <h3 style="font-size: 14px; font-weight:700; color:var(--text-main);">${p.name}</h3>
-                    <div style="display:flex; align-items:center; gap:6px; margin-top:4px;">
-                        <span class="badge ${p.gender === 'Male' ? 'badge-info' : 'badge-success'}" style="font-size:9px; padding:2px 6px;">${p.gender}</span>
-                        ${p.isWomenOnly ? '<span class="badge badge-warning" style="font-size:9px; padding:2px 6px;">Women Only</span>' : ''}
+    const esc = window.UTILS.escapeHtml;
+
+    container.innerHTML = list.map(p => {
+        const name = p.name;
+        const label = name || 'Passenger details unavailable';
+        const tel = String(p.phone || '').replace(/[^\d+]/g, '');
+        return `
+        <div class="glass-card fade-in" style="padding: 20px; display: flex; align-items: center; justify-content: space-between; gap:16px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:16px; min-width:0;">
+                <img src="${esc(window.UTILS.initialsAvatar(name || '', 100))}" style="width: 50px; height:50px; border-radius:50%; border:2px solid var(--border-color); flex-shrink:0;" alt="">
+                <div style="min-width:0;">
+                    <h3 style="font-size: 14px; font-weight:700; color:${name ? 'var(--text-main)' : 'var(--text-light)'}; overflow:hidden; text-overflow:ellipsis;">${esc(label)}</h3>
+                    <div style="font-size:11px; color:var(--text-light); margin-top:2px;">
+                        ${p.phone ? esc(p.phone) : 'No contact number'} · ${p.trips} trip${p.trips === 1 ? '' : 's'} together
                     </div>
+                    ${p.pickup || p.drop ? `<div style="font-size:11px; color:var(--text-light); margin-top:2px;">${esc(p.pickup || '—')} → ${esc(p.drop || '—')}</div>` : ''}
                 </div>
             </div>
-            
+
             <div style="display:flex; gap:8px;">
-                <button class="btn btn-secondary" onclick="window.UTILS.showToast('Calling: ${p.phone}', 'info')" style="padding:8px 12px; font-size:12px;"><i class="lucide-phone"></i> Call</button>
-                <button class="btn btn-primary" onclick="triggerLostItemReport('${p.id}', '${p.name}')" style="padding:8px 12px; font-size:12px; background-color:#EF4444;"><i class="lucide-package-open"></i> Report Lost</button>
+                ${tel
+                    ? `<a class="btn btn-secondary" href="tel:${esc(tel)}" style="padding:8px 12px; font-size:12px; text-decoration:none;"><i class="lucide-phone"></i> Call</a>`
+                    : '<button class="btn btn-secondary" disabled style="padding:8px 12px; font-size:12px;"><i class="lucide-phone-off"></i> No number</button>'}
+                <button class="btn btn-primary" data-lost-item-for="${esc(p.id)}" style="padding:8px 12px; font-size:12px; background-color:#EF4444;"><i class="lucide-package-open"></i> Report Lost</button>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
+
+    // Bound as listeners rather than inline onclick with an interpolated name:
+    // a passenger whose name contains a quote broke the generated attribute.
+    container.querySelectorAll('[data-lost-item-for]').forEach((button) => {
+        button.onclick = () => {
+            const rider = passengersList.find(p => p.id === button.dataset.lostItemFor);
+            if (rider) triggerLostItemReport(rider.id, rider.name || 'this passenger');
+        };
+    });
 }
 
 // Bind search changes
@@ -115,7 +178,8 @@ function triggerLostItemReport(passengerId, name) {
     const body = document.getElementById('sharedModalBody');
     const footer = document.getElementById('sharedModalFooter');
 
-    title.textContent = `Report Lost Item - Passenger: ${name}`;
+    // textContent, so a name is never interpreted as markup.
+    title.textContent = `Report lost item — ${name}`;
     body.innerHTML = `
         <div class="form-group">
             <label for="lostItemDesc">ITEM DESCRIPTION</label>

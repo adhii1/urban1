@@ -31,31 +31,53 @@
                     <div class="glass-card" style="padding: 24px;">
                         <h2 style="font-size:15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Vehicle Specifications</h2>
                         
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                        <!-- Bound to the signed-in driver's own vehicle record. -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px;">
                             <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
-                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">MODEL & CLASS</div>
-                                <strong style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">Tata Nexon EV Shuttle</strong>
-                                <span style="font-size:11px; color:var(--color-primary); font-weight:600;">TORQQ Shared EV Class</span>
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Model &amp; class</div>
+                                <strong id="vehicleModelText" style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">—</strong>
+                                <span style="font-size:11px; color:var(--color-primary); font-weight:600;">TORQQ shared shuttle</span>
                             </div>
                             <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
-                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">REGISTRATION NUMBER</div>
-                                <strong style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">KA-01-MJ-4321</strong>
-                                <span style="font-size:11px; color:var(--text-light);">Registered to TORQQ Logistics</span>
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Registration number</div>
+                                <strong id="vehicleNumberText" style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">—</strong>
+                                <span style="font-size:11px; color:var(--text-light);">On your driver record</span>
+                            </div>
+                            <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Seating capacity</div>
+                                <strong id="vehicleCapacityText" style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">—</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Maximum passengers per run</span>
+                            </div>
+                            <div style="background:var(--bg-app); padding:16px; border-radius:10px; border:1px solid var(--border-color);">
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Licence number</div>
+                                <strong id="vehicleLicenceText" style="font-size:15px; color:var(--text-main); display:block; margin-top:4px;">—</strong>
+                                <span style="font-size:11px; color:var(--text-light);">Driving licence on file</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Right battery details -->
+                <!-- Right: assignment details -->
                 <div>
                     <div class="glass-card" style="padding:24px;">
-                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Battery Health (EV)</h2>
-                        
-                        <div style="text-align:center;">
-                            <div style="font-size:48px; color:var(--color-primary); margin-bottom:8px;"><i class="lucide-battery-charging" style="font-size:48px; display:inline-flex;"></i></div>
-                            <strong style="font-size:24px; color:var(--text-main);">82% Charged</strong>
-                            <p style="font-size:11px; color:var(--text-light); margin-top:4px;">Approx. remaining range: 240 Kms</p>
+                        <h2 style="font-size: 15px; font-weight:700; color:var(--text-main); margin-bottom:16px;">Assignment</h2>
+                        <div style="display:flex; flex-direction:column; gap:12px; font-size:13px;">
+                            <div>
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Assigned route</div>
+                                <strong id="vehicleRouteText" style="color:var(--text-main);">—</strong>
+                            </div>
+                            <div>
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Account status</div>
+                                <strong id="vehicleStatusText" style="color:var(--text-main);">—</strong>
+                            </div>
+                            <div>
+                                <div style="font-size:10px; color:var(--text-light); font-weight:600; text-transform:uppercase;">Duty</div>
+                                <strong id="vehicleDutyText" style="color:var(--text-main);">—</strong>
+                            </div>
                         </div>
+                        <p style="font-size:11px; color:var(--text-light); margin-top:16px;">
+                            Battery and odometer telemetry are not reported by the platform yet, so nothing is shown for them here.
+                        </p>
                     </div>
                 </div>
 
@@ -72,11 +94,33 @@
     <script src="../js/utils.js"></script>
     
     <script src="../js/api/authApi.js"></script>
+    <!-- driverApi resolves the signed-in driver's own identity. Without it the
+         sidebar/navbar keep the markup's placeholder name on this page. -->
+    <script src="../js/api/driverApi.js"></script>
     <script src="../js/api/notificationApi.js"></script>
     <script src="../js/common.js"></script>
 
     <script>
         setTimeout(() => lucide.createIcons(), 600);
+
+        // Bound to the currentDriver state rather than read once, because the
+        // profile is fetched asynchronously by common.js.
+        document.addEventListener('DOMContentLoaded', () => {
+            const set = (id, value) => {
+                const node = document.getElementById(id);
+                if (node) node.textContent = value || value === 0 ? String(value) : '—';
+            };
+            window.STATE.subscribe('currentDriver', (driver) => {
+                if (!driver) return;
+                set('vehicleModelText', driver.vehicleModel);
+                set('vehicleNumberText', driver.vehicleNumber);
+                set('vehicleCapacityText', driver.vehicleCapacity ? `${driver.vehicleCapacity} passengers` : '');
+                set('vehicleLicenceText', driver.licenseNumber);
+                set('vehicleRouteText', driver.route?.name || 'No fixed route');
+                set('vehicleStatusText', driver.status);
+                set('vehicleDutyText', driver.isOnline ? (driver.isAvailable ? 'Online · available' : 'Online · busy') : 'Offline');
+            });
+        });
     </script>
 </body>
 </html>

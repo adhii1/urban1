@@ -38,11 +38,18 @@ function renderTripsGrid() {
     // Apply Search term
     const searchVal = document.getElementById('tripsSearchInput')?.value.toLowerCase();
     if (searchVal) {
-        list = list.filter(t => 
-            t.id.toLowerCase().includes(searchVal) ||
-            t.pickup.toLowerCase().includes(searchVal) ||
-            t.drop.toLowerCase().includes(searchVal)
-        );
+        // Passenger names are searchable too: finding "the trip with Priya on it"
+        // is the driver's actual question, and it's now answerable because real
+        // names reach this screen.
+        list = list.filter(t => {
+            const haystack = [
+                t.id,
+                t.pickup,
+                t.drop,
+                ...(t.passengers || []).flatMap(p => [p.name, p.phone]),
+            ].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(searchVal);
+        });
     }
 
     if (list.length === 0) {
@@ -152,22 +159,31 @@ function viewTripDetails(tripId) {
         `;
     }
 
+    const esc = window.UTILS.escapeHtml;
+
     const passengerRows = (t.passengers && t.passengers.length > 0)
-        ? t.passengers.map((p, i) => `
+        ? t.passengers.map((p) => {
+            // Real name, or an explicit "not resolved" label. A numbered
+            // "Passenger N" fallback reads as an anonymised roster and hid the
+            // fact that identities were never reaching this screen at all.
+            const name = window.UTILS.riderName(p, null);
+            const phone = window.UTILS.riderPhone(p);
+            return `
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; font-size:13px; padding-bottom:10px; border-bottom:1px solid var(--border-color);">
-                <div>
-                    <strong style="color:var(--text-main);">${p.name || `Passenger ${i+1}`}</strong>
-                    ${p.phone ? `<div style="font-size:11px; color:var(--text-light);">${p.phone}</div>` : ''}
-                    <div style="font-size:11px; color:var(--text-light); margin-top:3px;">
-                        📍 ${p.pickup && p.pickup !== 'Pickup' ? p.pickup : '—'}
-                    </div>
-                    <div style="font-size:11px; color:var(--text-light);">
-                        🏁 ${p.drop && p.drop !== 'Drop' ? p.drop : '—'}
+                <div style="display:flex; gap:10px; align-items:flex-start; min-width:0;">
+                    <img src="${esc(window.UTILS.initialsAvatar(name || '', 64))}" alt="" style="width:32px; height:32px; border-radius:50%; flex-shrink:0;">
+                    <div style="min-width:0;">
+                        ${name
+                            ? `<strong style="color:var(--text-main);">${esc(name)}</strong>`
+                            : '<em style="color:var(--text-light); font-style:normal;">Passenger details unavailable</em>'}
+                        ${phone ? `<div style="font-size:11px; color:var(--text-light);">${esc(phone)}</div>` : ''}
+                        <div style="font-size:11px; color:var(--text-light); margin-top:3px;">📍 ${esc(p.pickup || '—')}</div>
+                        <div style="font-size:11px; color:var(--text-light);">🏁 ${esc(p.drop || '—')}</div>
                     </div>
                 </div>
-                <span class="badge ${p.status === 'COMPLETED' ? 'badge-success' : p.status === 'NO_SHOW' ? 'badge-danger' : 'badge-info'}" style="font-size:9px; padding:2px 6px; white-space:nowrap; margin-top:2px;">${p.status || 'ASSIGNED'}</span>
-            </div>`)
-        .join('')
+                <span class="badge ${p.status === 'COMPLETED' ? 'badge-success' : p.status === 'NO_SHOW' ? 'badge-danger' : 'badge-info'}" style="font-size:9px; padding:2px 6px; white-space:nowrap; margin-top:2px;">${esc(p.status || 'ASSIGNED')}</span>
+            </div>`;
+        }).join('')
         : '<div style="font-size:13px; color:var(--text-light);">No passenger data available.</div>';
 
     body.innerHTML = `
@@ -189,11 +205,11 @@ function viewTripDetails(tripId) {
         <div class="trip-addresses" style="margin-bottom:20px; padding-left:22px;">
             <div class="address-node node-pickup" style="margin-bottom:14px;">
                 <div class="address-title">PICKUP</div>
-                <div class="address-text" style="font-size:13px; font-weight:600;">${t.pickup && t.pickup !== 'Pickup' ? t.pickup : '—'}</div>
+                <div class="address-text" style="font-size:13px; font-weight:600;">${esc(t.pickup || '—')}</div>
             </div>
             <div class="address-node node-drop">
                 <div class="address-title">DROP-OFF</div>
-                <div class="address-text" style="font-size:13px; font-weight:600;">${t.drop && t.drop !== 'Drop' ? t.drop : '—'}</div>
+                <div class="address-text" style="font-size:13px; font-weight:600;">${esc(t.drop || '—')}</div>
             </div>
         </div>
 

@@ -11,6 +11,7 @@ const Subscription = require('../models/Subscription');
 const Trip = require('../models/Trip');
 const subscriptionService = require('../services/subscriptionService');
 const { regenerateForSubscription, generateTripsForDate } = require('../services/DailyTripGenerator');
+const { acceptTrip } = require('../services/TripAssignmentService');
 
 const AREA_CENTER = [77.6501, 12.9141]; // [lng, lat]
 
@@ -61,7 +62,7 @@ async function seedWorld({ walletBalance = 5000 } = {}) {
     isActive: true,
     bookingRules: { allowedDaysPerWeek: 3, allowedWeekdays: [], isSharedRide: true },
   });
-  return { area, driver, customer, customerUser };
+  return { area, driver, driverUser, customer, customerUser };
 }
 
 function bookingBody(overrides = {}) {
@@ -109,10 +110,10 @@ test('a customer can hold several subscriptions at different pickup times', asyn
 
   const morning = await subscriptionService.createSubscription({ userId: customerUser._id, ...bookingBody({ pickupTime: '08:00' }) });
   const evening = await subscriptionService.createSubscription({ userId: customerUser._id, ...bookingBody({ pickupTime: '18:00' }) });
-  // Different type, and Saturday only — no overlap with the weekday commutes.
+  // Different type and pickup time — no schedule-slot overlap with the weekday commutes.
   const saturday = await subscriptionService.createSubscription({
     userId: customerUser._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [6], pickupTime: '09:30' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [2, 4, 5], pickupTime: '09:30' }),
   });
 
   assert.equal(morning.subscription.status, 'ACTIVE');
@@ -149,14 +150,14 @@ test('a second subscription clashing on time and day is rejected', async () => {
 
 test('two subscriptions at the same time on disjoint days are both allowed', async () => {
   const { customerUser } = await seedWorld({ walletBalance: 20000 });
-  // Mon/Tue at 08:00, then Thu/Fri at 08:00 — same time, no shared day.
+  // Different valid three-day schedules at different times can coexist.
   await subscriptionService.createSubscription({
     userId: customerUser._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 2], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [1, 2, 3], pickupTime: '08:00' }),
   });
   await subscriptionService.createSubscription({
     userId: customerUser._id,
-    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [4, 5], pickupTime: '08:00' }),
+    ...bookingBody({ subscriptionType: 'HYBRID', scheduleDays: [3, 4, 5], pickupTime: '18:00' }),
   });
 
   const customer = await Customer.findOne({ userId: customerUser._id });
@@ -207,6 +208,23 @@ test('regenerateForSubscription creates trips with passengers[] on schedule days
   assert.equal(trip.passengers.length, 1);
   assert.equal(trip.passengers[0].subscriptionId.toString(), subscription._id.toString());
   assert.ok(trip.passengers[0].otp.code, 'passenger should have an OTP');
+});
+
+test('assigned driver can accept a trip with the authenticated user ObjectId', async () => {
+  const { customerUser, driver, driverUser } = await seedWorld();
+  const serviceDate = new Date();
+  serviceDate.setHours(0, 0, 0, 0);
+  const trip = await Trip.create({
+    driverId: driver._id,
+    serviceDate,
+    pickupTime: '08:00',
+    passengers: [{ customerId: (await Customer.findOne({ userId: customerUser._id }))._id }],
+  });
+  const result = await acceptTrip(trip._id, driverUser._id);
+
+  assert.equal(result.success, true);
+  assert.equal(result.trip.assignmentStatus, 'ACCEPTED');
+  assert.equal(result.trip.status, 'ACCEPTED');
 });
 
 test('a customer\'s two pickup times become two separate trips, same driver', async () => {

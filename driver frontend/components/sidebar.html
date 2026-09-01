@@ -55,7 +55,9 @@
         position: relative;
     ">
         <div style="position: relative;">
-            <img id="sidebarDriverAvatar" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=256" class="avatar" alt="Driver profile photo">
+            <!-- src is set from the signed-in driver's profile; a hardcoded stock
+                 portrait here showed the same face to every driver. -->
+            <img id="sidebarDriverAvatar" src="" class="avatar" alt="Driver profile photo">
             <span id="sidebarOnlineIndicator" class="online-indicator" style="
                 position: absolute;
                 bottom: 2px;
@@ -68,11 +70,11 @@
             "></span>
         </div>
         <div style="flex-grow: 1; min-width: 0;">
-            <h2 id="sidebarDriverName" style="font-size: 14px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;">John Doe</h2>
+            <h2 id="sidebarDriverName" style="font-size: 14px; font-weight: 700; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px;">Loading…</h2>
             <div style="display: flex; align-items: center; gap: 4px;">
                 <span style="color: #F59E0B; font-size: 12px;">★</span>
-                <span id="sidebarDriverRating" style="font-size: 12px; font-weight: 600; color: var(--text-main);">4.85</span>
-                <span style="font-size: 11px; color: var(--text-light);">(KA-01-MJ-4321)</span>
+                <span id="sidebarDriverRating" style="font-size: 12px; font-weight: 600; color: var(--text-main);">—</span>
+                <span id="sidebarDriverVehicle" style="font-size: 11px; color: var(--text-light);"></span>
             </div>
         </div>
     </div>

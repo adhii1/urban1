@@ -2,9 +2,25 @@
 
 var API_BASE_URL = (window.TORQQ_API_BASE || '/api/v1');
 
+// `torqq_driver_data` is the cached profile that state.js seeds `currentDriver`
+// from on every page load. It MUST be cleared with the session: it used to
+// survive logout, so the next driver to sign in on the same browser saw the
+// previous driver's name and rating in the sidebar until (and unless) a profile
+// fetch replaced it.
+const DRIVER_SESSION_KEYS = [
+    'driverToken',
+    'driverRefreshToken',
+    'driverName',
+    'driverPhone',
+    'driverStatus',
+    'driverUserId',
+    'torqq_driver_online',
+    'torqq_driver_data',
+];
+
 function clearDriverSession() {
-    ['driverToken', 'driverRefreshToken', 'driverName', 'driverPhone', 'driverStatus', 'driverUserId', 'torqq_driver_online']
-        .forEach(key => localStorage.removeItem(key));
+    DRIVER_SESSION_KEYS.forEach(key => localStorage.removeItem(key));
+    sessionStorage.removeItem('activeTrip');
 }
 
 function saveDriverSession(data) {
@@ -13,6 +29,10 @@ function saveDriverSession(data) {
         clearDriverSession();
         throw new Error('This account is not registered as a driver. Please use the correct portal.');
     }
+
+    // Drop whatever the previous session cached before writing this one, so no
+    // field of the outgoing driver can survive into the incoming one.
+    clearDriverSession();
 
     localStorage.setItem('driverToken', data.accessToken);
     localStorage.setItem('driverRefreshToken', data.refreshToken || '');
@@ -43,14 +63,17 @@ const AUTH_API = {
             if (data.success && data.data) {
                 const driver = saveDriverSession(data.data);
 
-                // Set application state for driver panel UI
+                // Seed the panel with what the login response actually returned.
+                // GET /driver/profile fills in the rest (rating, vehicle, trips)
+                // on the next page load; nothing here is invented.
                 if (window.STATE) {
                     window.STATE.setState('currentDriver', {
-                        name: driver.name,
-                        phone: driver.phone,
+                        id: driver.id || driver._id || '',
+                        name: driver.name || '',
+                        phone: driver.phone || '',
                         status: driver.status || 'ACTIVE',
-                        rating: driver.rating || 5.0,
-                        avatar: driver.avatar || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=150",
+                        rating: Number(driver.rating) || 0,
+                        avatar: driver.avatar || '',
                         vehicle: driver.vehicle || { number: '', model: '' }
                     });
                 }
@@ -188,13 +211,8 @@ const AUTH_API = {
             },
             body: JSON.stringify({ refreshToken })
         }).finally(() => {
-            localStorage.removeItem('driverToken');
-            localStorage.removeItem('driverRefreshToken');
-            localStorage.removeItem('driverName');
-            localStorage.removeItem('driverPhone');
-            localStorage.removeItem('driverStatus');
-            localStorage.removeItem('torqq_driver_online');
-            
+            clearDriverSession();
+
             if (window.STATE) {
                 window.STATE.setState('onlineStatus', 'OFFLINE');
             }
