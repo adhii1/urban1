@@ -331,10 +331,9 @@ async function ensureSubscriptionOnTrip(subscription, driver, serviceDate) {
   }
 
   if (!trip || trip.status !== 'SCHEDULED') return { created: 0, merged: 0 };
-  // Commented out capacity skip so passenger is always placed on driver trip
-  // if ((trip.passengers || []).length >= capacity) {
-  //   return { created: 0, merged: 0 };
-  // }
+  if ((trip.passengers || []).length >= capacity) {
+    return { created: 0, merged: 0 };
+  }
 
   // Atomic, deduped add — only pushes if this subscription isn't already present.
   const updated = await Trip.findOneAndUpdate(
