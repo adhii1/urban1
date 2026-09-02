@@ -2,7 +2,7 @@
 
 import { useDriverProfile } from '@/lib/hooks/useDriverQueries';
 import { useDriverStore } from '@/stores/driverStore';
-import { User, Phone, Car, Route, Hash, LogOut } from 'lucide-react';
+import { User, Phone, Car, Route, Hash, LogOut, IdCard, Wallet } from 'lucide-react';
 
 export default function DriverProfilePage() {
   const logout = useDriverStore((s) => s.logout);
@@ -41,7 +41,12 @@ export default function DriverProfilePage() {
           {(p?.name || 'D')[0].toUpperCase()}
         </div>
         <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#FFF' }}>{p?.name || 'Driver'}</h3>
-        <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '4px' }}>+91 {p?.phone || '---'}</p>
+        {p?.driverCode && (
+          <div style={{ display: 'inline-block', marginTop: '6px', padding: '3px 12px', background: '#16C15D20', borderRadius: '10px', fontSize: '12px', fontWeight: 800, fontFamily: 'monospace', color: '#16C15D' }}>
+            {p.driverCode}
+          </div>
+        )}
+        <p style={{ fontSize: '12px', color: '#94A3B8', marginTop: '6px' }}>+91 {p?.phone || '---'}</p>
         {p?.route?.name && (
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '4px', marginTop: '10px',
@@ -83,6 +88,20 @@ export default function DriverProfilePage() {
           <div>
             <div style={{ fontSize: '10px', color: '#94A3B8' }}>Capacity</div>
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{p?.vehicleCapacity || '---'} passengers</div>
+          </div>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <IdCard size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>Driver ID</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF', fontFamily: 'monospace' }}>{p?.driverCode || '---'}</div>
+          </div>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <Wallet size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>UPI ID (payouts)</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{p?.upiId || 'Not set — contact admin'}</div>
           </div>
         </div>
         <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>

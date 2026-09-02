@@ -2,7 +2,7 @@
 
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
-import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver, useAreas } from '../../lib/hooks/useAdminQueries';
+import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver, useAreas, useZones } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Search, Plus, Pencil, Trash2, X } from 'lucide-react';
 
@@ -10,11 +10,13 @@ export default function DriversPage() {
   useAuthGuard();
   const { data, isLoading } = useDrivers();
   const { data: areasData } = useAreas();
+  const { data: zonesData } = useZones();
   const createDriver = useCreateDriver();
   const updateDriver = useUpdateDriver();
   const deleteDriver = useDeleteDriver();
   const drivers = data?.success ? (data.data || data.drivers || []) : [];
   const areas = areasData?.success ? (areasData.data || []) : [];
+  const zones = zonesData?.success ? (zonesData.data || []) : [];
 
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -29,7 +31,7 @@ export default function DriversPage() {
 
   const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
-    name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '',
+    name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '',
   });
 
   const filtered = drivers.filter((d: any) =>
@@ -40,7 +42,7 @@ export default function DriversPage() {
 
   const openCreate = () => {
     setEditingDriver(null);
-    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '' });
+    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '' });
     setShowModal(true);
   };
 
@@ -55,6 +57,8 @@ export default function DriversPage() {
       vehicleCapacity: driver.vehicleCapacity?.toString() || '',
       licenseNumber: driver.licenseNumber || '',
       areaId: driver.areaId?._id || driver.areaId || '',
+      zoneId: driver.zoneId?._id || driver.zoneId || '',
+      upiId: driver.upiId || '',
     });
     setShowModal(true);
   };
@@ -67,6 +71,8 @@ export default function DriversPage() {
           ...updateData,
           vehicleCapacity: Number(updateData.vehicleCapacity) || 4,
           areaId: updateData.areaId || null,
+          zoneId: updateData.zoneId || null,
+          upiId: updateData.upiId || '',
         };
         if (password && password.trim().length > 0) {
           payload.password = password.trim();
@@ -77,8 +83,12 @@ export default function DriversPage() {
           ...formData,
           vehicleCapacity: Number(formData.vehicleCapacity) || 4,
           areaId: formData.areaId || undefined,
+          zoneId: formData.zoneId || undefined,
+          upiId: formData.upiId || undefined,
         };
         if (!payload.areaId) delete payload.areaId;
+        if (!payload.zoneId) delete payload.zoneId;
+        if (!payload.upiId) delete payload.upiId;
         await createDriver.mutateAsync(payload);
       }
       setShowModal(false);
@@ -96,7 +106,7 @@ export default function DriversPage() {
     }
   };
 
-  const columns = ['Name', 'Phone', 'Vehicle No.', 'Model', 'Capacity', 'License', 'Area', 'Status', 'Actions'];
+  const columns = ['Driver ID', 'Name', 'Phone', 'Vehicle No.', 'Capacity', 'Zone', 'Area', 'UPI', 'Status', 'Actions'];
 
   return (
     <DashboardLayout>
@@ -137,13 +147,18 @@ export default function DriversPage() {
                 <tr><td colSpan={columns.length} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No drivers found.</td></tr>
               ) : filtered.map((driver: any) => (
                 <tr key={driver._id || driver.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '12px 18px', fontSize: '12px', fontWeight: 800, color: '#2563EB', fontFamily: 'monospace' }}>{driver.driverCode || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>{driver.name}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)' }}>{driver.userId?.phone || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)', fontFamily: 'monospace' }}>{driver.vehicleNumber || '-'}</td>
-                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.vehicleModel || '-'}</td>
                   <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-main)' }}>{driver.vehicleCapacity || '-'}</td>
-                  <td style={{ padding: '12px 18px', fontSize: '12px', color: 'var(--text-light)', fontFamily: 'monospace' }}>{driver.licenseNumber || '-'}</td>
-                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.areaId?.name || '-'}</td>
+                  <td style={{ padding: '12px 18px', fontSize: '12px' }}>
+                    {driver.zoneId?.name ? (
+                      <span className="badge" style={{ fontSize: '9px', padding: '2px 8px', background: 'rgba(59,130,246,0.1)', color: '#2563EB' }}>{driver.zoneId.code ? `${driver.zoneId.code}` : driver.zoneId.name}</span>
+                    ) : <span style={{ color: 'var(--text-light)' }}>—</span>}
+                  </td>
+                  <td style={{ padding: '12px 18px', fontSize: '12.5px', color: 'var(--text-light)' }}>{driver.areaId?.name || '—'}</td>
+                  <td style={{ padding: '12px 18px', fontSize: '11.5px', color: 'var(--text-light)', fontFamily: 'monospace' }}>{driver.upiId || '—'}</td>
                   <td style={{ padding: '12px 18px' }}>
                     <span className={`badge ${driver.status === 'ACTIVE' ? 'badge-success' : 'badge-secondary'}`} style={{ fontSize: '9px', padding: '2px 8px' }}>
                       {driver.status || 'Unknown'}
@@ -228,7 +243,23 @@ export default function DriversPage() {
               ))}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="field-areaId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Service Area</label>
+                <label htmlFor="field-zoneId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zone (primary dispatch grouping)</label>
+                <select
+                  id="field-zoneId"
+                  className="form-input"
+                  value={formData.zoneId}
+                  onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
+                  style={{ fontSize: '12px', padding: '10px 12px' }}
+                >
+                  <option value="">No zone</option>
+                  {zones.map((z: any) => (
+                    <option key={z._id} value={z._id}>{z.code ? `${z.code} · ` : ''}{z.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="field-areaId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Service Area (optional pin within zone)</label>
                 <select
                   id="field-areaId"
                   className="form-input"
@@ -236,11 +267,16 @@ export default function DriversPage() {
                   onChange={(e) => setFormData({ ...formData, areaId: e.target.value })}
                   style={{ fontSize: '12px', padding: '10px 12px' }}
                 >
-                  <option value="">No area (available everywhere)</option>
+                  <option value="">No specific area</option>
                   {areas.map((area: any) => (
                     <option key={area._id} value={area._id}>{area.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="field-upiId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>UPI ID (for payouts)</label>
+                <input id="field-upiId" type="text" className="form-input" placeholder="e.g. ravi@okhdfcbank" value={formData.upiId} onChange={(e) => setFormData({ ...formData, upiId: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
               </div>
             </div>
             <div className="modal-footer" style={{ padding: '12px 20px' }}>

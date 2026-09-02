@@ -79,11 +79,15 @@ export default function CustomerDashboardPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                   <UserCheck size={16} color="#16A34A" />
                   <strong style={{ fontSize: '14px', color: '#0F172A' }}>{driver.name}</strong>
+                  {driver.driverCode && (
+                    <span style={{ fontSize: '10px', fontWeight: 800, fontFamily: 'monospace', color: '#16A34A', background: '#DCFCE7', padding: '2px 8px', borderRadius: '6px' }}>{driver.driverCode}</span>
+                  )}
                 </div>
                 <p style={{ fontSize: '12px', color: '#475569' }}>
                   {driver.vehicleNumber} · {driver.vehicleModel} · Capacity: {driver.vehicleCapacity}
                 </p>
                 {area && <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>Area: {area.name}</p>}
+                {driver.upiId && <p style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>Payments: {driver.upiId}</p>}
               </div>
             ) : (
               <div style={{ padding: '14px', borderRadius: '12px', background: '#FFF7ED', border: '1px solid #FED7AA' }}>

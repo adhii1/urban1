@@ -371,3 +371,52 @@ export function useDeleteArea() {
     },
   });
 }
+
+// --- Zones ---
+export function useZones() {
+  const isAuthed = !!useAuthState();
+  return useQuery({
+    queryKey: ['zones'],
+    queryFn: () => adminApi.getZones(),
+    enabled: isAuthed,
+  });
+}
+
+export function useCreateZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => adminApi.createZone(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['zones'] }),
+  });
+}
+
+export function useUpdateZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => adminApi.updateZone(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['zones'] }),
+  });
+}
+
+export function useDeleteZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.deleteZone(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['zones'] });
+      qc.invalidateQueries({ queryKey: ['areas'] });
+      qc.invalidateQueries({ queryKey: ['drivers'] });
+    },
+  });
+}
+
+export function useAssignAreasToZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, areaIds }: { id: string; areaIds: string[] }) => adminApi.assignAreasToZone(id, areaIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['zones'] });
+      qc.invalidateQueries({ queryKey: ['areas'] });
+    },
+  });
+}

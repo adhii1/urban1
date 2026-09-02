@@ -10,9 +10,25 @@ const driverSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
+    // Human-friendly driver identifier shown across portals, e.g. "DRV-0007".
+    // Auto-generated on creation.
+    driverCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
+      trim: true,
+    },
+    // UPI ID for driver payouts, e.g. "ravi@okhdfcbank". Shown to admin and
+    // (masked/partial) surfaced where payment context is relevant.
+    upiId: {
+      type: String,
       trim: true,
     },
     vehicleNumber: {
@@ -74,6 +90,14 @@ const driverSchema = new mongoose.Schema(
     areaId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Area',
+      index: true,
+    },
+    // The zone this driver serves. Primary grouping for dispatch — a driver
+    // covers every area within their zone. areaId remains for optional
+    // fine-grained pinning and backward compatibility.
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
       index: true,
     },
     currentLocation: {

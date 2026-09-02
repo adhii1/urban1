@@ -38,6 +38,7 @@ async function findAreaForPickup(pickupCoordinates) {
     { $match: { $expr: { $lte: ['$distanceM', { $multiply: ['$radiusKm', 1000] }] } } },
     { $limit: 1 },
   ]);
+  // $geoNear returns the raw doc including zoneId, which matching reads directly.
   return area || null;
 }
 
@@ -50,9 +51,23 @@ async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, requ
   const [lng, lat] = pickupCoordinates || [77.6501, 12.9141];
   const days = scheduleDays && scheduleDays.length ? scheduleDays : [1, 2, 3, 4, 5];
 
-  // 1. Try drivers in the matching area
+  // Zone-aware driver resolution (scalable):
+  //   pickup → area → area.zoneId → all drivers in that zone
+  // Fallbacks preserve older data: drivers pinned to the area, then any active driver.
   let drivers = [];
-  if (area && area._id) {
+  const zoneId = area?.zoneId?._id || area?.zoneId || null;
+
+  // 1. Preferred: drivers belonging to the area's zone (a zone spans many areas).
+  if (zoneId) {
+    drivers = await Driver.find({
+      zoneId,
+      status: 'ACTIVE',
+      isDeleted: false,
+    }).lean();
+  }
+
+  // 2. Fallback: drivers pinned to the specific area (legacy area-only assignment).
+  if (!drivers.length && area && area._id) {
     drivers = await Driver.find({
       areaId: area._id,
       status: 'ACTIVE',
@@ -60,7 +75,7 @@ async function findEligibleDrivers({ pickupCoordinates, area, scheduleDays, requ
     }).lean();
   }
 
-  // Fallback: If no drivers are assigned to this area, query all active drivers across the system
+  // 3. Final fallback: any active driver system-wide.
   if (!drivers.length) {
     drivers = await Driver.find({
       status: 'ACTIVE',

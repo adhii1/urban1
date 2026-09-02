@@ -92,6 +92,13 @@ router.post('/areas', validateRequest(adminValidation.createArea), adminControll
 router.patch('/areas/:id', validateRequest(adminValidation.updateArea), adminController.updateArea);
 router.delete('/areas/:id', adminController.deleteArea);
 
+// Zones (group areas; drivers belong to a zone)
+router.get('/zones', adminController.getZones);
+router.post('/zones', validateRequest(adminValidation.createZone), adminController.createZone);
+router.patch('/zones/:id', validateRequest(adminValidation.updateZone), adminController.updateZone);
+router.delete('/zones/:id', adminController.deleteZone);
+router.post('/zones/:id/assign-areas', adminController.assignAreasToZone);
+
 // Subscription Matching (PDF section 20: Admin manual override)
 const SubscriptionMatchingService = require('../../services/SubscriptionMatchingService');
 const Subscription = require('../../models/Subscription');

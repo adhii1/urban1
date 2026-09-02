@@ -142,7 +142,7 @@ const getMyBooking = asyncWrapper(async (req, res) => {
     isDeleted: false,
   })
     .populate('planId', 'name tier serviceType price durationDays features')
-    .populate('assignedDriverId', 'name vehicleNumber vehicleModel vehicleCapacity')
+    .populate('assignedDriverId', 'name driverCode vehicleNumber vehicleModel vehicleCapacity upiId averageRating')
     .populate('assignedAreaId', 'name')
     .sort({ pickupTime: 1, createdAt: 1 });
 

@@ -271,10 +271,14 @@ class AuthService {
       const driver = await Driver.findOne({ userId });
       details = {
         name: driver ? driver.name : '',
+        driverCode: driver ? driver.driverCode : null,
         vehicleNumber: driver ? driver.vehicleNumber : null,
         vehicleModel: driver ? driver.vehicleModel : null,
         vehicleCapacity: driver ? driver.vehicleCapacity : null,
         licenseNumber: driver ? driver.licenseNumber : null,
+        upiId: driver ? driver.upiId : null,
+        zoneId: driver ? driver.zoneId : null,
+        areaId: driver ? driver.areaId : null,
         routeId: driver ? driver.routeId : null,
       };
     } else if (role === 'Admin') {

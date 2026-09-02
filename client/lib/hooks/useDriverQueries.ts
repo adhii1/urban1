@@ -12,10 +12,12 @@ export interface DriverProfile {
   id: string;
   name: string;
   phone: string;
+  driverCode?: string;
   vehicleNumber: string;
   vehicleModel: string;
   vehicleCapacity: number;
   licenseNumber: string;
+  upiId?: string;
   route: any;
   status: string;
 }

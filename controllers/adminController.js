@@ -10,6 +10,7 @@ const Admin = require('../models/Admin');
 const Settings = require('../models/Settings');
 const OperationalException = require('../models/OperationalException');
 const Area = require('../models/Area');
+const Zone = require('../models/Zone');
 const {
   applyDriverChange,
   reconcileStopChange,
@@ -55,18 +56,42 @@ const getDashboard = asyncWrapper(async (req, res) => {
 
 // Drivers CRUD
 const getDrivers = asyncWrapper(async (req, res) => {
-  const drivers = await Driver.find().populate('userId', 'phone status').populate('routeId', 'name').populate('areaId', 'name');
+  const drivers = await Driver.find()
+    .populate('userId', 'phone status')
+    .populate('routeId', 'name')
+    .populate('areaId', 'name')
+    .populate('zoneId', 'name code');
   return res.status(200).json(formatResponse('Drivers listed successfully.', drivers));
 });
 
 const getDriverById = asyncWrapper(async (req, res) => {
-  const driver = await Driver.findById(req.params.id).populate('routeId');
+  const driver = await Driver.findById(req.params.id)
+    .populate('routeId')
+    .populate('areaId', 'name')
+    .populate('zoneId', 'name code');
   if (!driver) throw new NotFoundError('Driver');
   return res.status(200).json(formatResponse('Driver profile retrieved.', driver));
 });
 
+/**
+ * Generate the next sequential driver code, e.g. DRV-0001, DRV-0002.
+ * Scans the highest existing numeric suffix so codes stay stable and unique.
+ */
+async function nextDriverCode() {
+  const last = await Driver.findOne({ driverCode: /^DRV-\d+$/ })
+    .sort({ driverCode: -1 })
+    .select('driverCode')
+    .lean();
+  let n = 1;
+  if (last?.driverCode) {
+    const parsed = parseInt(last.driverCode.replace('DRV-', ''), 10);
+    if (!Number.isNaN(parsed)) n = parsed + 1;
+  }
+  return `DRV-${String(n).padStart(4, '0')}`;
+}
+
 const createDriver = asyncWrapper(async (req, res) => {
-  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId } = req.body;
+  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId } = req.body;
 
   if (!password) throw new ValidationError('Password is required');
 
@@ -78,6 +103,7 @@ const createDriver = asyncWrapper(async (req, res) => {
 
   const driver = await Driver.create({
     userId: user._id,
+    driverCode: await nextDriverCode(),
     name,
     vehicleNumber,
     vehicleModel,
@@ -85,13 +111,15 @@ const createDriver = asyncWrapper(async (req, res) => {
     licenseNumber,
     routeId,
     areaId: areaId || undefined,
+    zoneId: zoneId || undefined,
+    upiId: upiId || undefined,
   });
 
   return res.status(201).json(formatResponse('Driver created successfully.', driver));
 });
 
 const updateDriver = asyncWrapper(async (req, res) => {
-  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, status, password } = req.body;
+  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, status, password } = req.body;
   const driver = await Driver.findById(req.params.id);
   if (!driver) throw new NotFoundError('Driver');
 
@@ -102,7 +130,12 @@ const updateDriver = asyncWrapper(async (req, res) => {
   if (licenseNumber !== undefined) driver.licenseNumber = licenseNumber;
   if (routeId !== undefined) driver.routeId = routeId || null;
   if (areaId !== undefined) driver.areaId = areaId || null;
+  if (zoneId !== undefined) driver.zoneId = zoneId || null;
+  if (upiId !== undefined) driver.upiId = upiId;
   if (status !== undefined) driver.status = status;
+
+  // Backfill a driver code for legacy drivers that predate this field.
+  if (!driver.driverCode) driver.driverCode = await nextDriverCode();
 
   await driver.save();
 
@@ -934,17 +967,18 @@ const rejectPauseRequest = asyncWrapper(async (req, res) => {
 
 // --- Areas ---
 const getAreas = asyncWrapper(async (req, res) => {
-  const areas = await Area.find();
+  const areas = await Area.find().populate('zoneId', 'name code');
   return res.status(200).json(formatResponse('Areas listed successfully.', areas));
 });
 
 const createArea = asyncWrapper(async (req, res) => {
-  const { name, center, radiusKm, status } = req.body;
+  const { name, center, radiusKm, status, zoneId } = req.body;
   const area = await Area.create({
     name,
     center: { type: 'Point', coordinates: center.coordinates },
     radiusKm,
     status: status || 'ACTIVE',
+    zoneId: zoneId || undefined,
   });
   return res.status(201).json(formatResponse('Area created successfully.', area));
 });
@@ -953,13 +987,14 @@ const updateArea = asyncWrapper(async (req, res) => {
   const area = await Area.findById(req.params.id);
   if (!area) throw new NotFoundError('Area');
 
-  const { name, center, radiusKm, status } = req.body;
+  const { name, center, radiusKm, status, zoneId } = req.body;
   if (name !== undefined) area.name = name;
   if (center !== undefined) {
     area.center = { type: 'Point', coordinates: center.coordinates };
   }
   if (radiusKm !== undefined) area.radiusKm = radiusKm;
   if (status !== undefined) area.status = status;
+  if (zoneId !== undefined) area.zoneId = zoneId || null;
 
   await area.save();
   return res.status(200).json(formatResponse('Area updated successfully.', area));
@@ -973,6 +1008,77 @@ const deleteArea = asyncWrapper(async (req, res) => {
   // Remove area assignment from all drivers in this area
   await Driver.updateMany({ areaId: area._id }, { $unset: { areaId: 1 } });
   return res.status(200).json(formatResponse('Area deleted successfully.'));
+});
+
+// --- Zones (scalable grouping of areas; drivers belong to a zone) ---
+async function nextZoneCode() {
+  const last = await Zone.findOne({ code: /^Z\d+$/ }).sort({ code: -1 }).select('code').lean();
+  let n = 1;
+  if (last?.code) {
+    const parsed = parseInt(last.code.replace('Z', ''), 10);
+    if (!Number.isNaN(parsed)) n = parsed + 1;
+  }
+  return `Z${n}`;
+}
+
+const getZones = asyncWrapper(async (req, res) => {
+  const zones = await Zone.find().sort({ code: 1 }).lean();
+  // Enrich each zone with its area count and driver count for the admin UI.
+  const [areaCounts, driverCounts] = await Promise.all([
+    Area.aggregate([{ $match: { isDeleted: false, zoneId: { $ne: null } } }, { $group: { _id: '$zoneId', count: { $sum: 1 } } }]),
+    Driver.aggregate([{ $match: { isDeleted: false, zoneId: { $ne: null } } }, { $group: { _id: '$zoneId', count: { $sum: 1 } } }]),
+  ]);
+  const areaMap = new Map(areaCounts.map((r) => [r._id?.toString(), r.count]));
+  const driverMap = new Map(driverCounts.map((r) => [r._id?.toString(), r.count]));
+  const enriched = zones.map((z) => ({
+    ...z,
+    areaCount: areaMap.get(z._id.toString()) || 0,
+    driverCount: driverMap.get(z._id.toString()) || 0,
+  }));
+  return res.status(200).json(formatResponse('Zones listed successfully.', enriched));
+});
+
+const createZone = asyncWrapper(async (req, res) => {
+  const { name, description, status, code } = req.body;
+  const zone = await Zone.create({
+    name,
+    description: description || '',
+    status: status || 'ACTIVE',
+    code: code || (await nextZoneCode()),
+  });
+  return res.status(201).json(formatResponse('Zone created successfully.', zone));
+});
+
+const updateZone = asyncWrapper(async (req, res) => {
+  const zone = await Zone.findById(req.params.id);
+  if (!zone) throw new NotFoundError('Zone');
+  const { name, description, status } = req.body;
+  if (name !== undefined) zone.name = name;
+  if (description !== undefined) zone.description = description;
+  if (status !== undefined) zone.status = status;
+  await zone.save();
+  return res.status(200).json(formatResponse('Zone updated successfully.', zone));
+});
+
+const deleteZone = asyncWrapper(async (req, res) => {
+  const zone = await Zone.findById(req.params.id);
+  if (!zone) throw new NotFoundError('Zone');
+  zone.isDeleted = true;
+  await zone.save();
+  // Detach the zone from its areas and drivers (keep the records themselves).
+  await Area.updateMany({ zoneId: zone._id }, { $unset: { zoneId: 1 } });
+  await Driver.updateMany({ zoneId: zone._id }, { $unset: { zoneId: 1 } });
+  return res.status(200).json(formatResponse('Zone deleted successfully.'));
+});
+
+// Assign a set of areas to a zone (bulk). areaIds not listed keep their zone.
+const assignAreasToZone = asyncWrapper(async (req, res) => {
+  const zone = await Zone.findById(req.params.id);
+  if (!zone) throw new NotFoundError('Zone');
+  const { areaIds } = req.body;
+  if (!Array.isArray(areaIds)) throw new ValidationError('areaIds must be an array.');
+  await Area.updateMany({ _id: { $in: areaIds } }, { $set: { zoneId: zone._id } });
+  return res.status(200).json(formatResponse('Areas assigned to zone.', { zoneId: zone._id, assigned: areaIds.length }));
 });
 
 module.exports = {
@@ -1022,4 +1128,9 @@ module.exports = {
   createArea,
   updateArea,
   deleteArea,
+  getZones,
+  createZone,
+  updateZone,
+  deleteZone,
+  assignAreasToZone,
 };

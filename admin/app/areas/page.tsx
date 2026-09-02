@@ -2,21 +2,23 @@
 
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
-import { useAreas, useCreateArea, useUpdateArea, useDeleteArea } from '../../lib/hooks/useAdminQueries';
+import { useAreas, useCreateArea, useUpdateArea, useDeleteArea, useZones } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
 import { Plus, Pencil, Trash2, X, MapPin } from 'lucide-react';
 
 export default function AreasPage() {
   useAuthGuard();
   const { data, isLoading } = useAreas();
+  const { data: zonesData } = useZones();
   const createArea = useCreateArea();
   const updateArea = useUpdateArea();
   const deleteArea = useDeleteArea();
   const areas = data?.success ? (data.data || []) : [];
+  const zones = zonesData?.success ? (zonesData.data || []) : [];
 
   const [showModal, setShowModal] = useState(false);
   const [editingArea, setEditingArea] = useState<any>(null);
-  const [formData, setFormData] = useState({ name: '', lat: '', lng: '', radiusKm: '5' });
+  const [formData, setFormData] = useState({ name: '', lat: '', lng: '', radiusKm: '5', zoneId: '' });
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -28,7 +30,7 @@ export default function AreasPage() {
 
   const openCreate = () => {
     setEditingArea(null);
-    setFormData({ name: '', lat: '', lng: '', radiusKm: '5' });
+    setFormData({ name: '', lat: '', lng: '', radiusKm: '5', zoneId: '' });
     setShowModal(true);
   };
 
@@ -39,6 +41,7 @@ export default function AreasPage() {
       lat: area.center?.coordinates?.[1]?.toString() || '',
       lng: area.center?.coordinates?.[0]?.toString() || '',
       radiusKm: area.radiusKm?.toString() || '5',
+      zoneId: area.zoneId?._id || area.zoneId || '',
     });
     setShowModal(true);
   };
@@ -48,6 +51,7 @@ export default function AreasPage() {
       name: formData.name,
       center: { coordinates: [parseFloat(formData.lng), parseFloat(formData.lat)] },
       radiusKm: parseFloat(formData.radiusKm),
+      zoneId: formData.zoneId || null,
     };
     try {
       if (editingArea) {
@@ -87,20 +91,27 @@ export default function AreasPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                {['Name', 'Center (Lat, Lng)', 'Radius', 'Status', 'Actions'].map((h) => (
+                {['Name', 'Zone', 'Center (Lat, Lng)', 'Radius', 'Status', 'Actions'].map((h) => (
                   <th key={h} style={{ padding: '14px 18px', textAlign: 'left', fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
-                <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>Loading areas...</td></tr>
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>Loading areas...</td></tr>
               ) : areas.length === 0 ? (
-                <tr><td colSpan={5} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No service areas defined yet.</td></tr>
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center', color: 'var(--text-light)' }}>No service areas defined yet.</td></tr>
               ) : areas.map((area: any) => (
                 <tr key={area._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td style={{ padding: '12px 18px', fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={13} color="#10B981" /> {area.name}</span>
+                  </td>
+                  <td style={{ padding: '12px 18px', fontSize: '12px', color: 'var(--text-light)' }}>
+                    {area.zoneId?.name ? (
+                      <span className="badge" style={{ fontSize: '9px', padding: '2px 8px', background: 'rgba(59,130,246,0.1)', color: '#2563EB' }}>
+                        {area.zoneId.code ? `${area.zoneId.code} · ` : ''}{area.zoneId.name}
+                      </span>
+                    ) : <span style={{ color: 'var(--text-light)' }}>—</span>}
                   </td>
                   <td style={{ padding: '12px 18px', fontSize: '12px', color: 'var(--text-light)', fontFamily: 'monospace' }}>
                     {area.center?.coordinates?.[1]?.toFixed(4)}, {area.center?.coordinates?.[0]?.toFixed(4)}
@@ -151,6 +162,21 @@ export default function AreasPage() {
                   />
                 </div>
               ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="area-zone" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zone</label>
+                <select
+                  id="area-zone"
+                  className="form-input"
+                  value={formData.zoneId}
+                  onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
+                  style={{ fontSize: '12px', padding: '10px 12px' }}
+                >
+                  <option value="">No zone</option>
+                  {zones.map((z: any) => (
+                    <option key={z._id} value={z._id}>{z.code ? `${z.code} · ` : ''}{z.name}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="modal-footer" style={{ padding: '12px 20px' }}>
               <button onClick={() => setShowModal(false)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '11px', borderRadius: '8px' }}>Cancel</button>

@@ -18,6 +18,8 @@ const createDriver = Joi.object({
   licenseNumber: Joi.string().trim().max(50).required(),
   routeId: Joi.string().hex().length(24).optional().allow(null, ''),
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
+  zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
+  upiId: Joi.string().trim().max(120).optional().allow(null, ''),
 });
 
 const updateDriver = Joi.object({
@@ -29,6 +31,8 @@ const updateDriver = Joi.object({
   licenseNumber: Joi.string().trim().max(50).optional(),
   routeId: Joi.string().hex().length(24).optional().allow(null, ''),
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
+  zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
+  upiId: Joi.string().trim().max(120).optional().allow(null, ''),
   status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_APPROVAL').optional(),
 });
 
@@ -158,6 +162,7 @@ const createArea = Joi.object({
   }).required(),
   radiusKm: Joi.number().min(0.5).max(50).required(),
   status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+  zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
 });
 
 const updateArea = Joi.object({
@@ -166,6 +171,20 @@ const updateArea = Joi.object({
     coordinates: Joi.array().items(Joi.number()).length(2).required(),
   }).optional(),
   radiusKm: Joi.number().min(0.5).max(50).optional(),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+  zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
+});
+
+const createZone = Joi.object({
+  name: Joi.string().trim().min(1).max(100).required(),
+  code: Joi.string().trim().max(10).optional().allow(null, ''),
+  description: Joi.string().trim().max(300).optional().allow(''),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
+});
+
+const updateZone = Joi.object({
+  name: Joi.string().trim().min(1).max(100).optional(),
+  description: Joi.string().trim().max(300).optional().allow(''),
   status: Joi.string().valid('ACTIVE', 'INACTIVE').optional(),
 });
 
@@ -188,4 +207,6 @@ module.exports = {
   resolveOperationalException,
   createArea,
   updateArea,
+  createZone,
+  updateZone,
 };

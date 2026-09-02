@@ -21,6 +21,13 @@ const areaSchema = new mongoose.Schema(
       max: 50,
       default: 5,
     },
+    // The zone this area belongs to. Drivers are assigned per-zone, so a zone
+    // groups many areas for scalable dispatch. Optional for backward compat.
+    zoneId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Zone',
+      index: true,
+    },
     status: {
       type: String,
       enum: ['ACTIVE', 'INACTIVE'],

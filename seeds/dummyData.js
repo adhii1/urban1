@@ -7,6 +7,7 @@ const Route = require('../models/Route');
 const Admin = require('../models/Admin');
 const Plan = require('../models/Plan');
 const Area = require('../models/Area');
+const Zone = require('../models/Zone');
 const bcrypt = require('bcryptjs');
 
 const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/urban-commute';
@@ -16,7 +17,7 @@ async function seed() {
   console.log('Connected to MongoDB');
 
   // Clear existing data
-  const collections = ['users', 'drivers', 'customers', 'routes', 'admins', 'plans', 'areas', 'riderequests', 'notifications', 'subscriptions', 'trips'];
+  const collections = ['users', 'drivers', 'customers', 'routes', 'admins', 'plans', 'areas', 'zones', 'riderequests', 'notifications', 'subscriptions', 'trips'];
   for (const col of collections) {
     try {
       await mongoose.connection.db.dropCollection(col);
@@ -43,14 +44,44 @@ async function seed() {
   });
   console.log('Created 1 admin  → phone: 9000000001 / password: password123');
 
-  // --- 1 Service Area ---
+  // --- 2 Zones (grouping layer above areas) ---
+  const zoneSouth = await Zone.create({
+    code: 'Z1',
+    name: 'South Bengaluru',
+    description: 'HSR, BTM, Koramangala corridor',
+    status: 'ACTIVE',
+  });
+  const zoneEast = await Zone.create({
+    code: 'Z2',
+    name: 'East Bengaluru',
+    description: 'Whitefield, Marathahalli corridor',
+    status: 'ACTIVE',
+  });
+  console.log('Created 2 zones  → Z1 South Bengaluru, Z2 East Bengaluru');
+
+  // --- Service Areas (grouped under zones) ---
   const area = await Area.create({
     name: 'HSR Layout',
     center: { type: 'Point', coordinates: [77.6501, 12.9141] },
     radiusKm: 5,
     status: 'ACTIVE',
+    zoneId: zoneSouth._id,
   });
-  console.log('Created 1 area   → HSR Layout (5 km radius)');
+  await Area.create({
+    name: 'BTM Layout',
+    center: { type: 'Point', coordinates: [77.6101, 12.9166] },
+    radiusKm: 5,
+    status: 'ACTIVE',
+    zoneId: zoneSouth._id,
+  });
+  await Area.create({
+    name: 'Whitefield',
+    center: { type: 'Point', coordinates: [77.7499, 12.9698] },
+    radiusKm: 6,
+    status: 'ACTIVE',
+    zoneId: zoneEast._id,
+  });
+  console.log('Created 3 areas  → HSR + BTM (Z1), Whitefield (Z2)');
 
   // --- 1 Route ---
   const route = await Route.create({
@@ -76,6 +107,7 @@ async function seed() {
   });
   await Driver.create({
     userId: driverUser._id,
+    driverCode: 'DRV-0001',
     name: 'Raju Kumar',
     vehicleNumber: 'KA51AB1234',
     vehicleModel: 'Maruti Swift',
@@ -83,12 +115,14 @@ async function seed() {
     licenseNumber: 'KA2020123456',
     routeId: route._id,
     areaId: area._id,
+    zoneId: zoneSouth._id,
+    upiId: 'raju@okhdfcbank',
     status: 'ACTIVE',
     currentLocation: { type: 'Point', coordinates: [77.6350, 12.9200] },
     isOnline: false,
     isAvailable: false,
   });
-  console.log('Created 1 driver → phone: 9000000002 / password: password123 (Raju Kumar)');
+  console.log('Created 1 driver → DRV-0001 Raju Kumar (Zone Z1) / 9000000002 / password123');
 
   // --- 1 Customer ---
   const customerUser = await User.create({

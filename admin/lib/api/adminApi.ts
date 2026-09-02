@@ -174,6 +174,17 @@ export const adminApi = {
   deleteArea: (id: string) =>
     apiFetch(`/admin/areas/${id}`, { method: 'DELETE' }),
 
+  // Zones
+  getZones: () => apiFetch('/admin/zones'),
+  createZone: (data: any) =>
+    apiFetch('/admin/zones', { method: 'POST', body: JSON.stringify(data) }),
+  updateZone: (id: string, data: any) =>
+    apiFetch(`/admin/zones/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteZone: (id: string) =>
+    apiFetch(`/admin/zones/${id}`, { method: 'DELETE' }),
+  assignAreasToZone: (id: string, areaIds: string[]) =>
+    apiFetch(`/admin/zones/${id}/assign-areas`, { method: 'POST', body: JSON.stringify({ areaIds }) }),
+
   // Live Rides (REST)
   getRides: (status?: string) =>
     apiFetch(`/admin/rides${status ? `?status=${status}` : ''}`),
