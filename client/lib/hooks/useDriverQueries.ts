@@ -18,7 +18,8 @@ export interface DriverProfile {
   vehicleCapacity: number;
   licenseNumber: string;
   upiId?: string;
-  bankDetails?: { accountHolderName?: string; accountNumber?: string; ifsc?: string } | null;
+  bankDetails?: { accountHolderName?: string; accountNumber?: string; ifsc?: string; bankName?: string; proofUrl?: string } | null;
+  owner?: { name?: string; phone?: string } | null;
   route: any;
   status: string;
 }

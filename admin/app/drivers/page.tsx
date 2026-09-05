@@ -4,9 +4,25 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
 import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver, useAreas, useZones } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
-import { Search, Plus, Pencil, Trash2, X, Download } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Download, UploadCloud } from 'lucide-react';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+// --- Shared styles for the driver form ---
+const sectionHeading: React.CSSProperties = { fontSize: '11px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.6px', marginBottom: '14px' };
+const twoCol: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '14px' };
+const fieldLabel: React.CSSProperties = { fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' };
+const inputStyle: React.CSSProperties = { fontSize: '12px', padding: '10px 12px' };
+
+// Reusable labelled text input.
+function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      <label style={fieldLabel}>{label}</label>
+      <input type={type} className="form-input" placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+    </div>
+  );
+}
 
 export default function DriversPage() {
   useAuthGuard();
@@ -32,16 +48,35 @@ export default function DriversPage() {
   }, [showModal]);
 
   const [editingDriver, setEditingDriver] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '',
-    accountHolderName: '', accountNumber: '', ifsc: '',
-  });
+  const emptyForm = {
+    // Owner
+    ownerName: '', ownerPhone: '',
+    accountNumber: '', ifsc: '', accountHolderName: '', bankName: '', proofUrl: '',
+    // Driver
+    name: '', phone: '', password: '', vehicleModel: '', vehicleNumber: '', vehicleCapacity: '', licenseNumber: '',
+    zoneId: '', areaId: '', upiId: '',
+  };
+  const [formData, setFormData] = useState(emptyForm);
 
   const filtered = drivers.filter((d: any) =>
     (d.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (d.userId?.phone || '').includes(searchTerm) ||
     (d.vehicleNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const [proofFileName, setProofFileName] = useState('');
+  const handleProofUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { alert('File must be under 5 MB'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setProofFileName(file.name);
+      // Store as a data URL so it persists without a separate upload endpoint.
+      setFormData((prev) => ({ ...prev, proofUrl: String(reader.result || '') }));
+    };
+    reader.readAsDataURL(file);
+  };
 
   const [exporting, setExporting] = useState(false);
   const handleExport = async () => {
@@ -68,64 +103,75 @@ export default function DriversPage() {
 
   const openCreate = () => {
     setEditingDriver(null);
-    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '', accountHolderName: '', accountNumber: '', ifsc: '' });
+    setFormData(emptyForm);
+    setProofFileName('');
     setShowModal(true);
   };
 
   const openEdit = (driver: any) => {
     setEditingDriver(driver);
+    setProofFileName(driver.bankDetails?.proofUrl ? 'Existing proof on file' : '');
     setFormData({
+      ownerName: driver.owner?.name || '',
+      ownerPhone: driver.owner?.phone || '',
+      accountNumber: driver.bankDetails?.accountNumber || '',
+      ifsc: driver.bankDetails?.ifsc || '',
+      accountHolderName: driver.bankDetails?.accountHolderName || '',
+      bankName: driver.bankDetails?.bankName || '',
+      proofUrl: driver.bankDetails?.proofUrl || '',
       name: driver.name || '',
       phone: driver.userId?.phone || '',
       password: '',
-      vehicleNumber: driver.vehicleNumber || '',
       vehicleModel: driver.vehicleModel || '',
+      vehicleNumber: driver.vehicleNumber || '',
       vehicleCapacity: driver.vehicleCapacity?.toString() || '',
       licenseNumber: driver.licenseNumber || '',
-      areaId: driver.areaId?._id || driver.areaId || '',
       zoneId: driver.zoneId?._id || driver.zoneId || '',
+      areaId: driver.areaId?._id || driver.areaId || '',
       upiId: driver.upiId || '',
-      accountHolderName: driver.bankDetails?.accountHolderName || '',
-      accountNumber: driver.bankDetails?.accountNumber || '',
-      ifsc: driver.bankDetails?.ifsc || '',
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
     try {
+      const owner = { name: formData.ownerName || '', phone: formData.ownerPhone || '' };
       const bankDetails = {
         accountHolderName: formData.accountHolderName || '',
         accountNumber: formData.accountNumber || '',
         ifsc: formData.ifsc || '',
+        bankName: formData.bankName || '',
+        proofUrl: formData.proofUrl || '',
       };
+      const core = {
+        name: formData.name,
+        vehicleModel: formData.vehicleModel,
+        vehicleNumber: formData.vehicleNumber,
+        vehicleCapacity: Number(formData.vehicleCapacity) || 4,
+        licenseNumber: formData.licenseNumber,
+        upiId: formData.upiId || '',
+        owner,
+        bankDetails,
+      };
+
       if (editingDriver) {
-        const { phone, password, accountHolderName, accountNumber, ifsc, ...updateData } = formData;
         const payload: any = {
-          ...updateData,
-          vehicleCapacity: Number(updateData.vehicleCapacity) || 4,
-          areaId: updateData.areaId || null,
-          zoneId: updateData.zoneId || null,
-          upiId: updateData.upiId || '',
-          bankDetails,
+          ...core,
+          areaId: formData.areaId || null,
+          zoneId: formData.zoneId || null,
         };
-        if (password && password.trim().length > 0) {
-          payload.password = password.trim();
+        if (formData.password && formData.password.trim().length > 0) {
+          payload.password = formData.password.trim();
         }
         await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: payload });
       } else {
-        const { accountHolderName, accountNumber, ifsc, ...rest } = formData;
         const payload: any = {
-          ...rest,
-          vehicleCapacity: Number(formData.vehicleCapacity) || 4,
-          areaId: formData.areaId || undefined,
-          zoneId: formData.zoneId || undefined,
-          upiId: formData.upiId || undefined,
-          bankDetails,
+          ...core,
+          phone: formData.phone,
+          password: formData.password,
         };
-        if (!payload.areaId) delete payload.areaId;
-        if (!payload.zoneId) delete payload.zoneId;
-        if (!payload.upiId) delete payload.upiId;
+        if (formData.areaId) payload.areaId = formData.areaId;
+        if (formData.zoneId) payload.zoneId = formData.zoneId;
         await createDriver.mutateAsync(payload);
       }
       setShowModal(false);
@@ -235,114 +281,91 @@ export default function DriversPage() {
           aria-labelledby="driver-modal-title"
           onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
         >
-          <div className="modal-card" style={{ maxWidth: '450px' }}>
-            <div className="modal-header" style={{ padding: '16px 20px' }}>
-              <h3 id="driver-modal-title" style={{ fontSize: '15px', fontWeight: 800 }}>{editingDriver ? 'Edit Driver Profile' : 'Register New Driver'}</h3>
-              <button onClick={() => setShowModal(false)} aria-label="Close modal" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: 0 }}><X size={18} /></button>
+          <div className="modal-card" style={{ maxWidth: '640px', width: '100%' }}>
+            <div className="modal-header" style={{ padding: '18px 24px' }}>
+              <h3 id="driver-modal-title" style={{ fontSize: '18px', fontWeight: 800 }}>{editingDriver ? 'Edit Driver Profile' : 'Register New Driver'}</h3>
+              <button onClick={() => setShowModal(false)} aria-label="Close modal" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-light)', padding: 0 }}><X size={20} /></button>
             </div>
-            <div className="modal-body custom-scrollbar" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="field-name" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</label>
-                <input id="field-name" type="text" className="form-input" placeholder="Driver full name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-              </div>
+            <div className="modal-body custom-scrollbar" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-              {!editingDriver ? (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="field-phone" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone (username)</label>
-                    <input id="field-phone" type="tel" className="form-input" placeholder="e.g. 9876543210" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="field-password" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Password</label>
-                    <input id="field-password" type="password" className="form-input" placeholder="Min 6 characters" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-                  </div>
-                </>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="field-password" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Reset Password (Optional)</label>
-                  <input id="field-password" type="password" className="form-input" placeholder="Leave empty to keep existing password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+              {/* ===== OWNER DETAILS ===== */}
+              <section>
+                <p style={sectionHeading}>Owner Details</p>
+                <div style={twoCol}>
+                  <Field label="Owner Name" placeholder="e.g. Ramesh Kumar" value={formData.ownerName} onChange={(v) => setFormData({ ...formData, ownerName: v })} />
+                  <Field label="Owner Phone Number" placeholder="e.g. 9876543210" type="tel" value={formData.ownerPhone} onChange={(v) => setFormData({ ...formData, ownerPhone: v })} />
+                  <Field label="Bank Account Number" placeholder="e.g. 123456789012" value={formData.accountNumber} onChange={(v) => setFormData({ ...formData, accountNumber: v })} />
+                  <Field label="IFSC Code" placeholder="e.g. HDFC0001234" value={formData.ifsc} onChange={(v) => setFormData({ ...formData, ifsc: v.toUpperCase() })} />
+                  <Field label="Bank Account Holder Name" placeholder="e.g. Ramesh Kumar" value={formData.accountHolderName} onChange={(v) => setFormData({ ...formData, accountHolderName: v })} />
+                  <Field label="Bank Name" placeholder="e.g. HDFC Bank" value={formData.bankName} onChange={(v) => setFormData({ ...formData, bankName: v })} />
                 </div>
-              )}
 
-              {[
-                { key: 'vehicleNumber', label: 'Vehicle Number', placeholder: 'e.g. KA51MB4321', type: 'text' },
-                { key: 'vehicleModel', label: 'Vehicle Model', placeholder: 'e.g. Tata Nexon EV', type: 'text' },
-                { key: 'vehicleCapacity', label: 'Capacity', placeholder: 'e.g. 4', type: 'number' },
-                { key: 'licenseNumber', label: 'License Number', placeholder: 'Driving license ID', type: 'text' },
-              ].map((field) => (
-                <div key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor={`field-${field.key}`} style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{field.label}</label>
-                  <input
-                    id={`field-${field.key}`}
-                    type={field.type}
-                    className="form-input"
-                    placeholder={field.placeholder}
-                    value={(formData as any)[field.key]}
-                    onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                    style={{ fontSize: '12px', padding: '10px 12px' }}
-                  />
+                {/* Bank account proof upload */}
+                <div style={{ marginTop: '14px' }}>
+                  <label style={fieldLabel}>Bank Account Proof (Optional)</label>
+                  <label htmlFor="field-proof" style={{
+                    marginTop: '6px', display: 'flex', alignItems: 'center', gap: '14px', padding: '16px',
+                    border: '1px dashed var(--border-color)', borderRadius: '10px', cursor: 'pointer',
+                  }}>
+                    <UploadCloud size={22} color="var(--text-light)" />
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)' }}>
+                        {proofFileName || 'Upload bank statement / passbook / cheque'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-light)', marginTop: '2px' }}>PNG, JPG or PDF (Max 5 MB)</div>
+                    </div>
+                    <input id="field-proof" type="file" accept=".png,.jpg,.jpeg,.pdf" style={{ display: 'none' }} onChange={handleProofUpload} />
+                  </label>
                 </div>
-              ))}
+              </section>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="field-zoneId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Zone (primary dispatch grouping)</label>
-                <select
-                  id="field-zoneId"
-                  className="form-input"
-                  value={formData.zoneId}
-                  onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })}
-                  style={{ fontSize: '12px', padding: '10px 12px' }}
-                >
-                  <option value="">No zone</option>
-                  {zones.map((z: any) => (
-                    <option key={z._id} value={z._id}>{z.code ? `${z.code} · ` : ''}{z.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="field-areaId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Service Area (optional pin within zone)</label>
-                <select
-                  id="field-areaId"
-                  className="form-input"
-                  value={formData.areaId}
-                  onChange={(e) => setFormData({ ...formData, areaId: e.target.value })}
-                  style={{ fontSize: '12px', padding: '10px 12px' }}
-                >
-                  <option value="">No specific area</option>
-                  {areas.map((area: any) => (
-                    <option key={area._id} value={area._id}>{area.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="field-upiId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>UPI ID (for payouts)</label>
-                <input id="field-upiId" type="text" className="form-input" placeholder="e.g. ravi@okhdfcbank" value={formData.upiId} onChange={(e) => setFormData({ ...formData, upiId: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-              </div>
-
-              {/* Bank details for payouts */}
-              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '2px' }}>
-                <p style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Bank Details (payouts)</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="field-accountHolderName" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Holder Name</label>
-                    <input id="field-accountHolderName" type="text" className="form-input" placeholder="e.g. Ravi Kumar" value={formData.accountHolderName} onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="field-accountNumber" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Number</label>
-                    <input id="field-accountNumber" type="text" className="form-input" placeholder="e.g. 123456789012" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label htmlFor="field-ifsc" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>IFSC Code</label>
-                    <input id="field-ifsc" type="text" className="form-input" placeholder="e.g. HDFC0001234" value={formData.ifsc} onChange={(e) => setFormData({ ...formData, ifsc: e.target.value.toUpperCase() })} style={{ fontSize: '12px', padding: '10px 12px' }} />
-                  </div>
+              {/* ===== DRIVER DETAILS ===== */}
+              <section>
+                <p style={sectionHeading}>Driver Details</p>
+                <div style={twoCol}>
+                  <Field label="Driver Name" placeholder="e.g. Suresh" value={formData.name} onChange={(v) => setFormData({ ...formData, name: v })} />
+                  {!editingDriver ? (
+                    <Field label="Driver Phone Number" placeholder="e.g. 9876543210" type="tel" value={formData.phone} onChange={(v) => setFormData({ ...formData, phone: v })} />
+                  ) : (
+                    <Field label="Reset Password (Optional)" placeholder="Leave blank to keep" type="password" value={formData.password} onChange={(v) => setFormData({ ...formData, password: v })} />
+                  )}
                 </div>
-              </div>
+
+                {!editingDriver && (
+                  <div style={{ marginTop: '14px' }}>
+                    <Field label="Password" placeholder="Min 6 characters" type="password" value={formData.password} onChange={(v) => setFormData({ ...formData, password: v })} />
+                  </div>
+                )}
+
+                <div style={{ marginTop: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <Field label="Vehicle Model" placeholder="e.g. Tata Nexon EV" value={formData.vehicleModel} onChange={(v) => setFormData({ ...formData, vehicleModel: v })} />
+                  <Field label="Vehicle Number" placeholder="e.g. KA51MB4321" value={formData.vehicleNumber} onChange={(v) => setFormData({ ...formData, vehicleNumber: v.toUpperCase() })} />
+                  <Field label="Capacity" placeholder="e.g. 4" type="number" value={formData.vehicleCapacity} onChange={(v) => setFormData({ ...formData, vehicleCapacity: v })} />
+                  <Field label="License Number" placeholder="Driving license ID" value={formData.licenseNumber} onChange={(v) => setFormData({ ...formData, licenseNumber: v })} />
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={fieldLabel}>Zone (Primary Dispatch Grouping)</label>
+                    <select className="form-input" value={formData.zoneId} onChange={(e) => setFormData({ ...formData, zoneId: e.target.value })} style={inputStyle}>
+                      <option value="">No zone</option>
+                      {zones.map((z: any) => (<option key={z._id} value={z._id}>{z.code ? `${z.code} · ` : ''}{z.name}</option>))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={fieldLabel}>Service Area (Optional Pin Within Zone)</label>
+                    <select className="form-input" value={formData.areaId} onChange={(e) => setFormData({ ...formData, areaId: e.target.value })} style={inputStyle}>
+                      <option value="">No specific area</option>
+                      {areas.map((area: any) => (<option key={area._id} value={area._id}>{area.name}</option>))}
+                    </select>
+                  </div>
+
+                  <Field label="UPI ID (For Payouts)" placeholder="e.g. ravi@okhdfcbank" value={formData.upiId} onChange={(v) => setFormData({ ...formData, upiId: v })} />
+                </div>
+              </section>
             </div>
-            <div className="modal-footer" style={{ padding: '12px 20px' }}>
-              <button onClick={() => setShowModal(false)} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '11px', borderRadius: '8px' }}>Cancel</button>
-              <button onClick={handleSave} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '11px', borderRadius: '8px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}>
+            <div className="modal-footer" style={{ padding: '14px 24px' }}>
+              <button onClick={() => setShowModal(false)} className="btn btn-secondary" style={{ padding: '10px 20px', fontSize: '12px', borderRadius: '8px' }}>Cancel</button>
+              <button onClick={handleSave} className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '12px', borderRadius: '8px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}>
                 {editingDriver ? 'Update' : 'Create'}
               </button>
             </div>

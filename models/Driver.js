@@ -25,17 +25,25 @@ const driverSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    // Vehicle/account owner — often distinct from the person who drives.
+    // Payouts settle to the owner's bank account.
+    owner: {
+      name: { type: String, trim: true },
+      phone: { type: String, trim: true },
+    },
     // UPI ID for driver payouts, e.g. "ravi@okhdfcbank". Shown to admin and
     // (masked/partial) surfaced where payment context is relevant.
     upiId: {
       type: String,
       trim: true,
     },
-    // Bank account details for driver payouts (settlement fallback to UPI).
+    // Bank account details for owner/driver payouts (settlement fallback to UPI).
     bankDetails: {
       accountHolderName: { type: String, trim: true },
       accountNumber: { type: String, trim: true },
       ifsc: { type: String, trim: true, uppercase: true },
+      bankName: { type: String, trim: true },
+      proofUrl: { type: String, trim: true }, // uploaded passbook/cheque/statement
     },
     vehicleNumber: {
       type: String,

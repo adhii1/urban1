@@ -89,9 +89,12 @@ const exportDrivers = asyncWrapper(async (req, res) => {
     vehicleCapacity: (d) => (d.vehicleCapacity != null ? d.vehicleCapacity : ''),
     licenseNumber: (d) => d.licenseNumber || '',
     upiId: (d) => d.upiId || '',
+    ownerName: (d) => d.owner?.name || '',
+    ownerPhone: (d) => d.owner?.phone || '',
     accountHolderName: (d) => d.bankDetails?.accountHolderName || '',
     accountNumber: (d) => d.bankDetails?.accountNumber || '',
     ifsc: (d) => d.bankDetails?.ifsc || '',
+    bankName: (d) => d.bankDetails?.bankName || '',
     averageRating: (d) => (d.averageRating != null ? d.averageRating : ''),
     activeSubscriptions: (d) => (d.activeSubscriptionCount != null ? d.activeSubscriptionCount : 0),
     createdAt: (d) => (d.createdAt ? new Date(d.createdAt).toISOString() : ''),
@@ -144,7 +147,7 @@ async function nextDriverCode() {
 }
 
 const createDriver = asyncWrapper(async (req, res) => {
-  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, bankDetails } = req.body;
+  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, owner, bankDetails } = req.body;
 
   if (!password) throw new ValidationError('Password is required');
 
@@ -166,10 +169,16 @@ const createDriver = asyncWrapper(async (req, res) => {
     areaId: areaId || undefined,
     zoneId: zoneId || undefined,
     upiId: upiId || undefined,
+    owner: owner ? {
+      name: owner.name || undefined,
+      phone: owner.phone || undefined,
+    } : undefined,
     bankDetails: bankDetails ? {
       accountHolderName: bankDetails.accountHolderName || undefined,
       accountNumber: bankDetails.accountNumber || undefined,
       ifsc: bankDetails.ifsc || undefined,
+      bankName: bankDetails.bankName || undefined,
+      proofUrl: bankDetails.proofUrl || undefined,
     } : undefined,
   });
 
@@ -177,7 +186,7 @@ const createDriver = asyncWrapper(async (req, res) => {
 });
 
 const updateDriver = asyncWrapper(async (req, res) => {
-  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, bankDetails, status, password } = req.body;
+  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, owner, bankDetails, status, password } = req.body;
   const driver = await Driver.findById(req.params.id);
   if (!driver) throw new NotFoundError('Driver');
 
@@ -190,11 +199,19 @@ const updateDriver = asyncWrapper(async (req, res) => {
   if (areaId !== undefined) driver.areaId = areaId || null;
   if (zoneId !== undefined) driver.zoneId = zoneId || null;
   if (upiId !== undefined) driver.upiId = upiId;
+  if (owner !== undefined) {
+    driver.owner = {
+      name: owner?.name || undefined,
+      phone: owner?.phone || undefined,
+    };
+  }
   if (bankDetails !== undefined) {
     driver.bankDetails = {
       accountHolderName: bankDetails?.accountHolderName || undefined,
       accountNumber: bankDetails?.accountNumber || undefined,
       ifsc: bankDetails?.ifsc || undefined,
+      bankName: bankDetails?.bankName || undefined,
+      proofUrl: bankDetails?.proofUrl || undefined,
     };
   }
   if (status !== undefined) driver.status = status;

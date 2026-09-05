@@ -143,6 +143,13 @@ export default function DriverProfilePage() {
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF', fontFamily: 'monospace' }}>{p?.bankDetails?.ifsc || '---'}</div>
           </div>
         </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Landmark size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>Bank Name</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{p?.bankDetails?.bankName || '---'}</div>
+          </div>
+        </div>
       </div>
 
       <button onClick={handleLogout} style={{

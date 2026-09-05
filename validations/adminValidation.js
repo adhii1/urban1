@@ -12,6 +12,13 @@ const bankDetails = Joi.object({
   accountHolderName: Joi.string().trim().max(120).optional().allow(null, ''),
   accountNumber: Joi.string().trim().max(30).optional().allow(null, ''),
   ifsc: Joi.string().trim().max(15).optional().allow(null, ''),
+  bankName: Joi.string().trim().max(120).optional().allow(null, ''),
+  proofUrl: Joi.string().trim().max(500).optional().allow(null, ''),
+}).optional();
+
+const owner = Joi.object({
+  name: Joi.string().trim().max(120).optional().allow(null, ''),
+  phone: Joi.string().trim().max(15).optional().allow(null, ''),
 }).optional();
 
 const createDriver = Joi.object({
@@ -26,6 +33,7 @@ const createDriver = Joi.object({
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
   upiId: Joi.string().trim().max(120).optional().allow(null, ''),
+  owner,
   bankDetails,
 });
 
@@ -40,6 +48,7 @@ const updateDriver = Joi.object({
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
   upiId: Joi.string().trim().max(120).optional().allow(null, ''),
+  owner,
   bankDetails,
   status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_APPROVAL').optional(),
 });
