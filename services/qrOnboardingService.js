@@ -27,16 +27,21 @@ const QR_TTL_SECONDS = 60 * 60 * 12; // valid for the service day (12h)
  * Build a signed boarding token for a customer + trip. Encoded as a JWT so the
  * driver's scan can be verified offline-of-DB (signature) then confirmed in DB.
  */
+const BOARDING_AUDIENCE = 'torqq:boarding';
+
 function signBoardingToken({ tripId, customerId, subscriptionId }) {
   return jwt.sign(
     { t: 'BOARDING', tripId: String(tripId), customerId: String(customerId), subscriptionId: subscriptionId ? String(subscriptionId) : undefined },
     config.jwt.secret,
-    { expiresIn: QR_TTL_SECONDS }
+    { expiresIn: QR_TTL_SECONDS, audience: BOARDING_AUDIENCE }
   );
 }
 
 function verifyBoardingToken(token) {
-  const decoded = jwt.verify(token, config.jwt.secret);
+  // Enforce the boarding audience so a boarding token can never be accepted
+  // anywhere an access token is expected, and vice-versa — even though they
+  // share a signing secret. The `t` claim is a second, redundant guard.
+  const decoded = jwt.verify(token, config.jwt.secret, { audience: BOARDING_AUDIENCE });
   if (decoded.t !== 'BOARDING') throw new Error('Not a boarding token');
   return decoded;
 }

@@ -103,10 +103,17 @@ const exportDrivers = asyncWrapper(async (req, res) => {
   const requested = (req.query.fields || '').split(',').map((f) => f.trim()).filter(Boolean);
   const fields = requested.length ? requested.filter((f) => COLUMNS[f]) : Object.keys(COLUMNS);
 
-  // Escape a value for CSV (RFC 4180): wrap in quotes, double internal quotes.
+  // Escape a value for CSV. Two layers:
+  //  1. Formula-injection guard: a cell that begins with = + - @ (or tab/CR)
+  //     is executed as a formula by Excel/Sheets. Prefix such values with a
+  //     single quote so they render as literal text. Driver/owner/bank names
+  //     are free text, so this is required, not optional.
+  //  2. RFC-4180 quoting: wrap in quotes and double internal quotes when the
+  //     value contains a quote, comma, or newline.
   const esc = (v) => {
-    const s = String(v ?? '');
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    let s = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
 
   const header = fields.join(',');

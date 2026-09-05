@@ -269,6 +269,23 @@ class AuthService {
       };
     } else if (role === 'Driver') {
       const driver = await Driver.findOne({ userId });
+      // Self-view masks the bank account number (last 4 only). The full number
+      // is sensitive and is only returned on admin surfaces (admin driver CRUD
+      // / export). This is defense-in-depth: the driver never needs to read
+      // their whole account number back from the API.
+      const maskAccount = (n) => {
+        if (!n) return n || null;
+        const s = String(n);
+        return s.length <= 4 ? s : `••••${s.slice(-4)}`;
+      };
+      const bd = driver && driver.bankDetails ? driver.bankDetails : null;
+      const maskedBank = bd ? {
+        accountHolderName: bd.accountHolderName,
+        accountNumber: maskAccount(bd.accountNumber),
+        ifsc: bd.ifsc,
+        bankName: bd.bankName,
+        // proofUrl deliberately omitted from self-view.
+      } : null;
       details = {
         name: driver ? driver.name : '',
         driverCode: driver ? driver.driverCode : null,
@@ -278,7 +295,7 @@ class AuthService {
         licenseNumber: driver ? driver.licenseNumber : null,
         upiId: driver ? driver.upiId : null,
         owner: driver ? driver.owner : null,
-        bankDetails: driver ? driver.bankDetails : null,
+        bankDetails: maskedBank,
         zoneId: driver ? driver.zoneId : null,
         areaId: driver ? driver.areaId : null,
         routeId: driver ? driver.routeId : null,
