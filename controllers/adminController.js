@@ -64,6 +64,59 @@ const getDrivers = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Drivers listed successfully.', drivers));
 });
 
+/**
+ * GET /api/v1/admin/drivers/export
+ * Export driver records as CSV (opens directly in Excel/Sheets).
+ * Optional `?fields=driverCode,name,phone,...` picks & orders columns.
+ */
+const exportDrivers = asyncWrapper(async (req, res) => {
+  const drivers = await Driver.find()
+    .populate('userId', 'phone status')
+    .populate('areaId', 'name')
+    .populate('zoneId', 'name code')
+    .lean();
+
+  // All available columns → value extractor.
+  const COLUMNS = {
+    driverCode: (d) => d.driverCode || '',
+    name: (d) => d.name || '',
+    phone: (d) => d.userId?.phone || '',
+    status: (d) => d.status || '',
+    zone: (d) => (d.zoneId ? `${d.zoneId.code ? d.zoneId.code + ' ' : ''}${d.zoneId.name || ''}`.trim() : ''),
+    area: (d) => d.areaId?.name || '',
+    vehicleNumber: (d) => d.vehicleNumber || '',
+    vehicleModel: (d) => d.vehicleModel || '',
+    vehicleCapacity: (d) => (d.vehicleCapacity != null ? d.vehicleCapacity : ''),
+    licenseNumber: (d) => d.licenseNumber || '',
+    upiId: (d) => d.upiId || '',
+    accountHolderName: (d) => d.bankDetails?.accountHolderName || '',
+    accountNumber: (d) => d.bankDetails?.accountNumber || '',
+    ifsc: (d) => d.bankDetails?.ifsc || '',
+    averageRating: (d) => (d.averageRating != null ? d.averageRating : ''),
+    activeSubscriptions: (d) => (d.activeSubscriptionCount != null ? d.activeSubscriptionCount : 0),
+    createdAt: (d) => (d.createdAt ? new Date(d.createdAt).toISOString() : ''),
+  };
+
+  const requested = (req.query.fields || '').split(',').map((f) => f.trim()).filter(Boolean);
+  const fields = requested.length ? requested.filter((f) => COLUMNS[f]) : Object.keys(COLUMNS);
+
+  // Escape a value for CSV (RFC 4180): wrap in quotes, double internal quotes.
+  const esc = (v) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const header = fields.join(',');
+  const rows = drivers.map((d) => fields.map((f) => esc(COLUMNS[f](d))).join(','));
+  // BOM so Excel opens UTF-8 correctly.
+  const csv = '\uFEFF' + [header, ...rows].join('\r\n');
+
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="drivers-${stamp}.csv"`);
+  return res.status(200).send(csv);
+});
+
 const getDriverById = asyncWrapper(async (req, res) => {
   const driver = await Driver.findById(req.params.id)
     .populate('routeId')
@@ -91,7 +144,7 @@ async function nextDriverCode() {
 }
 
 const createDriver = asyncWrapper(async (req, res) => {
-  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId } = req.body;
+  const { phone, password, name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, bankDetails } = req.body;
 
   if (!password) throw new ValidationError('Password is required');
 
@@ -113,13 +166,18 @@ const createDriver = asyncWrapper(async (req, res) => {
     areaId: areaId || undefined,
     zoneId: zoneId || undefined,
     upiId: upiId || undefined,
+    bankDetails: bankDetails ? {
+      accountHolderName: bankDetails.accountHolderName || undefined,
+      accountNumber: bankDetails.accountNumber || undefined,
+      ifsc: bankDetails.ifsc || undefined,
+    } : undefined,
   });
 
   return res.status(201).json(formatResponse('Driver created successfully.', driver));
 });
 
 const updateDriver = asyncWrapper(async (req, res) => {
-  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, status, password } = req.body;
+  const { name, vehicleNumber, vehicleModel, vehicleCapacity, licenseNumber, routeId, areaId, zoneId, upiId, bankDetails, status, password } = req.body;
   const driver = await Driver.findById(req.params.id);
   if (!driver) throw new NotFoundError('Driver');
 
@@ -132,6 +190,13 @@ const updateDriver = asyncWrapper(async (req, res) => {
   if (areaId !== undefined) driver.areaId = areaId || null;
   if (zoneId !== undefined) driver.zoneId = zoneId || null;
   if (upiId !== undefined) driver.upiId = upiId;
+  if (bankDetails !== undefined) {
+    driver.bankDetails = {
+      accountHolderName: bankDetails?.accountHolderName || undefined,
+      accountNumber: bankDetails?.accountNumber || undefined,
+      ifsc: bankDetails?.ifsc || undefined,
+    };
+  }
   if (status !== undefined) driver.status = status;
 
   // Backfill a driver code for legacy drivers that predate this field.
@@ -1085,6 +1150,7 @@ module.exports = {
   getAnalytics,
   getDashboard,
   getDrivers,
+  exportDrivers,
   getDriverById,
   createDriver,
   updateDriver,

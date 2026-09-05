@@ -160,4 +160,13 @@ router.post('/trips/:id/reject', async (req, res) => {
   res.json({ success: true, message: result.reassigned ? 'Trip reassigned to another driver' : 'Trip rejected. Admin notified.', data: result });
 });
 
+// QR onboarding — driver scans a passenger's boarding QR to board them.
+const { boardByScan } = require('../../services/qrOnboardingService');
+router.post('/board/scan', async (req, res) => {
+  const { token } = req.body;
+  const result = await boardByScan(req.user.id, token);
+  if (!result.success) return res.status(400).json({ success: false, message: result.reason });
+  res.json({ success: true, message: result.alreadyBoarded ? 'Passenger already boarded' : 'Passenger boarded', data: result });
+});
+
 module.exports = router;

@@ -76,6 +76,14 @@ router.get('/booking', authenticate, authorize('Customer'), bookingController.ge
 router.post('/booking/cancel', authenticate, authorize('Customer'), bookingController.cancelBooking);
 router.put('/booking/location', authenticate, authorize('Customer'), bookingController.updateLocation);
 
+// QR onboarding — customer fetches their signed boarding token (rendered as a QR).
+const { getBoardingQrForCustomer } = require('../../services/qrOnboardingService');
+router.get('/booking/boarding-qr', authenticate, authorize('Customer'), async (req, res) => {
+  const result = await getBoardingQrForCustomer(req.user.id);
+  if (!result.success) return res.status(404).json({ success: false, message: result.reason });
+  res.json({ success: true, data: result });
+});
+
 // Wallet
 router.get('/wallet', authenticate, authorize('Customer'), bookingController.getWallet);
 router.post('/wallet/add', authenticate, authorize('Customer'), bookingController.addToWallet);

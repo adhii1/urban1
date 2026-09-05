@@ -4,7 +4,9 @@ import DashboardLayout from '../../components/DashboardLayout';
 import { useAuthGuard } from '../../lib/hooks/useAuthGuard';
 import { useDrivers, useCreateDriver, useUpdateDriver, useDeleteDriver, useAreas, useZones } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
-import { Search, Plus, Pencil, Trash2, X } from 'lucide-react';
+import { Search, Plus, Pencil, Trash2, X, Download } from 'lucide-react';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 export default function DriversPage() {
   useAuthGuard();
@@ -32,6 +34,7 @@ export default function DriversPage() {
   const [editingDriver, setEditingDriver] = useState<any>(null);
   const [formData, setFormData] = useState({
     name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '',
+    accountHolderName: '', accountNumber: '', ifsc: '',
   });
 
   const filtered = drivers.filter((d: any) =>
@@ -40,9 +43,32 @@ export default function DriversPage() {
     (d.vehicleNumber || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      // Auth is cookie-based; fetch the CSV then trigger a browser download.
+      const res = await fetch(`${API_BASE_URL}/admin/drivers/export`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `drivers-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(err.message || 'Failed to export drivers');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const openCreate = () => {
     setEditingDriver(null);
-    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '' });
+    setFormData({ name: '', phone: '', password: '', vehicleNumber: '', vehicleModel: '', vehicleCapacity: '', licenseNumber: '', areaId: '', zoneId: '', upiId: '', accountHolderName: '', accountNumber: '', ifsc: '' });
     setShowModal(true);
   };
 
@@ -59,32 +85,43 @@ export default function DriversPage() {
       areaId: driver.areaId?._id || driver.areaId || '',
       zoneId: driver.zoneId?._id || driver.zoneId || '',
       upiId: driver.upiId || '',
+      accountHolderName: driver.bankDetails?.accountHolderName || '',
+      accountNumber: driver.bankDetails?.accountNumber || '',
+      ifsc: driver.bankDetails?.ifsc || '',
     });
     setShowModal(true);
   };
 
   const handleSave = async () => {
     try {
+      const bankDetails = {
+        accountHolderName: formData.accountHolderName || '',
+        accountNumber: formData.accountNumber || '',
+        ifsc: formData.ifsc || '',
+      };
       if (editingDriver) {
-        const { phone, password, ...updateData } = formData;
+        const { phone, password, accountHolderName, accountNumber, ifsc, ...updateData } = formData;
         const payload: any = {
           ...updateData,
           vehicleCapacity: Number(updateData.vehicleCapacity) || 4,
           areaId: updateData.areaId || null,
           zoneId: updateData.zoneId || null,
           upiId: updateData.upiId || '',
+          bankDetails,
         };
         if (password && password.trim().length > 0) {
           payload.password = password.trim();
         }
         await updateDriver.mutateAsync({ id: editingDriver._id || editingDriver.id, data: payload });
       } else {
+        const { accountHolderName, accountNumber, ifsc, ...rest } = formData;
         const payload: any = {
-          ...formData,
+          ...rest,
           vehicleCapacity: Number(formData.vehicleCapacity) || 4,
           areaId: formData.areaId || undefined,
           zoneId: formData.zoneId || undefined,
           upiId: formData.upiId || undefined,
+          bankDetails,
         };
         if (!payload.areaId) delete payload.areaId;
         if (!payload.zoneId) delete payload.zoneId;
@@ -116,9 +153,14 @@ export default function DriversPage() {
             <h2 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-main)', letterSpacing: '-0.5px' }}>Drivers Management</h2>
             <p style={{ fontSize: '12px', color: 'var(--text-light)' }}>Register drivers (phone + password) and assign them to service areas</p>
           </div>
-          <button onClick={openCreate} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}>
-            <Plus size={14} /> Add Driver
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={handleExport} disabled={exporting} className="btn btn-secondary" style={{ padding: '8px 16px', fontSize: '12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Download size={14} /> {exporting ? 'Exporting…' : 'Export Excel'}
+            </button>
+            <button onClick={openCreate} className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '12px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '6px', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)' }}>
+              <Plus size={14} /> Add Driver
+            </button>
+          </div>
         </div>
 
         <div className="glass-card" style={{ padding: '12px 16px', marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -277,6 +319,25 @@ export default function DriversPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label htmlFor="field-upiId" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>UPI ID (for payouts)</label>
                 <input id="field-upiId" type="text" className="form-input" placeholder="e.g. ravi@okhdfcbank" value={formData.upiId} onChange={(e) => setFormData({ ...formData, upiId: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+              </div>
+
+              {/* Bank details for payouts */}
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '2px' }}>
+                <p style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Bank Details (payouts)</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label htmlFor="field-accountHolderName" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Holder Name</label>
+                    <input id="field-accountHolderName" type="text" className="form-input" placeholder="e.g. Ravi Kumar" value={formData.accountHolderName} onChange={(e) => setFormData({ ...formData, accountHolderName: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label htmlFor="field-accountNumber" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Account Number</label>
+                    <input id="field-accountNumber" type="text" className="form-input" placeholder="e.g. 123456789012" value={formData.accountNumber} onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label htmlFor="field-ifsc" style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>IFSC Code</label>
+                    <input id="field-ifsc" type="text" className="form-input" placeholder="e.g. HDFC0001234" value={formData.ifsc} onChange={(e) => setFormData({ ...formData, ifsc: e.target.value.toUpperCase() })} style={{ fontSize: '12px', padding: '10px 12px' }} />
+                  </div>
+                </div>
               </div>
             </div>
             <div className="modal-footer" style={{ padding: '12px 20px' }}>

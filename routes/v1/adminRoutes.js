@@ -17,6 +17,8 @@ router.get('/analytics', adminController.getAnalytics);
 
 // Drivers
 router.get('/drivers', adminController.getDrivers);
+// Declared before '/drivers/:id' so "export" isn't captured as an id.
+router.get('/drivers/export', adminController.exportDrivers);
 router.get('/drivers/:id', adminController.getDriverById);
 router.post('/drivers', validateRequest(adminValidation.createDriver), adminController.createDriver);
 router.patch('/drivers/:id', validateRequest(adminValidation.updateDriver), adminController.updateDriver);

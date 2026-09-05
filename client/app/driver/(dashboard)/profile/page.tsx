@@ -2,7 +2,7 @@
 
 import { useDriverProfile } from '@/lib/hooks/useDriverQueries';
 import { useDriverStore } from '@/stores/driverStore';
-import { User, Phone, Car, Route, Hash, LogOut, IdCard, Wallet } from 'lucide-react';
+import { User, Phone, Car, Route, Hash, LogOut, IdCard, Wallet, Landmark, CreditCard } from 'lucide-react';
 
 export default function DriverProfilePage() {
   const logout = useDriverStore((s) => s.logout);
@@ -109,6 +109,38 @@ export default function DriverProfilePage() {
           <div>
             <div style={{ fontSize: '10px', color: '#94A3B8' }}>License</div>
             <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{p?.licenseNumber || '---'}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bank details for payouts */}
+      <div style={{
+        background: 'rgba(255,255,255,0.03)', borderRadius: '14px', overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.08)', marginBottom: '20px',
+      }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Landmark size={16} color="#16C15D" />
+          <span style={{ fontSize: '12px', fontWeight: 700, color: '#FFF' }}>Payout / Bank Details</span>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <User size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>Account Holder Name</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF' }}>{p?.bankDetails?.accountHolderName || '---'}</div>
+          </div>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <CreditCard size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>Account Number</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF', fontFamily: 'monospace' }}>{p?.bankDetails?.accountNumber || '---'}</div>
+          </div>
+        </div>
+        <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Landmark size={18} color="#94A3B8" />
+          <div>
+            <div style={{ fontSize: '10px', color: '#94A3B8' }}>IFSC Code</div>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#FFF', fontFamily: 'monospace' }}>{p?.bankDetails?.ifsc || '---'}</div>
           </div>
         </div>
       </div>

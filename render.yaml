@@ -1,0 +1,40 @@
+# Render Blueprint — deploys the TORQQ Node/Socket.IO backend on the free tier.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# HOW TO USE:
+#   1. Push this file to GitHub (it's at the repo root).
+#   2. On render.com → New → Blueprint → pick this repo.
+#   3. Render reads this file and creates the service.
+#   4. Fill in the env vars marked `sync: false` in the Render dashboard
+#      (they are secrets, so they are NOT stored in git).
+#
+# FREE TIER NOTE: the service sleeps after 15 min of inactivity and cold-starts
+# in ~30-50s on the next request. That is the only catch of $0 hosting.
+
+services:
+  - type: web
+    name: torqq-backend
+    runtime: node
+    plan: free
+    region: singapore        # closest free region to India; change if you like
+    branch: main
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # PORT is provided by Render automatically; config.js reads process.env.PORT.
+      - key: MONGODB_URI
+        sync: false          # paste your MongoDB Atlas connection string
+      - key: JWT_SECRET
+        sync: false          # a long random string
+      - key: REFRESH_SECRET
+        sync: false          # a different long random string
+      - key: CLIENT_URL
+        sync: false          # e.g. https://torqq-client.vercel.app
+      - key: ADMIN_URL
+        sync: false          # e.g. https://torqq-admin.vercel.app
+      - key: CORS_EXTRA_ORIGINS
+        sync: false          # optional: comma-separated extra frontend URLs

@@ -277,6 +277,7 @@ class AuthService {
         vehicleCapacity: driver ? driver.vehicleCapacity : null,
         licenseNumber: driver ? driver.licenseNumber : null,
         upiId: driver ? driver.upiId : null,
+        bankDetails: driver ? driver.bankDetails : null,
         zoneId: driver ? driver.zoneId : null,
         areaId: driver ? driver.areaId : null,
         routeId: driver ? driver.routeId : null,

@@ -31,6 +31,12 @@ const driverSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    // Bank account details for driver payouts (settlement fallback to UPI).
+    bankDetails: {
+      accountHolderName: { type: String, trim: true },
+      accountNumber: { type: String, trim: true },
+      ifsc: { type: String, trim: true, uppercase: true },
+    },
     vehicleNumber: {
       type: String,
       required: true,

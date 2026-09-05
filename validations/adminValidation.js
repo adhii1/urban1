@@ -8,6 +8,12 @@ const location = Joi.object({
   address: Joi.string().optional(),
 });
 
+const bankDetails = Joi.object({
+  accountHolderName: Joi.string().trim().max(120).optional().allow(null, ''),
+  accountNumber: Joi.string().trim().max(30).optional().allow(null, ''),
+  ifsc: Joi.string().trim().max(15).optional().allow(null, ''),
+}).optional();
+
 const createDriver = Joi.object({
   phone: Joi.string().pattern(phoneRegex).required(),
   password: Joi.string().min(6).required(),
@@ -20,6 +26,7 @@ const createDriver = Joi.object({
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
   upiId: Joi.string().trim().max(120).optional().allow(null, ''),
+  bankDetails,
 });
 
 const updateDriver = Joi.object({
@@ -33,6 +40,7 @@ const updateDriver = Joi.object({
   areaId: Joi.string().hex().length(24).optional().allow(null, ''),
   zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
   upiId: Joi.string().trim().max(120).optional().allow(null, ''),
+  bankDetails,
   status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_APPROVAL').optional(),
 });
 

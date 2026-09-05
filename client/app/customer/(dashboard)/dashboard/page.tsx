@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Bus, Clock3, History, MapPin, WalletCards, UserCheck, Calendar, Key, Navigation } from 'lucide-react';
+import { Bus, Clock3, History, MapPin, WalletCards, UserCheck, Calendar, Key, Navigation, QrCode } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
 export default function CustomerDashboardPage() {
@@ -151,12 +151,16 @@ export default function CustomerDashboardPage() {
             <span className="action-icon bg-blue-light text-blue"><Navigation size={20} /></span>
             <span>Flexy Ride</span>
           </Link>
+          <Link href="/customer/boarding-pass" className="action-item">
+            <span className="action-icon bg-green-light text-green"><QrCode size={20} /></span>
+            <span>Boarding Pass</span>
+          </Link>
           <Link href="/customer/my-trips" className="action-item">
-            <span className="action-icon bg-green-light text-green"><History size={20} /></span>
+            <span className="action-icon bg-blue-light text-blue"><History size={20} /></span>
             <span>My Trips</span>
           </Link>
           <Link href="/customer/wallet" className="action-item">
-            <span className="action-icon bg-blue-light text-blue"><WalletCards size={20} /></span>
+            <span className="action-icon bg-green-light text-green"><WalletCards size={20} /></span>
             <span>Wallet</span>
           </Link>
         </div>
