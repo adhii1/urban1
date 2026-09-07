@@ -1,5 +1,6 @@
 import { useCustomerStore } from '@/stores/customerStore';
 import { useDriverStore } from '@/stores/driverStore';
+import { useCorporateStore } from '@/stores/corporateStore';
 import { API_BASE_URL } from '@/lib/apiBase';
 
 export class ApiError extends Error {
@@ -47,8 +48,10 @@ async function request<T>(
 
   const customerToken = useCustomerStore.getState().accessToken;
   const driverToken = useDriverStore.getState().accessToken;
+  const corporateToken = useCorporateStore.getState().accessToken;
   const isDriverRequest = endpoint.startsWith('/driver') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/driver'));
-  const accessToken = isDriverRequest ? driverToken : customerToken;
+  const isCorporateRequest = endpoint.startsWith('/corporate') || (typeof window !== 'undefined' && window.location.pathname.startsWith('/corporate'));
+  const accessToken = isCorporateRequest ? corporateToken : isDriverRequest ? driverToken : customerToken;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -63,7 +66,8 @@ async function request<T>(
     if (refreshed) {
       // The backend prefers a Bearer token over its freshly rotated session cookie.
       // Discard the stale persisted token before retrying so the cookie authenticates it.
-      if (isDriverRequest) useDriverStore.getState().clearAccessToken();
+      if (isCorporateRequest) useCorporateStore.getState().clearAccessToken();
+      else if (isDriverRequest) useDriverStore.getState().clearAccessToken();
       else useCustomerStore.getState().clearAccessToken();
 
       const retryHeaders = { ...headers };
@@ -72,8 +76,10 @@ async function request<T>(
     } else {
       const { useCustomerStore } = await import('../../stores/customerStore');
       const { useDriverStore } = await import('../../stores/driverStore');
+      const { useCorporateStore } = await import('../../stores/corporateStore');
       if (useCustomerStore.getState().isLoggedIn) useCustomerStore.getState().logout();
       if (useDriverStore.getState().isLoggedIn) useDriverStore.getState().logout();
+      if (useCorporateStore.getState().isLoggedIn) useCorporateStore.getState().logout();
       throw new ApiError(res.status, 'Session expired or insufficient permissions. Please log in again.');
     }
   }

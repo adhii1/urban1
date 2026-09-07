@@ -33,6 +33,12 @@ router.get('/subscriptions', subscriptionController.listSubscriptions);
 router.post('/subscriptions/cancel', subscriptionController.cancelSubscription);
 router.get('/subscriptions/booking-eligibility', subscriptionController.checkBookingEligibility);
 
+// Emergency Mode — lives on the subscription (armed per commute), not the
+// customer profile. Contacts remain customer-scoped (below).
+router.get('/subscriptions/:id/emergency-mode', subscriptionController.getEmergencyMode);
+router.put('/subscriptions/:id/emergency-mode', subscriptionController.updateEmergencyMode);
+router.post('/subscriptions/:id/sos', subscriptionController.triggerSos);
+
 // Payment config (Razorpay key for frontend)
 router.get('/payment-config', (req, res) => {
   const paymentService = require('../../services/paymentService');

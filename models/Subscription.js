@@ -138,6 +138,16 @@ const subscriptionSchema = new mongoose.Schema(
       paidAt: { type: Date },
     },
 
+    // --- Emergency Mode (per-commute SOS) ---
+    // Emergency contacts themselves stay on the customer (a person's trusted
+    // contacts don't change per commute), but whether SOS is armed and who
+    // gets notified is decided per subscription — a customer may want it on
+    // for a late-night shuttle and off for a daytime weekday commute.
+    emergencyMode: {
+      enabled: { type: Boolean, default: true },
+      lastTriggeredAt: { type: Date },
+    },
+
     // --- Legacy route-based fields (retained for backward compat) ---
     routeId: {
       type: mongoose.Schema.Types.ObjectId,

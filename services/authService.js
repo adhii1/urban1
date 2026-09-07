@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Customer = require('../models/Customer');
 const Driver = require('../models/Driver');
 const Admin = require('../models/Admin');
+const Corporate = require('../models/Corporate');
 const OTP = require('../models/OTP');
 const TokenBlacklist = require('../models/TokenBlacklist');
 
@@ -49,6 +50,11 @@ class AuthService {
       const driver = await Driver.findOne({ userId: user._id });
       if (driver) {
         profileName = driver.name;
+      }
+    } else if (user.role === 'Corporate') {
+      const corporate = await Corporate.findOne({ userId: user._id });
+      if (corporate) {
+        profileName = corporate.companyName;
       }
     }
 
@@ -306,6 +312,15 @@ class AuthService {
         name: admin ? admin.name : '',
         permissions: admin ? admin.permissions : [],
       };
+    } else if (role === 'Corporate') {
+      const corporate = await Corporate.findOne({ userId });
+      details = {
+        name: corporate ? corporate.companyName : '',
+        companyName: corporate ? corporate.companyName : '',
+        contactPerson: corporate ? corporate.contactPerson : null,
+        billingEmail: corporate ? corporate.billingEmail : null,
+        employeeLimit: corporate ? corporate.employeeLimit : null,
+      };
     }
 
     return {
@@ -341,6 +356,14 @@ class AuthService {
       if (admin) {
         if (updateData.name) admin.name = updateData.name;
         await admin.save();
+      }
+    } else if (role === 'Corporate') {
+      const corporate = await Corporate.findOne({ userId });
+      if (corporate) {
+        if (updateData.companyName) corporate.companyName = updateData.companyName;
+        if (updateData.contactPerson) corporate.contactPerson = updateData.contactPerson;
+        if (updateData.billingEmail) corporate.billingEmail = updateData.billingEmail;
+        await corporate.save();
       }
     }
 

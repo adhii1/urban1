@@ -420,3 +420,37 @@ export function useAssignAreasToZone() {
     },
   });
 }
+
+// --- Corporate accounts ---
+export function useCorporates() {
+  const isAuthed = !!useAuthState();
+  return useQuery({
+    queryKey: ['corporates'],
+    queryFn: () => adminApi.getCorporates(),
+    enabled: isAuthed,
+  });
+}
+
+export function useCreateCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: any) => adminApi.createCorporate(data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}
+
+export function useUpdateCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => adminApi.updateCorporate(id, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}
+
+export function useDeleteCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.deleteCorporate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}

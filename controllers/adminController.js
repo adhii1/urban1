@@ -11,6 +11,7 @@ const Settings = require('../models/Settings');
 const OperationalException = require('../models/OperationalException');
 const Area = require('../models/Area');
 const Zone = require('../models/Zone');
+const Corporate = require('../models/Corporate');
 const {
   applyDriverChange,
   reconcileStopChange,
@@ -1170,6 +1171,94 @@ const assignAreasToZone = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Areas assigned to zone.', { zoneId: zone._id, assigned: areaIds.length }));
 });
 
+// --- Corporate accounts (admin provisioning) ---
+// Admin creates the company account (phone + password, like Driver); the
+// corporate contact then logs in through the corporate portal and manages
+// their own employee roster from there.
+const getCorporates = asyncWrapper(async (req, res) => {
+  const corporates = await Corporate.find().populate('userId', 'phone status').sort({ createdAt: -1 }).lean();
+  const employeeCounts = await Customer.aggregate([
+    { $match: { isDeleted: false, corporateId: { $ne: null } } },
+    { $group: { _id: '$corporateId', count: { $sum: 1 } } },
+  ]);
+  const countMap = new Map(employeeCounts.map((r) => [r._id?.toString(), r.count]));
+  const enriched = corporates.map((c) => ({ ...c, employeeCount: countMap.get(c._id.toString()) || 0 }));
+  return res.status(200).json(formatResponse('Corporate accounts listed successfully.', enriched));
+});
+
+const getCorporateById = asyncWrapper(async (req, res) => {
+  const corporate = await Corporate.findById(req.params.id).populate('userId', 'phone status');
+  if (!corporate) throw new NotFoundError('Corporate account');
+  return res.status(200).json(formatResponse('Corporate account retrieved.', corporate));
+});
+
+const createCorporate = asyncWrapper(async (req, res) => {
+  const { phone, password, companyName, contactPerson, billingEmail, gstNumber, address, employeeLimit } = req.body;
+
+  if (!password) throw new ValidationError('Password is required');
+
+  const existingUser = await User.findOne({ phone });
+  if (existingUser) throw new ValidationError('Phone number already registered');
+
+  const hashedPassword = await hashPassword(password);
+  const user = await User.create({ phone, password: hashedPassword, role: 'Corporate', status: 'ACTIVE' });
+
+  const corporate = await Corporate.create({
+    userId: user._id,
+    companyName,
+    contactPerson: contactPerson || undefined,
+    billingEmail: billingEmail || undefined,
+    gstNumber: gstNumber || undefined,
+    address: address || undefined,
+    employeeLimit: employeeLimit || 50,
+  });
+
+  return res.status(201).json(formatResponse('Corporate account created successfully.', corporate));
+});
+
+const updateCorporate = asyncWrapper(async (req, res) => {
+  const { companyName, contactPerson, billingEmail, gstNumber, address, employeeLimit, status, password } = req.body;
+  const corporate = await Corporate.findById(req.params.id);
+  if (!corporate) throw new NotFoundError('Corporate account');
+
+  if (companyName !== undefined) corporate.companyName = companyName;
+  if (contactPerson !== undefined) corporate.contactPerson = contactPerson;
+  if (billingEmail !== undefined) corporate.billingEmail = billingEmail;
+  if (gstNumber !== undefined) corporate.gstNumber = gstNumber;
+  if (address !== undefined) corporate.address = address;
+  if (employeeLimit !== undefined) corporate.employeeLimit = employeeLimit;
+  if (status !== undefined) corporate.status = status;
+  await corporate.save();
+
+  if (password) {
+    const user = await User.findById(corporate.userId);
+    if (user) {
+      user.password = await hashPassword(password);
+      await user.save();
+    }
+  }
+
+  return res.status(200).json(formatResponse('Corporate account updated successfully.', corporate));
+});
+
+const deleteCorporate = asyncWrapper(async (req, res) => {
+  const corporate = await Corporate.findById(req.params.id);
+  if (!corporate) throw new NotFoundError('Corporate account');
+
+  corporate.isDeleted = true;
+  corporate.deletedAt = new Date();
+  corporate.deletedBy = req.user.id;
+  await corporate.save();
+
+  const user = await User.findById(corporate.userId);
+  if (user) {
+    user.isDeleted = true;
+    await user.save();
+  }
+
+  return res.status(200).json(formatResponse('Corporate account deleted successfully.'));
+});
+
 module.exports = {
   getAnalytics,
   getDashboard,
@@ -1223,4 +1312,9 @@ module.exports = {
   updateZone,
   deleteZone,
   assignAreasToZone,
+  getCorporates,
+  getCorporateById,
+  createCorporate,
+  updateCorporate,
+  deleteCorporate,
 };

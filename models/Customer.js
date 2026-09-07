@@ -20,6 +20,13 @@ const customerSchema = new mongoose.Schema(
       ref: 'Subscription',
       index: true,
     },
+    // Set when this customer is an employee onboarded under a Corporate
+    // account. Unset for regular retail customers.
+    corporateId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Corporate',
+      index: true,
+    },
     homeLocation: {
       address: { type: String, trim: true },
       type: { type: String, enum: ['Point'], default: 'Point' },

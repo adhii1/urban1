@@ -188,4 +188,14 @@ export const adminApi = {
   // Live Rides (REST)
   getRides: (status?: string) =>
     apiFetch(`/admin/rides${status ? `?status=${status}` : ''}`),
+
+  // Corporate accounts
+  getCorporates: () => apiFetch('/admin/corporates'),
+  getCorporate: (id: string) => apiFetch(`/admin/corporates/${id}`),
+  createCorporate: (data: any) =>
+    apiFetch('/admin/corporates', { method: 'POST', body: JSON.stringify(data) }),
+  updateCorporate: (id: string, data: any) =>
+    apiFetch(`/admin/corporates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteCorporate: (id: string) =>
+    apiFetch(`/admin/corporates/${id}`, { method: 'DELETE' }),
 };

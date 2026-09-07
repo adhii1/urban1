@@ -10,10 +10,12 @@
 const Plan = require('../models/Plan');
 const Subscription = require('../models/Subscription');
 const Customer = require('../models/Customer');
+const EmergencyContact = require('../models/EmergencyContact');
+const SosAlert = require('../models/SosAlert');
 const subscriptionService = require('../services/subscriptionService');
 const formatResponse = require('../utils/responseFormatter');
 const asyncWrapper = require('../middleware/asyncWrapper');
-const { NotFoundError } = require('../utils/AppError');
+const { NotFoundError, ValidationError } = require('../utils/AppError');
 const logger = require('../utils/logger');
 
 /**
@@ -249,6 +251,110 @@ const checkBookingEligibility = asyncWrapper(async (req, res) => {
   ));
 });
 
+/**
+ * Emergency Mode lives on the subscription, not the customer profile: a
+ * commute-specific SOS toggle (e.g. armed for a late shuttle, off for a
+ * daytime weekday run). The contacts themselves are still the customer's
+ * (GET/POST/PUT/DELETE /customer/emergency-contacts), reused as-is here.
+ */
+
+async function findOwnedSubscription(userId, subscriptionId) {
+  const customer = await Customer.findOne({ userId });
+  if (!customer) throw new NotFoundError('Customer');
+  if (!subscriptionId) throw new ValidationError('subscriptionId is required.');
+
+  const subscription = await Subscription.findOne({
+    _id: subscriptionId,
+    customerId: customer._id,
+    isDeleted: false,
+  });
+  if (!subscription) throw new NotFoundError('Subscription');
+  return { customer, subscription };
+}
+
+/**
+ * GET /api/v1/customer/subscriptions/:id/emergency-mode
+ * Current Emergency Mode state for one subscription, plus the customer's
+ * saved emergency contacts (so the client can show both in one screen).
+ */
+const getEmergencyMode = asyncWrapper(async (req, res) => {
+  const { customer, subscription } = await findOwnedSubscription(req.user.id, req.params.id);
+  const contacts = await EmergencyContact.find({ customerId: customer._id }).sort({ createdAt: -1 });
+
+  return res.json(formatResponse('Emergency mode retrieved.', {
+    subscriptionId: subscription._id,
+    emergencyMode: {
+      enabled: subscription.emergencyMode?.enabled !== false,
+      lastTriggeredAt: subscription.emergencyMode?.lastTriggeredAt || null,
+    },
+    contacts,
+  }));
+});
+
+/**
+ * PUT /api/v1/customer/subscriptions/:id/emergency-mode
+ * Body: { enabled: boolean } — arms/disarms SOS for this one subscription.
+ */
+const updateEmergencyMode = asyncWrapper(async (req, res) => {
+  const { enabled } = req.body;
+  if (typeof enabled !== 'boolean') throw new ValidationError('enabled must be true or false.');
+
+  const { subscription } = await findOwnedSubscription(req.user.id, req.params.id);
+  subscription.emergencyMode = { ...(subscription.emergencyMode?.toObject?.() || subscription.emergencyMode || {}), enabled };
+  await subscription.save();
+
+  return res.json(formatResponse(`Emergency mode ${enabled ? 'enabled' : 'disabled'}.`, {
+    subscriptionId: subscription._id,
+    emergencyMode: { enabled, lastTriggeredAt: subscription.emergencyMode?.lastTriggeredAt || null },
+  }));
+});
+
+/**
+ * POST /api/v1/customer/subscriptions/:id/sos
+ * Fire an SOS alert for the given subscription's active commute. Requires
+ * Emergency Mode to be armed on that subscription. Body: { coordinates? }
+ * ([lng, lat], optional). Notifies every active admin the same way other
+ * customer operations are broadcast.
+ */
+const triggerSos = asyncWrapper(async (req, res) => {
+  const { customer, subscription } = await findOwnedSubscription(req.user.id, req.params.id);
+
+  if (subscription.emergencyMode?.enabled === false) {
+    throw new ValidationError('Emergency mode is turned off for this subscription. Enable it first.', { code: 'EMERGENCY_MODE_DISABLED' });
+  }
+
+  const contacts = await EmergencyContact.find({ customerId: customer._id });
+  const coords = Array.isArray(req.body?.coordinates) && req.body.coordinates.length === 2
+    ? req.body.coordinates
+    : subscription.pickupLocation?.coordinates || [0, 0];
+
+  const alert = await SosAlert.create({
+    customerId: customer._id,
+    subscriptionId: subscription._id,
+    location: { type: 'Point', coordinates: coords },
+    notifiedContacts: contacts.length,
+  });
+
+  subscription.emergencyMode = { ...(subscription.emergencyMode?.toObject?.() || subscription.emergencyMode || {}), enabled: true, lastTriggeredAt: new Date() };
+  await subscription.save();
+
+  const { publishCustomerOperation } = require('../services/customerOperationService');
+  await publishCustomerOperation({
+    type: 'SOS_TRIGGERED',
+    customerId: customer._id,
+    title: 'SOS alert triggered',
+    summary: `Customer triggered emergency SOS during a ${subscription.subscriptionType} commute.`,
+    metadata: { sosAlertId: alert._id.toString(), subscriptionId: subscription._id.toString(), notifiedContacts: contacts.length },
+  });
+
+  logger.warn('[SOS] Emergency alert triggered', { subscriptionId: subscription._id.toString(), customerId: customer._id.toString() });
+
+  return res.status(201).json(formatResponse('Emergency dispatch alerted. Stand by.', {
+    alertId: alert._id,
+    notifiedContacts: contacts.length,
+  }));
+});
+
 module.exports = {
   browsePlans,
   initiatePurchase,
@@ -256,4 +362,7 @@ module.exports = {
   listSubscriptions,
   cancelSubscription,
   checkBookingEligibility,
+  getEmergencyMode,
+  updateEmergencyMode,
+  triggerSos,
 };

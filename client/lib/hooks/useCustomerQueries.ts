@@ -365,6 +365,84 @@ export function useVerifySubscriptionPayment() {
   });
 }
 
+// --- Emergency Mode (per-subscription SOS) ---
+
+export interface EmergencyContact {
+  _id: string;
+  name: string;
+  phone: string;
+  relationship?: string;
+}
+
+export interface EmergencyModeData {
+  subscriptionId: string;
+  emergencyMode: { enabled: boolean; lastTriggeredAt: string | null };
+  contacts: EmergencyContact[];
+}
+
+export function useEmergencyMode(subscriptionId: string | null) {
+  const isLoggedIn = useCustomerStore((s) => s.isLoggedIn);
+  return useQuery({
+    queryKey: ['emergency-mode', subscriptionId],
+    queryFn: () => api.get<EmergencyModeData>(`/customer/subscriptions/${subscriptionId}/emergency-mode`),
+    enabled: isLoggedIn && !!subscriptionId,
+    staleTime: 30 * 1000,
+    select: (d) => d.data,
+  });
+}
+
+export function useUpdateEmergencyMode(subscriptionId: string | null) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  return useMutation({
+    mutationFn: (enabled: boolean) => api.put(`/customer/subscriptions/${subscriptionId}/emergency-mode`, { enabled }),
+    onSuccess: (_, enabled) => {
+      queryClient.invalidateQueries({ queryKey: ['emergency-mode', subscriptionId] });
+      showToast(`Emergency mode ${enabled ? 'enabled' : 'disabled'}`, 'success');
+    },
+    onError: (err: Error) => showToast(err.message || 'Failed to update emergency mode', 'error'),
+  });
+}
+
+export function useTriggerSos(subscriptionId: string | null) {
+  const { showToast } = useToast();
+  return useMutation({
+    mutationFn: (coordinates?: [number, number]) =>
+      api.post<{ alertId: string; notifiedContacts: number }>(`/customer/subscriptions/${subscriptionId}/sos`, coordinates ? { coordinates } : {}),
+    onSuccess: (res) => {
+      showToast(`Emergency alert sent. ${res.data.notifiedContacts} contact(s) notified.`, 'success');
+    },
+    onError: (err: Error) => showToast(err.message || 'Failed to trigger SOS', 'error'),
+  });
+}
+
+export function useAddEmergencyContact() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  return useMutation({
+    mutationFn: (data: { name: string; phone: string; relationship?: string }) =>
+      api.post('/customer/emergency-contacts', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emergency-mode'] });
+      showToast('Emergency contact added', 'success');
+    },
+    onError: (err: Error) => showToast(err.message || 'Failed to add contact', 'error'),
+  });
+}
+
+export function useDeleteEmergencyContact() {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/customer/emergency-contacts/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emergency-mode'] });
+      showToast('Emergency contact removed', 'success');
+    },
+    onError: (err: Error) => showToast(err.message || 'Failed to remove contact', 'error'),
+  });
+}
+
 export function useCancelSubscription() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();

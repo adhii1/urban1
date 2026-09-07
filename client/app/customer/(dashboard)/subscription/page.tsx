@@ -1,10 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard, Pause, Loader, AlertCircle, CheckCircle, Clock3, Calendar } from 'lucide-react';
+import { CreditCard, Pause, Loader, AlertCircle, CheckCircle, Clock3, Calendar, ShieldAlert, Phone, Plus, Trash2, X, ChevronDown } from 'lucide-react';
 import {
   useCustomerSubscriptions,
   usePauseSubscription,
+  useEmergencyMode,
+  useUpdateEmergencyMode,
+  useTriggerSos,
+  useAddEmergencyContact,
+  useDeleteEmergencyContact,
   type SubscriptionData,
 } from '@/lib/hooks/useCustomerQueries';
 
@@ -13,6 +18,150 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 function formatDays(days?: number[]) {
   if (!days || days.length === 0) return '';
   return [...days].sort((a, b) => a - b).map((d) => DAY_LABELS[d]).filter(Boolean).join(', ');
+}
+
+/**
+ * Emergency Mode — lives on the subscription (armed per commute), not the
+ * customer profile. Contacts are still the customer's own (shared across all
+ * subscriptions); this panel manages the toggle, the SOS trigger, and the
+ * contact list in one place, scoped to this one subscription's id.
+ */
+function EmergencyModePanel({ subscriptionId }: { subscriptionId: string }) {
+  const { data, isLoading } = useEmergencyMode(subscriptionId);
+  const updateMode = useUpdateEmergencyMode(subscriptionId);
+  const triggerSos = useTriggerSos(subscriptionId);
+  const addContact = useAddEmergencyContact();
+  const deleteContact = useDeleteEmergencyContact();
+
+  const [expanded, setExpanded] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [contactForm, setContactForm] = useState({ name: '', phone: '', relationship: '' });
+
+  const enabled = data?.emergencyMode?.enabled !== false;
+  const contacts = data?.contacts || [];
+
+  const handleSos = () => {
+    if (!confirm('EMERGENCY SOS ALERT:\nAre you sure you want to alert the emergency dispatch team and your emergency contacts immediately?')) return;
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => triggerSos.mutate([pos.coords.longitude, pos.coords.latitude]),
+        () => triggerSos.mutate(undefined),
+        { timeout: 4000 }
+      );
+    } else {
+      triggerSos.mutate(undefined);
+    }
+  };
+
+  const handleAddContact = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name || !contactForm.phone) return;
+    addContact.mutate(contactForm, {
+      onSuccess: () => { setShowAddContact(false); setContactForm({ name: '', phone: '', relationship: '' }); },
+    });
+  };
+
+  return (
+    <div style={{ marginTop: '16px', border: '1px solid #FEE2E2', borderRadius: '12px', overflow: 'hidden' }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{ width: '100%', padding: '12px 14px', background: '#FEF2F2', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+      >
+        <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 700, color: '#B91C1C' }}>
+          <ShieldAlert size={15} /> Emergency Mode {isLoading ? '' : enabled ? '(Armed)' : '(Off)'}
+        </span>
+        <ChevronDown size={14} color="#B91C1C" style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+
+      {expanded && (
+        <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: '12px', fontWeight: 700, color: '#0F172A' }}>Arm SOS for this commute</p>
+              <p style={{ fontSize: '11px', color: '#64748B' }}>Notifies your emergency contacts and TORQQ dispatch when triggered.</p>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: '42px', height: '24px', flexShrink: 0 }}>
+              <input
+                type="checkbox" checked={enabled} disabled={updateMode.isPending || isLoading}
+                onChange={(e) => updateMode.mutate(e.target.checked)}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span style={{
+                position: 'absolute', inset: 0, borderRadius: '24px', cursor: 'pointer',
+                background: enabled ? '#16C15D' : '#CBD5E1', transition: 'background 0.15s',
+              }}>
+                <span style={{
+                  position: 'absolute', top: '3px', left: enabled ? '21px' : '3px', width: '18px', height: '18px',
+                  borderRadius: '50%', background: '#FFF', transition: 'left 0.15s',
+                }} />
+              </span>
+            </label>
+          </div>
+
+          <button
+            onClick={handleSos}
+            disabled={!enabled || triggerSos.isPending}
+            style={{
+              padding: '12px', borderRadius: '10px', border: 'none', fontWeight: 800, fontSize: '13px',
+              background: enabled ? '#EF4444' : '#F1F5F9', color: enabled ? '#FFF' : '#94A3B8',
+              cursor: enabled && !triggerSos.isPending ? 'pointer' : 'not-allowed',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            }}
+          >
+            <ShieldAlert size={16} /> {triggerSos.isPending ? 'Alerting…' : '🆘 Trigger SOS'}
+          </button>
+
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>Emergency Contacts</p>
+              <button onClick={() => setShowAddContact(true)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: '#3B82F6', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}>
+                <Plus size={12} /> Add
+              </button>
+            </div>
+
+            {contacts.length === 0 ? (
+              <p style={{ fontSize: '11px', color: '#94A3B8' }}>No emergency contacts added yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {contacts.map((c) => (
+                  <div key={c._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: '#F8FAFC', borderRadius: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}>
+                      <Phone size={12} color="#64748B" />
+                      <span style={{ fontWeight: 700, color: '#0F172A' }}>{c.name}</span>
+                      <span style={{ color: '#64748B' }}>{c.phone}</span>
+                      {c.relationship && <span style={{ color: '#94A3B8' }}>· {c.relationship}</span>}
+                    </div>
+                    <button onClick={() => deleteContact.mutate(c._id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444', padding: 0 }}>
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {showAddContact && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 110, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={() => setShowAddContact(false)}>
+          <form onSubmit={handleAddContact} onClick={(e) => e.stopPropagation()} style={{ background: '#FFF', borderRadius: '16px', width: '100%', maxWidth: '360px', padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#0F172A' }}>Add Emergency Contact</h4>
+              <button type="button" onClick={() => setShowAddContact(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748B' }}><X size={16} /></button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <input required placeholder="Contact name" value={contactForm.name} onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
+              <input required placeholder="Phone number" value={contactForm.phone} onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
+              <input placeholder="Relationship (optional)" value={contactForm.relationship} onChange={(e) => setContactForm({ ...contactForm, relationship: e.target.value })} style={{ padding: '10px 12px', border: '1px solid #E2E8F0', borderRadius: '8px', fontSize: '12px' }} />
+            </div>
+            <button type="submit" disabled={addContact.isPending} style={{ width: '100%', marginTop: '16px', padding: '12px', borderRadius: '10px', border: 'none', background: '#3B82F6', color: '#FFF', fontWeight: 700, fontSize: '13px', cursor: addContact.isPending ? 'not-allowed' : 'pointer' }}>
+              {addContact.isPending ? 'Adding…' : 'Add Contact'}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -147,6 +296,8 @@ function SubscriptionCard({
           <Pause size={16} /> Request Pause
         </button>
       )}
+
+      <EmergencyModePanel subscriptionId={subscription._id} />
     </div>
   );
 }

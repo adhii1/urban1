@@ -101,6 +101,14 @@ router.patch('/zones/:id', validateRequest(adminValidation.updateZone), adminCon
 router.delete('/zones/:id', adminController.deleteZone);
 router.post('/zones/:id/assign-areas', adminController.assignAreasToZone);
 
+// Corporate accounts (admin provisions; corporate contact manages employees
+// via the corporate portal)
+router.get('/corporates', adminController.getCorporates);
+router.get('/corporates/:id', adminController.getCorporateById);
+router.post('/corporates', validateRequest(adminValidation.createCorporate), adminController.createCorporate);
+router.patch('/corporates/:id', validateRequest(adminValidation.updateCorporate), adminController.updateCorporate);
+router.delete('/corporates/:id', adminController.deleteCorporate);
+
 // Subscription Matching (PDF section 20: Admin manual override)
 const SubscriptionMatchingService = require('../../services/SubscriptionMatchingService');
 const Subscription = require('../../models/Subscription');

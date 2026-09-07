@@ -192,6 +192,33 @@ const updateArea = Joi.object({
   zoneId: Joi.string().hex().length(24).optional().allow(null, ''),
 });
 
+const contactPerson = Joi.object({
+  name: Joi.string().trim().max(120).optional().allow(null, ''),
+  designation: Joi.string().trim().max(120).optional().allow(null, ''),
+}).optional();
+
+const createCorporate = Joi.object({
+  phone: Joi.string().pattern(phoneRegex).required(),
+  password: Joi.string().min(6).required(),
+  companyName: Joi.string().trim().min(1).max(150).required(),
+  contactPerson,
+  billingEmail: Joi.string().trim().email().max(150).optional().allow(null, ''),
+  gstNumber: Joi.string().trim().max(20).optional().allow(null, ''),
+  address: Joi.string().trim().max(300).optional().allow(null, ''),
+  employeeLimit: Joi.number().integer().min(1).max(10000).optional(),
+});
+
+const updateCorporate = Joi.object({
+  companyName: Joi.string().trim().min(1).max(150).optional(),
+  password: Joi.string().min(6).optional().allow(null, ''),
+  contactPerson,
+  billingEmail: Joi.string().trim().email().max(150).optional().allow(null, ''),
+  gstNumber: Joi.string().trim().max(20).optional().allow(null, ''),
+  address: Joi.string().trim().max(300).optional().allow(null, ''),
+  employeeLimit: Joi.number().integer().min(1).max(10000).optional(),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED').optional(),
+});
+
 const createZone = Joi.object({
   name: Joi.string().trim().min(1).max(100).required(),
   code: Joi.string().trim().max(10).optional().allow(null, ''),
@@ -226,4 +253,6 @@ module.exports = {
   updateArea,
   createZone,
   updateZone,
+  createCorporate,
+  updateCorporate,
 };
