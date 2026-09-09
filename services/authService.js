@@ -39,23 +39,23 @@ class AuthService {
       this._throwError('Invalid phone number or password.', 401);
     }
 
-    let profileName = 'Valued User';
+    // Only reached if the User row somehow has no matching profile
+    // sub-document (Customer/Driver/Corporate) — a data-integrity edge case,
+    // never the everyday path. Named per-role rather than a single generic
+    // 'Valued User' so it's at least legible if it's ever seen, and later
+    // GET /auth/me calls (which every dashboard layout uses to refresh the
+    // name) will resolve the same profile the moment it exists.
+    let profileName = 'Account';
 
     if (user.role === 'Customer') {
       const customer = await Customer.findOne({ userId: user._id });
-      if (customer) {
-        profileName = customer.name;
-      }
+      profileName = customer ? customer.name : 'Customer';
     } else if (user.role === 'Driver') {
       const driver = await Driver.findOne({ userId: user._id });
-      if (driver) {
-        profileName = driver.name;
-      }
+      profileName = driver ? driver.name : 'Driver';
     } else if (user.role === 'Corporate') {
       const corporate = await Corporate.findOne({ userId: user._id });
-      if (corporate) {
-        profileName = corporate.companyName;
-      }
+      profileName = corporate ? corporate.companyName : 'Corporate Account';
     }
 
     return {
@@ -86,7 +86,7 @@ class AuthService {
     }
 
     const admin = await Admin.findOne({ userId: user._id });
-    const profileName = admin ? admin.name : 'Administrator';
+    const profileName = admin ? admin.name : 'Admin';
 
     return {
       user: {
@@ -143,7 +143,7 @@ class AuthService {
     }
 
     let user = await User.findOne({ phone });
-    let profileName = 'Valued User';
+    let profileName = 'Customer';
 
     if (!user) {
       const placeholderPassword = await hashPassword(require('crypto').randomBytes(16).toString('hex'));

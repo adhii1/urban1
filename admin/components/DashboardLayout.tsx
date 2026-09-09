@@ -33,9 +33,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
     async function validateSession() {
       try {
-        const res = await apiFetch<{ data?: { user?: { name: string; phone: string; role: string; id?: string; _id?: string } } }>('/auth/me');
+        // /auth/me responds with { data: { id, phone, role, name, ... } } —
+        // the user fields are the data object itself, not nested under a
+        // `.user` key. Reading `res.data.user` (as before) was always
+        // undefined, so this refresh silently never updated adminName —
+        // the navbar just kept showing whatever was captured at login.
+        const res = await apiFetch<{ data?: { name: string; phone: string; role: string; id?: string; _id?: string } }>('/auth/me');
         if (cancelled) return;
-        const user = res?.data?.user;
+        const user = res?.data;
         if (user) {
           setAuth({
             name: user.name,

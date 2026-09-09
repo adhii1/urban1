@@ -15,9 +15,11 @@ export default function HomePage() {
 
     async function validateSession() {
       try {
-        const res = await apiFetch<{ data?: { user?: { name: string; phone: string; role: string; id?: string; _id?: string } } }>('/auth/me');
+        // Same shape as DashboardLayout's refresh — /auth/me returns the
+        // profile fields directly under `data`, not under `data.user`.
+        const res = await apiFetch<{ data?: { name: string; phone: string; role: string; id?: string; _id?: string } }>('/auth/me');
         if (cancelled) return;
-        const user = res?.data?.user;
+        const user = res?.data;
         if (user) {
           setAuth({
             name: user.name,
