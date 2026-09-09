@@ -25,6 +25,13 @@ const RIDER_POPULATE = [
     select: 'name userId pickupLocation dropLocation',
     populate: { path: 'userId', select: 'phone' },
   },
+  // So the driver card can say "which ride" (Weekday/Hybrid/Shuttle) instead of
+  // just a bare passenger name — a trip bundles whichever subscription types
+  // share the same driver + pickup time.
+  {
+    path: 'passengers.subscriptionId',
+    select: 'subscriptionType',
+  },
 ];
 
 const getProfile = asyncWrapper(async (req, res) => {
@@ -105,6 +112,9 @@ const getTrips = asyncWrapper(async (req, res) => {
   const [tripDocs, total] = await Promise.all([
     tripQuery
       .populate('routeId')
+      // "Which area" on the card — the service area this trip was generated
+      // for, not raw coordinates.
+      .populate('areaId', 'name')
       .sort({ serviceDate: -1 })
       .skip(skip)
       .limit(limit)
@@ -289,7 +299,7 @@ const getTripById = asyncWrapper(async (req, res) => {
   });
   RIDER_POPULATE.forEach((spec) => tripQuery.populate(spec));
 
-  const trip = await tripQuery.populate('routeId').lean();
+  const trip = await tripQuery.populate('routeId').populate('areaId', 'name').lean();
 
   if (!trip) {
     throw new NotFoundError('Trip');
@@ -509,7 +519,7 @@ const updateTripStatus = asyncWrapper(async (req, res) => {
 
   const updatedQuery = Trip.findById(trip._id);
   RIDER_POPULATE.forEach((spec) => updatedQuery.populate(spec));
-  const updated = await updatedQuery.populate('routeId').lean();
+  const updated = await updatedQuery.populate('routeId').populate('areaId', 'name').lean();
 
   return res.status(200).json(
     formatResponse(`Trip status updated to ${status}.`, toTripView(updated, { viewer: 'driver' }))

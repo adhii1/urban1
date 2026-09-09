@@ -8,6 +8,7 @@ import { useToast } from '@/stores/toastStore';
 interface Passenger {
   _id: string;
   customerId: { _id: string; name: string } | null;
+  subscriptionId?: { _id: string; subscriptionType?: string } | null;
   pickupLocation: { address: string; coordinates: number[] };
   dropLocation: { address: string; coordinates: number[] };
   pickupOrder: number;
@@ -23,6 +24,21 @@ interface AssignedTrip {
   assignmentStatus: string;
   passengers: Passenger[];
   navigationUrl: string;
+  areaId?: { _id: string; name: string } | null;
+}
+
+const RIDE_TYPE_LABELS: Record<string, string> = {
+  WEEKDAYS: 'Weekday Commute',
+  HYBRID: 'Hybrid Commute',
+  SHUTTLE: 'Shuttle Service',
+};
+
+/** "Which ride" for the card header — from the first passenger's subscription. */
+function rideTypeLabel(trip: AssignedTrip): string {
+  const type = (trip.passengers || [])
+    .map((p: any) => p.subscriptionId?.subscriptionType)
+    .find(Boolean);
+  return type ? RIDE_TYPE_LABELS[type] || type : 'Shuttle Trip';
 }
 
 export default function AssignedTripsPage() {
@@ -88,14 +104,19 @@ export default function AssignedTripsPage() {
           {trips.map((trip) => (
             <div key={trip._id} className="driver-glass-card" style={{ padding: '20px' }}>
               {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div>
-                  <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                  <p style={{ fontSize: '15px', fontWeight: 800, color: '#0F172A' }}>{rideTypeLabel(trip)}</p>
+                  <p style={{ fontSize: '11px', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginTop: '4px' }}>
                     {new Date(trip.serviceDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' })}
                   </p>
-                  <p style={{ fontSize: '16px', fontWeight: 800, color: '#0F172A', marginTop: '2px' }}>
-                    <Clock size={14} style={{ display: 'inline', marginRight: '4px' }} />
-                    {trip.pickupTime || '08:00'} AM
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A', marginTop: '4px' }}>
+                    <Clock size={13} style={{ display: 'inline', marginRight: '4px' }} />
+                    {trip.pickupTime || '08:00'}
+                  </p>
+                  <p style={{ fontSize: '12px', color: '#64748B', marginTop: '4px' }}>
+                    <MapPin size={12} style={{ display: 'inline', marginRight: '4px' }} />
+                    {trip.areaId?.name || 'Area not assigned'}
                   </p>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -116,7 +137,7 @@ export default function AssignedTripsPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '13px', fontWeight: 700, color: '#0F172A' }}>{passenger.customerId?.name || 'Customer'}</p>
                       <p style={{ fontSize: '11px', color: '#64748B', marginTop: '2px' }}>
-                        <MapPin size={10} style={{ display: 'inline' }} /> {passenger.pickupLocation?.address || `${passenger.pickupLocation?.coordinates?.[1]?.toFixed(4)}, ${passenger.pickupLocation?.coordinates?.[0]?.toFixed(4)}`}
+                        <MapPin size={10} style={{ display: 'inline' }} /> {passenger.pickupLocation?.address || 'Pickup location pending'}
                       </p>
                     </div>
                     <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '6px', background: passenger.status === 'COMPLETED' ? '#DCFCE7' : '#F1F5F9', color: passenger.status === 'COMPLETED' ? '#16A34A' : '#64748B' }}>

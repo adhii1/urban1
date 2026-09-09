@@ -6,6 +6,22 @@ import { MapPin, Users, Loader, AlertCircle, ChevronLeft, ChevronRight, DollarSi
 
 const PAGE_SIZE = 10;
 
+const RIDE_TYPE_LABELS: Record<string, string> = {
+  WEEKDAYS: 'Weekday Commute',
+  HYBRID: 'Hybrid Commute',
+  SHUTTLE: 'Shuttle Service',
+  RIDE: 'On-Demand Ride',
+};
+
+/** "Which ride" for the card — from the first passenger's subscription, or the ride type for on-demand rides. */
+function rideTypeLabel(trip: { passengers?: Array<{ subscriptionId?: { subscriptionType?: string } | null }>; type?: string }): string {
+  if (trip.type === 'RIDE') return RIDE_TYPE_LABELS.RIDE;
+  const type = (trip.passengers || [])
+    .map((p) => p.subscriptionId?.subscriptionType)
+    .find(Boolean);
+  return type ? RIDE_TYPE_LABELS[type] || type : 'Shuttle Trip';
+}
+
 export default function DriverMyTripsPage() {
   const [scope, setScope] = useState('today');
   const [filter, setFilter] = useState('ALL');
@@ -165,12 +181,16 @@ export default function DriverMyTripsPage() {
                 </span>
               </div>
               <h4 style={{ fontSize: '13px', color: '#FFF', fontWeight: 600, marginBottom: '4px' }}>
-                {trip.route?.name || trip.routeId?.name || 'Route'}
+                {rideTypeLabel(trip)}
               </h4>
-              <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '8px' }}>
-                {new Date(trip.tripDate || Date.now()).toLocaleDateString('en-IN', {
+              <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '4px' }}>
+                {new Date(trip.serviceDate || trip.tripDate || Date.now()).toLocaleDateString('en-IN', {
                   day: 'numeric', month: 'short', year: 'numeric',
                 })}
+                {trip.pickupTime ? ` · ${trip.pickupTime}` : ''}
+              </div>
+              <div style={{ fontSize: '11px', color: '#94A3B8', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <MapPin size={12} /> {trip.areaId?.name || trip.route?.name || trip.routeId?.name || 'Area not assigned'}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
                 <span style={{ color: '#94A3B8', display: 'flex', alignItems: 'center', gap: '4px' }}>

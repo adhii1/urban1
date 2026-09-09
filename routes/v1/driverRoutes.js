@@ -80,7 +80,11 @@ router.get('/assigned-trips', async (req, res) => {
       select: 'name userId',
       populate: { path: 'userId', select: 'phone' },
     })
+    // "Which ride" (Weekday/Hybrid/Shuttle) for the card header.
+    .populate({ path: 'passengers.subscriptionId', select: 'subscriptionType' })
     .populate('routeId')
+    // "Which area" for the card — a named service area, not raw coordinates.
+    .populate('areaId', 'name')
     .sort({ serviceDate: 1 })
     .lean();
 

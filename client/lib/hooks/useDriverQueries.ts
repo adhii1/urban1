@@ -26,14 +26,19 @@ export interface DriverProfile {
 
 export interface DriverTrip {
   _id: string;
+  type?: string;
   routeId?: { name?: string; stops?: any[]; startLocation?: string; endLocation?: string };
   route?: { name?: string; stops?: any[] };
   driverId?: any;
+  areaId?: { _id?: string; name?: string } | null;
   tripDate?: string;
+  serviceDate?: string;
+  pickupTime?: string;
   scheduledTime?: string;
   status: string;
   customers?: any[];
   manifest?: any[];
+  passengers?: Array<{ subscriptionId?: { subscriptionType?: string } | null }>;
 }
 
 // --- Profile ---
