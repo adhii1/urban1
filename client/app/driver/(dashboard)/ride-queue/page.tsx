@@ -11,6 +11,7 @@ import {
   Loader,
   Car,
   Crosshair,
+  User,
 } from 'lucide-react';
 import { useDriverSocket } from '@/lib/hooks/useDriverSocket';
 import type { ShuttleRide, ActiveShuttle, ShuttleSequenceEntry } from '@/lib/hooks/useDriverSocket';
@@ -327,6 +328,12 @@ export default function DriverRideQueuePage() {
               {activeRide.status === 'PENDING' && 'Pending Acceptance'}
             </span>
           </div>
+
+          {activeRide.customerName && (
+            <p style={{ fontSize: '13px', color: '#FFF', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <User size={13} color="#16C15D" /> {activeRide.customerName}
+            </p>
+          )}
 
           {activeRide.pickup && (
             <div style={{ marginBottom: '8px' }}>
@@ -700,6 +707,16 @@ function IncomingRideCard({
           {ride.distanceKm !== undefined && ride.distanceKm !== null ? `${ride.distanceKm.toFixed(1)} km away` : 'distance unknown'} · ~{ride.etaMinutes ?? '?'} min
         </span>
       </div>
+
+      {/* Which customer this offer is for — each incoming card carries its own
+          rider's name from the server, so different requests are never
+          indistinguishable here. Bundle offers list every rider. */}
+      <p style={{ fontSize: '13px', color: '#FFF', fontWeight: 700, marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <User size={13} color="#F59E0B" />
+        {ride.passengers && ride.passengers.length > 1
+          ? ride.passengers.map((p: any) => p.customerName || 'Customer').join(', ')
+          : (ride.customerName || ride.passengers?.[0]?.customerName || 'Customer')}
+      </p>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '4px' }}>

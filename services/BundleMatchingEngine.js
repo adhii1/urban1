@@ -234,6 +234,11 @@ async function dispatchBundle(bundleRides) {
       // delivered boolean and log accordingly.
       const delivered = emitToUser('driver', driverUserId, 'ride:new-request', {
         rideRequestId: primary._id, // Primary ride ID — used for the ride:accept call
+        // Top-level name for the primary rider, so the driver card can show
+        // "who" without having to dig into `passengers[0]` for the common
+        // solo-ride case. Bundle offers still carry every rider's own name
+        // in `passengers` below.
+        customerName: primary.customerName,
         pickup: { address: primary.pickupLocation.address, coordinates: primary.pickupLocation.coordinates },
         drop: { address: primary.dropLocation.address, coordinates: primary.dropLocation.coordinates },
         stops: combinedStops, // DEPRECATED legacy shape — see `passengers` below

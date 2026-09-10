@@ -8,8 +8,20 @@ import { API_BASE_URL, SOCKET_URL } from '@/lib/apiBase';
 
 const TOKEN_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
+export interface IncomingRidePassenger {
+  rideRequestId: string;
+  customerName?: string;
+  pickup: { address: string; coordinates: [number, number] };
+  drop: { address: string; coordinates: [number, number] };
+  fareEstimate?: number;
+  isPrimary?: boolean;
+}
+
 export interface IncomingRide {
   rideRequestId: string;
+  // The requesting customer's own name, resolved server-side per ride — not
+  // the driver's own name, and not shared across different incoming offers.
+  customerName?: string;
   pickup: { address: string; coordinates: [number, number] };
   drop: { address: string; coordinates: [number, number] };
   stops: any[];
@@ -18,10 +30,14 @@ export interface IncomingRide {
   expiresAt: string;
   fareEstimate?: number;
   tripDistance?: number;
+  passengers?: IncomingRidePassenger[];
+  passengerCount?: number;
+  isBundleOffer?: boolean;
 }
 
 export interface ActiveRide {
   rideRequestId: string;
+  customerName?: string;
   pickup?: { address: string; coordinates: [number, number] };
   drop?: { address: string; coordinates: [number, number] };
   stops?: any[];
@@ -172,6 +188,7 @@ export function useDriverSocket() {
       shuttleSessionId?: string;
       shuttle?: any;
       rides?: ShuttleRide[];
+      passengers?: Array<{ rideRequestId: string; customerName?: string }>;
       navigationUrl?: string;
       message?: string;
     }) => {
@@ -195,9 +212,15 @@ export function useDriverSocket() {
         });
         addToast(data.message || 'Bundle accepted! Navigate to pickup.', 'success');
       } else {
+        // Prefer the server's ack payload for the name (it's the freshest,
+        // authoritative source); fall back to the incoming offer we stashed
+        // before accepting.
+        const ackName = data.passengers?.find((p) => p.rideRequestId === data.rideRequestId)?.customerName;
+        const customerName = ackName || pending?.customerName;
         if (pending) {
           setActiveRide({
             rideRequestId: data.rideRequestId,
+            customerName,
             pickup: pending.pickup,
             drop: pending.drop,
             stops: pending.stops,
@@ -208,6 +231,7 @@ export function useDriverSocket() {
         } else {
           setActiveRide({
             rideRequestId: data.rideRequestId,
+            customerName,
             status: 'ACCEPTED',
             fareEstimate: data.fareEstimate,
             tripDistance: data.tripDistance,
@@ -238,6 +262,7 @@ export function useDriverSocket() {
     socket.on('ride:assigned', (data: any) => {
       setActiveRide({
         rideRequestId: data.rideRequestId,
+        customerName: data.customerName,
         pickup: data.pickup,
         drop: data.drop,
         status: 'ACCEPTED',

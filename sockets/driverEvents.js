@@ -1319,16 +1319,26 @@ function registerDriverEvents(io) {
               }
             });
 
-            // Notify new drivers
+            // Notify new drivers. Include the requesting customer's own name
+            // (denormalized on the ride at creation) — omitting it left every
+            // rematched offer indistinguishable from every other on the driver
+            // app, which only renders whatever the payload carries.
             const { estimateEtaMinutes } = require('../utils/geoHelper');
             for (const newDriver of nearbyDrivers) {
               emitToUser('driver', newDriver.userId.toString(), 'ride:new-request', {
                 rideRequestId: ride._id,
+                customerName: ride.customerName,
                 pickup: ride.pickupLocation,
                 drop: ride.dropLocation,
                 fareEstimate: ride.fare?.estimated,
                 distanceKm: ride.fare?.details?.distanceKm,
-                etaMinutes: estimateEtaMinutes(newDriver.currentLocation.coordinates, ride.pickupLocation.coordinates)
+                etaMinutes: estimateEtaMinutes(newDriver.currentLocation.coordinates, ride.pickupLocation.coordinates),
+                passengers: [{
+                  rideRequestId: ride._id,
+                  customerName: ride.customerName,
+                  pickup: ride.pickupLocation,
+                  drop: ride.dropLocation,
+                }],
               });
             }
             emitToUser('customer', ride.customerId.toString(), 'ride:rematching', {

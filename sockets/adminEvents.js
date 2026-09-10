@@ -159,6 +159,7 @@ function registerAdminEvents(io) {
 
         emitToUser('driver', driver.userId.toString(), 'ride:assigned', {
           rideRequestId: rideRequest._id,
+          customerName: rideRequest.customerName,
           pickup: rideRequest.pickupLocation,
           drop: rideRequest.dropLocation,
           assignedBy: 'admin',
