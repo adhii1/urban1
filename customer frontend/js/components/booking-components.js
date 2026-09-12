@@ -495,8 +495,8 @@ window.BookingComponents = {
                 </div>
 
                 <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
-                    <a href="ride-details.html?id=${b.id}" class="btn-redesign-primary" style="display:inline-flex; align-items:center; gap:8px; padding: 12px 20px; font-size: 14px; text-decoration:none;">
-                        View Ride Details
+                    <a href="my-trips.html" class="btn-redesign-primary" style="display:inline-flex; align-items:center; gap:8px; padding: 12px 20px; font-size: 14px; text-decoration:none;">
+                        View My Trips
                     </a>
                     <a href="dashboard.html" style="display:inline-flex; align-items:center; gap:8px; padding: 12px 20px; border-radius:12px; background:rgba(0,0,0,0.06); font-weight:600; font-size:14px; color:var(--clr-text-main); text-decoration:none;">
                         Dashboard

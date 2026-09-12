@@ -58,8 +58,7 @@
                         <p class="vehicle-no" style="font-weight:800;" id="activeRideVehicle">—</p>
                         <p class="driver-name" style="font-size:12px; color:var(--clr-text-light);" id="activeRideDriver">Driver being assigned</p>
                     </div>
-                    <a class="btn-primary btn-sm" href="active-ride.html" style="text-decoration:none;">Active Card</a>
-                    <a class="btn-primary btn-sm" href="tracking.html" style="background:#3B82F6; text-decoration:none; margin-left:6px;">Live Map</a>
+                    <a class="btn-primary btn-sm" href="tracking.html" style="text-decoration:none;">Track Ride</a>
                 </div>
 
                 <div id="activeRideOtp" style="margin-top:14px;"></div>
@@ -82,7 +81,7 @@
                     <div class="action-icon bg-green-light text-green">➕</div>
                     <span>Book Ride</span>
                 </a>
-                <a href="ride-status.html" class="action-item">
+                <a href="tracking.html" class="action-item">
                     <div class="action-icon bg-blue-light text-blue">⏳</div>
                     <span>Ride Status</span>
                 </a>
@@ -159,8 +158,9 @@
     <script src="js/rideSocket.js"></script>
     <!-- customerService/mockData are fixture generators that fabricate a profile,
          wallet balance and saved addresses. The dashboard reads the real account
-         through CUSTOMER_API instead, so they are no longer loaded here. -->
-    <script src="js/services/notificationService.js"></script>
+         through CUSTOMER_API instead, so they are no longer loaded here. The
+         notification center also now reads/writes through CUSTOMER_API rather
+         than the mock notificationService. -->
     <script src="js/components/uiComponents.js"></script>
     <script src="js/dashboard.js"></script>
 </body>

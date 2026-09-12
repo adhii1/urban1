@@ -13,21 +13,18 @@ const TORQQ_ENV = (() => {
             // the same network. Never hardcode localhost here again.
             baseUrl: (window.TORQQ_API_BASE || '/api/v1'),
             wsUrl: (window.TORQQ_SOCKET_ORIGIN || window.location.origin),
-            useMockData: true,
             debug: true
         },
         staging: {
             name: 'Staging Environment',
             baseUrl: 'https://staging-api.torqq.com/api/v1',
             wsUrl: 'wss://staging-api.torqq.com',
-            useMockData: true,
             debug: true
         },
         production: {
             name: 'Production Environment',
             baseUrl: 'https://api.torqq.com/api/v1',
             wsUrl: 'wss://api.torqq.com',
-            useMockData: false,
             debug: false
         }
     };

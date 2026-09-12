@@ -7,12 +7,8 @@ const TORQQ_ROUTES = {
         HOME: '/index.html',
         DASHBOARD: '/dashboard.html',
         BOOKING: '/booking.html',
-        RIDE_STATUS: '/ride-status.html',
-        ACTIVE_RIDE: '/active-ride.html',
-        RIDE_DETAILS: '/ride-details.html',
         TRACKING: '/tracking.html',
         MY_TRIPS: '/my-trips.html',
-        PAYMENT_PROCESS: '/payment-process.html',
         SETTINGS: '/settings.html',
         NOTIFICATIONS: '/notifications.html'
     },

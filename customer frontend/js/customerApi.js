@@ -178,6 +178,11 @@ const CUSTOMER_API = (() => {
             body: JSON.stringify(subscriptionId ? { subscriptionId } : {})
         }),
         getBookingEligibility: () => request('/customer/subscriptions/booking-eligibility'),
+        // Emergency Mode / SOS is armed per-subscription, not per-customer.
+        triggerSos: (subscriptionId, coordinates) => request(`/customer/subscriptions/${subscriptionId}/sos`, {
+            method: 'POST',
+            body: JSON.stringify(coordinates ? { coordinates } : {})
+        }),
         requestPause: (date, subscriptionId) => request('/customer/pause-request', {
             method: 'POST',
             body: JSON.stringify(subscriptionId ? { date, subscriptionId } : { date })

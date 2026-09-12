@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         minute: '2-digit'
                     });
                     
-                    const isUnread = n.readStatus === 'UNREAD';
+                    const isUnread = !n.isRead;
                     const unreadStyle = isUnread ? 'background: #f0fdf4; border-left: 4px solid var(--clr-primary-green);' : 'background: white;';
                     const dotHtml = isUnread ? '<span style="display:inline-block; width:8px; height:8px; background:var(--clr-primary-green); border-radius:50%; margin-left:6px;"></span>' : '';
 
@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 </h4>
                                 <button class="btnDeleteNotification" data-id="${n._id}" style="background: none; border: none; color: #ef4444; font-size: 12px; cursor: pointer; font-weight: 500;">Delete</button>
                             </div>
-                            <p style="font-size: 13px; color: var(--clr-text-main); margin-top: 4px;">${n.message}</p>
+                            <p style="font-size: 13px; color: var(--clr-text-main); margin-top: 4px;">${n.body || ''}</p>
                             <span style="display: block; margin-top: 8px; font-size: 11px; color: var(--clr-text-light);">${dateStr}</span>
                         </div>
                     `;
@@ -81,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnMarkAllRead) {
         btnMarkAllRead.addEventListener('click', async () => {
             try {
-                const res = await CUSTOMER_API.markRead({ notificationIds: [] });
+                const res = await CUSTOMER_API.markRead();
                 if (res.success) {
                     await fetchNotifications();
                 }

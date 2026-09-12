@@ -81,14 +81,45 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (btnSos) {
+        // Was firing a fake, unwired SOS that only logged to the console and
+        // showed a canned toast — no dispatch center or emergency contact was
+        // ever actually notified. This now calls the real
+        // POST /customer/subscriptions/:id/sos endpoint against the
+        // customer's active subscription, same as the SOS panel in the
+        // Next.js customer app.
         btnSos.addEventListener('click', async () => {
-            if (confirm('EMERGENCY SOS ALERT:\nAre you sure you want to alert the emergency dispatch team immediately?')) {
-                if (typeof driverService !== 'undefined') {
-                    const res = await driverService.triggerEmergencySOS({ lat: 12.9116, lng: 77.6389 });
-                    if (typeof UIComponents !== 'undefined') {
-                        UIComponents.showToast(`🚨 ${res.message}`, 'error', 6000);
-                    }
+            if (!confirm('EMERGENCY SOS ALERT:\nAre you sure you want to alert the emergency dispatch team immediately?')) return;
+
+            const fail = (msg) => {
+                if (typeof UIComponents !== 'undefined') UIComponents.showToast(msg, 'error', 6000);
+            };
+
+            if (typeof CUSTOMER_API === 'undefined') { fail('Emergency alert is unavailable right now.'); return; }
+
+            try {
+                const subRes = await CUSTOMER_API.getSubscription();
+                const subscriptionId = subRes?.data?._id;
+                if (!subscriptionId) { fail('No active subscription found to attach this SOS alert to.'); return; }
+
+                const send = (coordinates) => CUSTOMER_API.triggerSos(subscriptionId, coordinates)
+                    .then((res) => {
+                        if (typeof UIComponents !== 'undefined') {
+                            UIComponents.showToast(`🚨 ${res.message || 'Emergency dispatch center alerted. Stand by.'}`, 'error', 6000);
+                        }
+                    })
+                    .catch((error) => fail(error.message || 'Could not send the SOS alert.'));
+
+                if (typeof navigator !== 'undefined' && navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos) => send([pos.coords.longitude, pos.coords.latitude]),
+                        () => send(undefined),
+                        { timeout: 4000 }
+                    );
+                } else {
+                    send(undefined);
                 }
+            } catch (error) {
+                fail(error.message || 'Could not send the SOS alert.');
             }
         });
     }

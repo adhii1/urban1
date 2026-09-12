@@ -59,10 +59,14 @@ const UIComponents = (() => {
         document.getElementById('close-ntf-drawer').addEventListener('click', closeNotificationCenter);
         backdrop.addEventListener('click', closeNotificationCenter);
         document.getElementById('mark-all-ntf-read').addEventListener('click', async () => {
-            if (typeof notificationService !== 'undefined') {
-                await notificationService.markAllAsRead();
-                loadNotificationCenterData();
-                showToast('All notifications marked as read', 'info');
+            if (typeof CUSTOMER_API !== 'undefined') {
+                try {
+                    await CUSTOMER_API.markRead();
+                    await loadNotificationCenterData();
+                    showToast('All notifications marked as read', 'info');
+                } catch (error) {
+                    showToast(error.message || 'Could not mark notifications as read.', 'error');
+                }
             }
         });
     }
@@ -88,23 +92,29 @@ const UIComponents = (() => {
 
         body.innerHTML = renderSkeleton('card');
 
-        if (typeof notificationService !== 'undefined') {
-            const res = await notificationService.getNotifications();
-            if (res.success && res.data.length > 0) {
-                const unreadCount = res.data.filter(n => !n.read).length;
+        if (typeof CUSTOMER_API === 'undefined') return;
+
+        try {
+            const res = await CUSTOMER_API.getNotifications();
+            const items = (res.data || []).filter((n) => !n.isDeleted);
+            if (res.success && items.length > 0) {
+                const unreadCount = items.filter((n) => !n.isRead).length;
                 if (badge) badge.textContent = unreadCount;
-                body.innerHTML = res.data.map(n => `
-                    <div class="notification-card ${n.read ? '' : 'unread'}">
+                body.innerHTML = items.map((n) => `
+                    <div class="notification-card ${n.isRead ? '' : 'unread'}">
                         <div style="flex:1;">
                             <div style="font-weight:600; font-size:13px; margin-bottom:4px;">${n.title}</div>
-                            <div style="font-size:12px; color:var(--clr-text-light); line-height:1.4;">${n.message}</div>
-                            <div style="font-size:10px; color:#94A3B8; margin-top:6px;">${n.timestamp}</div>
+                            <div style="font-size:12px; color:var(--clr-text-light); line-height:1.4;">${n.body || ''}</div>
+                            <div style="font-size:10px; color:#94A3B8; margin-top:6px;">${n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}</div>
                         </div>
                     </div>
                 `).join('');
             } else {
+                if (badge) badge.textContent = '0';
                 body.innerHTML = renderEmptyState('No notifications', 'You have no new alerts right now.');
             }
+        } catch (error) {
+            body.innerHTML = renderEmptyState('Could not load notifications', error.message || 'Please try again later.');
         }
     }
 
