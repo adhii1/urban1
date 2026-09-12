@@ -232,3 +232,114 @@
         font-size: 20px;
     }
 }
+
+/* Account type (Customer vs Corporate) and login method controls */
+.account-type-choice,
+.login-method-choice {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 24px;
+    padding: 4px;
+    background-color: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: var(--radius-md);
+}
+
+.account-type-button,
+.login-method-button {
+    min-height: 44px;
+    padding: 10px 12px;
+    color: var(--clr-text-main);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: calc(var(--radius-md) - 2px);
+    font-family: var(--font-main);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.account-type-button:hover,
+.account-type-button.is-active,
+.login-method-button:hover,
+.login-method-button.is-active,
+.login-method-button[aria-pressed="true"] {
+    color: var(--clr-dark-navy);
+    background-color: var(--clr-white);
+    box-shadow: var(--shadow-sm);
+}
+
+.login-method-switch {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 24px;
+    color: var(--clr-text-light);
+    font-size: 14px;
+    text-align: center;
+}
+
+.btn-text {
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-main);
+}
+
+.btn-switch-method {
+    color: var(--clr-primary-green);
+    font-weight: 600;
+    text-decoration: underline;
+}
+
+.form-error {
+    margin: -8px 0 16px;
+    color: #DC2626;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.form-success {
+    margin: -8px 0 16px;
+    padding: 12px 14px;
+    background-color: #F0FDF4;
+    border: 1px solid #BBF7D0;
+    border-radius: var(--radius-md);
+    color: #15803D;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.corporate-register-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 16px;
+}
+
+@media (max-width: 480px) {
+    .account-type-choice {
+        grid-template-columns: 1fr;
+    }
+
+    .login-method-choice {
+        grid-template-columns: 1fr;
+    }
+
+    .login-method-switch {
+        align-items: center;
+        flex-direction: column;
+    }
+
+    .corporate-register-grid {
+        grid-template-columns: 1fr;
+    }
+}
