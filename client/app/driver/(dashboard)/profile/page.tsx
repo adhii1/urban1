@@ -2,13 +2,15 @@
 
 import { useDriverProfile } from '@/lib/hooks/useDriverQueries';
 import { useDriverStore } from '@/stores/driverStore';
+import { endSession } from '@/lib/api/client';
 import { User, Phone, Car, Route, Hash, LogOut, IdCard, Wallet, Landmark, CreditCard } from 'lucide-react';
 
 export default function DriverProfilePage() {
   const logout = useDriverStore((s) => s.logout);
   const { data: p, isLoading, error } = useDriverProfile();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await endSession();
     logout();
     window.location.href = '/driver/login';
   };

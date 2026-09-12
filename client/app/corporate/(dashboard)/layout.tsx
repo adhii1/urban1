@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Building2, LayoutDashboard, LogOut, Users, User } from 'lucide-react';
-import { api, ApiError } from '@/lib/api/client';
+import { api, ApiError, endSession } from '@/lib/api/client';
 import { useCorporateStore } from '@/stores/corporateStore';
 
 const navigation = [
@@ -47,7 +47,7 @@ export default function CorporateDashboardLayout({ children }: { children: React
     return () => { cancelled = true; };
   }, [isLoggedIn, logout, router, setUserInfo]);
 
-  const handleLogout = () => { logout(); router.replace('/corporate'); };
+  const handleLogout = async () => { await endSession(); logout(); router.replace('/corporate'); };
 
   if (!isLoggedIn || !validated) {
     return <div style={{ display: 'grid', minHeight: '100vh', placeItems: 'center', background: '#F7F9FC' }}>Loading your corporate workspace…</div>;

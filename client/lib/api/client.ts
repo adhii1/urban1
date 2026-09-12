@@ -37,6 +37,26 @@ async function refreshSession(): Promise<boolean> {
   }
 }
 
+/**
+ * Tells the backend to blacklist the current access/refresh token pair before
+ * the local store is cleared. Without this, a captured or leaked token stays
+ * valid until its natural expiry even after the user "logs out" client-side —
+ * this only clears local state. Best-effort: if the request fails (offline,
+ * token already expired, etc.) we still proceed with the local logout so the
+ * user is never stuck unable to sign out.
+ */
+export async function endSession(): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch {
+    /* ignore — proceed with local logout regardless */
+  }
+}
+
 async function request<T>(
   endpoint: string,
   options: RequestInit = {},

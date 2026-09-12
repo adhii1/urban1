@@ -4,7 +4,7 @@ import { User, Phone, LogOut, Loader, AlertCircle, Map, Pencil } from 'lucide-re
 import { useCustomerStore } from '@/stores/customerStore';
 import { useCustomerProfile } from '@/lib/hooks/useCustomerQueries';
 import { useState } from 'react';
-import { api } from '@/lib/api/client';
+import { api, endSession } from '@/lib/api/client';
 import LocationSelector from './LocationSelector';
 
 export default function CustomerProfilePage() {
@@ -14,7 +14,8 @@ export default function CustomerProfilePage() {
   const [showLocationSelector, setShowLocationSelector] = useState<'pickup' | 'drop' | 'home' | null>(null);
   const [updatingLocation, setUpdatingLocation] = useState<string | null>(null);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await endSession();
     logout();
     window.location.href = '/customer';
   };

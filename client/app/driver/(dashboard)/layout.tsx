@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Bell, Car, ChartNoAxesCombined, CircleUserRound, FileText, Headphones, LayoutDashboard, List, LogOut, MapPinned, Menu, QrCode, Route, Settings, UserRound, Users, Wallet } from 'lucide-react';
-import { api, ApiError } from '@/lib/api/client';
+import { api, ApiError, endSession } from '@/lib/api/client';
 import { useDriverOperationSync } from '@/lib/hooks/useDriverOperationSync';
 import { useDriverStore } from '@/stores/driverStore';
 
@@ -60,7 +60,7 @@ export default function DriverDashboardLayout({ children }: { children: React.Re
     return () => { cancelled = true; };
   }, [isLoggedIn, logout, router, setUserInfo]);
 
-  const handleLogout = () => { logout(); router.replace('/driver'); };
+  const handleLogout = async () => { await endSession(); logout(); router.replace('/driver'); };
   const changeDuty = async () => {
     const next = !isOnline;
     setUpdatingDuty(true);
