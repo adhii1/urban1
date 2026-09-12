@@ -46,42 +46,6 @@ export function useAdminAuth() {
     }
   };
 
-  const verifyOtp = async (phone: string, otp: string) => {
-    setIsLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, otp, purpose: 'LOGIN' }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'OTP verification failed');
-      }
-
-      if (data.success && data.data?.user) {
-        const user = data.data.user;
-        setAuth({
-          name: user.name,
-          phone: user.phone,
-          role: user.role,
-          userId: user.id || user._id,
-          accessToken: data.data.accessToken,
-        });
-        return { success: true, user };
-      } else {
-        throw new Error(data.message || 'Verification failed.');
-      }
-    } catch (error: any) {
-      throw new Error(error.message || 'Verification failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const logoutUser = async () => {
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
@@ -97,5 +61,5 @@ export function useAdminAuth() {
     }
   };
 
-  return { login, verifyOtp, logoutUser, isLoading };
+  return { login, logoutUser, isLoading };
 }
