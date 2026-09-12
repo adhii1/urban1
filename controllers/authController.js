@@ -113,6 +113,14 @@ const driverRegister = asyncWrapper(async (req, res) => {
   res.status(201).json(formatResponse(data.message, { ...data, accessToken }));
 });
 
+const corporateRegister = asyncWrapper(async (req, res) => {
+  const data = await authService.corporateRegister(req.body);
+
+  // No auto-login: the account is PENDING until an admin approves it, so
+  // issuing a session here would just get rejected on the very next request.
+  res.status(201).json(formatResponse(data.message, data));
+});
+
 module.exports = {
   login,
   adminLogin,
@@ -127,4 +135,5 @@ module.exports = {
   changePassword,
   setPassword,
   driverRegister,
+  corporateRegister,
 };

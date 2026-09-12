@@ -454,3 +454,27 @@ export function useDeleteCorporate() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
   });
 }
+
+export function useApproveCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => adminApi.approveCorporate(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}
+
+export function useRejectCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) => adminApi.rejectCorporate(id, reason),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}
+
+export function useAssignDriverToCorporate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, driverId }: { id: string; driverId: string }) => adminApi.assignDriverToCorporate(id, driverId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['corporates'] }),
+  });
+}

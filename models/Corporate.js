@@ -47,12 +47,30 @@ const corporateSchema = new mongoose.Schema(
       default: 50,
       min: 1,
     },
+    // A self-registered corporate account starts PENDING and cannot log in
+    // until an admin approves it (see authService.login's Corporate check).
+    // Admin-provisioned accounts (adminController.createCorporate) are
+    // created ACTIVE directly, since the admin creating one is itself the
+    // approval.
     status: {
       type: String,
-      enum: ['ACTIVE', 'INACTIVE', 'SUSPENDED'],
-      default: 'ACTIVE',
+      enum: ['PENDING', 'ACTIVE', 'INACTIVE', 'SUSPENDED', 'REJECTED'],
+      default: 'PENDING',
       index: true,
     },
+    // Set when an admin approves/rejects a PENDING self-registration.
+    reviewedAt: { type: Date },
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+    rejectionReason: { type: String, trim: true },
+    // The dedicated driver an admin assigns to service this company's
+    // employees, set once the account is approved. Metadata only — it does
+    // not itself reserve subscription capacity; an admin still assigns that
+    // driver to individual employee subscriptions the normal way.
+    assignedDriverId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+    },
+    assignedDriverAt: { type: Date },
     isDeleted: {
       type: Boolean,
       default: false,

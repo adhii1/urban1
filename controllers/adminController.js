@@ -1211,6 +1211,11 @@ const createCorporate = asyncWrapper(async (req, res) => {
     gstNumber: gstNumber || undefined,
     address: address || undefined,
     employeeLimit: employeeLimit || 50,
+    // Admin creating the account directly is itself the approval — unlike a
+    // company's own self-registration, which starts PENDING.
+    status: 'ACTIVE',
+    reviewedAt: new Date(),
+    reviewedBy: req.user.id,
   });
 
   return res.status(201).json(formatResponse('Corporate account created successfully.', corporate));
@@ -1257,6 +1262,71 @@ const deleteCorporate = asyncWrapper(async (req, res) => {
   }
 
   return res.status(200).json(formatResponse('Corporate account deleted successfully.'));
+});
+
+/**
+ * POST /admin/corporates/:id/approve
+ * Approve a PENDING self-registered corporate account so it can sign in.
+ * Body (optional): { employeeLimit } — set the agreed seat count at approval time.
+ */
+const approveCorporate = asyncWrapper(async (req, res) => {
+  const corporate = await Corporate.findById(req.params.id);
+  if (!corporate) throw new NotFoundError('Corporate account');
+  if (corporate.status !== 'PENDING') {
+    throw new ValidationError(`Only pending accounts can be approved (current status: ${corporate.status}).`);
+  }
+
+  corporate.status = 'ACTIVE';
+  corporate.reviewedAt = new Date();
+  corporate.reviewedBy = req.user.id;
+  if (req.body?.employeeLimit) corporate.employeeLimit = req.body.employeeLimit;
+  await corporate.save();
+
+  return res.status(200).json(formatResponse('Corporate account approved.', corporate));
+});
+
+/**
+ * POST /admin/corporates/:id/reject
+ * Reject a PENDING self-registered corporate account. Body: { reason? }.
+ */
+const rejectCorporate = asyncWrapper(async (req, res) => {
+  const corporate = await Corporate.findById(req.params.id);
+  if (!corporate) throw new NotFoundError('Corporate account');
+  if (corporate.status !== 'PENDING') {
+    throw new ValidationError(`Only pending accounts can be rejected (current status: ${corporate.status}).`);
+  }
+
+  corporate.status = 'REJECTED';
+  corporate.reviewedAt = new Date();
+  corporate.reviewedBy = req.user.id;
+  corporate.rejectionReason = req.body?.reason || undefined;
+  await corporate.save();
+
+  return res.status(200).json(formatResponse('Corporate account rejected.', corporate));
+});
+
+/**
+ * POST /admin/corporates/:id/assign-driver
+ * Assign the dedicated driver who will service this company's employees,
+ * once the account is approved. Body: { driverId }.
+ */
+const assignDriverToCorporate = asyncWrapper(async (req, res) => {
+  const corporate = await Corporate.findById(req.params.id);
+  if (!corporate) throw new NotFoundError('Corporate account');
+  if (corporate.status !== 'ACTIVE') {
+    throw new ValidationError('Approve this corporate account before assigning a driver.');
+  }
+
+  const { driverId } = req.body;
+  if (!driverId) throw new ValidationError('driverId is required.');
+  const driver = await Driver.findById(driverId);
+  if (!driver) throw new NotFoundError('Driver');
+
+  corporate.assignedDriverId = driver._id;
+  corporate.assignedDriverAt = new Date();
+  await corporate.save();
+
+  return res.status(200).json(formatResponse('Driver assigned to corporate account.', corporate));
 });
 
 module.exports = {
@@ -1317,4 +1387,7 @@ module.exports = {
   createCorporate,
   updateCorporate,
   deleteCorporate,
+  approveCorporate,
+  rejectCorporate,
+  assignDriverToCorporate,
 };

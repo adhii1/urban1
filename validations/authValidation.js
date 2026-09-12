@@ -106,6 +106,26 @@ const driverRegister = Joi.object({
   }),
 });
 
+const corporateRegister = Joi.object({
+  phone: Joi.string().pattern(phoneRegex).required().messages({
+    'string.pattern.base': 'Phone number must be a valid 10-digit mobile number.',
+    'any.required': 'Phone number is required.',
+  }),
+  password: Joi.string().min(6).required().messages({
+    'any.required': 'Password is required.',
+  }),
+  companyName: Joi.string().trim().min(1).max(150).required().messages({
+    'any.required': 'Company name is required.',
+  }),
+  contactPerson: Joi.object({
+    name: Joi.string().trim().max(120).optional().allow(null, ''),
+    designation: Joi.string().trim().max(120).optional().allow(null, ''),
+  }).optional(),
+  billingEmail: Joi.string().trim().email().max(150).optional().allow(null, ''),
+  gstNumber: Joi.string().trim().max(20).optional().allow(null, ''),
+  address: Joi.string().trim().max(300).optional().allow(null, ''),
+});
+
 const location = Joi.object({
   type: Joi.string().valid('Point').default('Point'),
   coordinates: Joi.array().items(Joi.number()).length(2).required(),
@@ -129,4 +149,6 @@ module.exports = {
   changePassword,
   setPassword,
   updateProfile,
+  driverRegister,
+  corporateRegister,
 };

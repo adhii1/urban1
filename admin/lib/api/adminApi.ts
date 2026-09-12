@@ -198,4 +198,10 @@ export const adminApi = {
     apiFetch(`/admin/corporates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteCorporate: (id: string) =>
     apiFetch(`/admin/corporates/${id}`, { method: 'DELETE' }),
+  approveCorporate: (id: string) =>
+    apiFetch(`/admin/corporates/${id}/approve`, { method: 'POST' }),
+  rejectCorporate: (id: string, reason?: string) =>
+    apiFetch(`/admin/corporates/${id}/reject`, { method: 'POST', body: JSON.stringify(reason ? { reason } : {}) }),
+  assignDriverToCorporate: (id: string, driverId: string) =>
+    apiFetch(`/admin/corporates/${id}/assign-driver`, { method: 'POST', body: JSON.stringify({ driverId }) }),
 };

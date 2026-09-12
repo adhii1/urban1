@@ -55,7 +55,22 @@ class AuthService {
       profileName = driver ? driver.name : 'Driver';
     } else if (user.role === 'Corporate') {
       const corporate = await Corporate.findOne({ userId: user._id });
-      profileName = corporate ? corporate.companyName : 'Corporate Account';
+      if (!corporate) {
+        this._throwError('Corporate account not found.', 404);
+      }
+      // A self-registered company can't sign in until an admin approves it —
+      // the User row itself is ACTIVE (created that way at registration), so
+      // this Corporate-specific status is the actual gate.
+      if (corporate.status === 'PENDING') {
+        this._throwError('Your corporate account is awaiting admin approval. Please check back soon.', 403);
+      }
+      if (corporate.status === 'REJECTED') {
+        this._throwError('Your corporate account application was not approved. Contact TORQQ support for details.', 403);
+      }
+      if (corporate.status !== 'ACTIVE') {
+        this._throwError('Your corporate account is not active. Contact TORQQ support.', 403);
+      }
+      profileName = corporate.companyName;
     }
 
     return {
@@ -446,6 +461,62 @@ class AuthService {
         status: driver.status,
       },
       message: 'Driver registration successful. Please wait for admin approval.',
+    };
+  }
+
+  // ==========================================
+  // CORPORATE SELF-REGISTRATION
+  // ==========================================
+  /**
+   * A company signs up for its own account from the customer portal's
+   * "Corporate" tab. This only creates the account — it starts PENDING and
+   * cannot log in (see the Corporate status check in login()) until an admin
+   * reviews and approves it from the admin console, same shape as driver
+   * self-registration above.
+   */
+  async corporateRegister(data) {
+    logger.info(`Processing corporate registration for phone: ${data.phone}`);
+
+    const existingUser = await User.findOne({ phone: data.phone });
+    if (existingUser) {
+      this._throwError('Phone number already registered.', 400);
+    }
+
+    const hashedPassword = await hashPassword(data.password);
+    const user = await User.create({
+      phone: data.phone,
+      password: hashedPassword,
+      role: 'Corporate',
+      status: 'ACTIVE',
+      hasCustomPassword: true,
+    });
+
+    const corporate = await Corporate.create({
+      userId: user._id,
+      companyName: data.companyName,
+      contactPerson: data.contactPerson || undefined,
+      billingEmail: data.billingEmail || undefined,
+      gstNumber: data.gstNumber || undefined,
+      address: data.address || undefined,
+      status: 'PENDING',
+    });
+
+    logger.info(`Corporate account registered, pending approval: ${user._id}`);
+
+    return {
+      user: {
+        id: user._id,
+        name: corporate.companyName,
+        phone: user.phone,
+        role: user.role,
+        hasCustomPassword: true,
+      },
+      corporate: {
+        id: corporate._id,
+        companyName: corporate.companyName,
+        status: corporate.status,
+      },
+      message: 'Corporate account submitted. Please wait for admin approval before signing in.',
     };
   }
 }

@@ -32,6 +32,16 @@ router.post(
   (req, res) => res.status(403).json({ success: false, message: 'Driver registration is admin-only. Contact your administrator.' })
 );
 
+// Corporate Self-Registration — a company signs up from the customer portal's
+// "Corporate" tab. Unlike drivers, this IS a public signup: the account is
+// created PENDING and cannot sign in until an admin reviews and approves it.
+router.post(
+  '/corporate/register',
+  authLimiter,
+  validateRequest(authValidation.corporateRegister),
+  authController.corporateRegister
+);
+
 // OTP Endpoints
 router.post(
   '/send-otp',

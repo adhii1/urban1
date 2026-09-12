@@ -108,6 +108,9 @@ router.get('/corporates/:id', adminController.getCorporateById);
 router.post('/corporates', validateRequest(adminValidation.createCorporate), adminController.createCorporate);
 router.patch('/corporates/:id', validateRequest(adminValidation.updateCorporate), adminController.updateCorporate);
 router.delete('/corporates/:id', adminController.deleteCorporate);
+router.post('/corporates/:id/approve', adminController.approveCorporate);
+router.post('/corporates/:id/reject', adminController.rejectCorporate);
+router.post('/corporates/:id/assign-driver', adminController.assignDriverToCorporate);
 
 // Subscription Matching (PDF section 20: Admin manual override)
 const SubscriptionMatchingService = require('../../services/SubscriptionMatchingService');
