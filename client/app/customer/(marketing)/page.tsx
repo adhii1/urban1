@@ -24,6 +24,8 @@ type AuthStep = 'phone' | 'otp';
 type PortalTab = 'customer' | 'corporate';
 /** Corporate flow step */
 type CorporateStep = 'login' | 'register' | 'pending';
+/** Fine-grained corporate login status for styled banners */
+type CorpLoginStatus = 'idle' | 'pending_approval' | 'rejected' | 'error';
 
 export default function CustomerHomePage() {
   const router = useRouter();
@@ -31,7 +33,8 @@ export default function CustomerHomePage() {
   const { showToast } = useToast();
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [portalTab, setPortalTab] = useState<PortalTab>('customer');
+  // Corporate tab is shown first — it's the primary entry point for new companies
+  const [portalTab, setPortalTab] = useState<PortalTab>('corporate');
 
   // ── Customer auth state ──────────────────────────────────────────
   const [loginMode, setLoginMode] = useState<LoginMode>('otp');
@@ -47,6 +50,7 @@ export default function CustomerHomePage() {
   const [corpPhone, setCorpPhone] = useState('');
   const [corpPassword, setCorpPassword] = useState('');
   const [corpLoading, setCorpLoading] = useState(false);
+  const [corpLoginStatus, setCorpLoginStatus] = useState<CorpLoginStatus>('idle');
   const [corpError, setCorpError] = useState('');
   // Register form fields
   const [regCompanyName, setRegCompanyName] = useState('');
@@ -70,9 +74,9 @@ export default function CustomerHomePage() {
 
   const closeAuth = () => {
     setModalOpen(false);
-    setPortalTab('customer');
+    setPortalTab('corporate');
     setLoginMode('otp'); setStep('phone'); setName(''); setPhone(''); setPassword(''); setOtp(['', '', '', '', '', '']);
-    setCorpStep('login'); setCorpPhone(''); setCorpPassword(''); setCorpError('');
+    setCorpStep('login'); setCorpPhone(''); setCorpPassword(''); setCorpLoginStatus('idle'); setCorpError('');
     setRegCompanyName(''); setRegPhone(''); setRegPassword(''); setRegConfirmPassword('');
     setRegContactName(''); setRegContactDesignation(''); setRegBillingEmail(''); setRegGst(''); setRegAddress('');
     setRegError(''); setPendingCompany('');
@@ -84,7 +88,7 @@ export default function CustomerHomePage() {
     if (tab === 'customer') {
       setLoginMode('otp'); setStep('phone'); setName(''); setPhone(''); setPassword('');
     } else {
-      setCorpStep('login'); setCorpPhone(''); setCorpPassword(''); setCorpError('');
+      setCorpStep('login'); setCorpPhone(''); setCorpPassword(''); setCorpLoginStatus('idle'); setCorpError('');
     }
   };
 
@@ -144,15 +148,30 @@ export default function CustomerHomePage() {
   // ── Corporate login ──────────────────────────────────────────────
   const corpLogin = async (event: React.FormEvent) => {
     event.preventDefault();
+    setCorpLoginStatus('idle');
     setCorpError('');
-    if (!/^\d{10}$/.test(corpPhone)) { setCorpError('Please enter a valid 10-digit mobile number.'); return; }
-    if (!corpPassword) { setCorpError('Please enter your password.'); return; }
+    if (!/^\d{10}$/.test(corpPhone)) { setCorpLoginStatus('error'); setCorpError('Please enter a valid 10-digit mobile number.'); return; }
+    if (!corpPassword) { setCorpLoginStatus('error'); setCorpError('Please enter your password.'); return; }
     setCorpLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: corpPhone, password: corpPassword }) });
       const result = await response.json();
+
+      // 403 = PENDING or REJECTED — surface as styled banners, not plain red text
+      if (response.status === 403) {
+        const msg: string = result.message || '';
+        if (msg.toLowerCase().includes('pending') || msg.toLowerCase().includes('awaiting')) {
+          setCorpLoginStatus('pending_approval');
+        } else if (msg.toLowerCase().includes('rejected') || msg.toLowerCase().includes('not approved')) {
+          setCorpLoginStatus('rejected');
+        } else {
+          setCorpLoginStatus('error');
+          setCorpError(msg || 'Access denied. Contact TORQQ support.');
+        }
+        return;
+      }
+
       if (!response.ok || !result.success || !result.data) {
-        // 403 from backend for PENDING / REJECTED carries a human-readable message
         throw new Error(result.message || 'Unable to sign in.');
       }
       const role = String(result.data.user?.role || '').toLowerCase();
@@ -161,6 +180,7 @@ export default function CustomerHomePage() {
       closeAuth();
       router.push('/corporate/dashboard');
     } catch (reason) {
+      setCorpLoginStatus('error');
       setCorpError(reason instanceof Error ? reason.message : 'Login failed. Please try again.');
     } finally { setCorpLoading(false); }
   };
@@ -226,21 +246,21 @@ export default function CustomerHomePage() {
           <p className="modal-subtitle">Smart Daily Commute</p>
         </div>
 
-        {/* ── Portal tab switcher: Customer / Corporate ── */}
+        {/* ── Portal tab switcher: Corporate first, then Individual ── */}
         <div style={{ display: 'flex', background: '#F1F5F9', borderRadius: 10, padding: 4, margin: '0 0 16px' }}>
-          <button
-            type="button"
-            onClick={() => switchTab('customer')}
-            style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.15s', background: portalTab === 'customer' ? '#fff' : 'transparent', color: portalTab === 'customer' ? '#0F172A' : '#64748B', boxShadow: portalTab === 'customer' ? '0 1px 4px rgba(0,0,0,0.12)' : 'none' }}
-          >
-            <CircleUserRound size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Individual
-          </button>
           <button
             type="button"
             onClick={() => switchTab('corporate')}
             style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.15s', background: portalTab === 'corporate' ? '#fff' : 'transparent', color: portalTab === 'corporate' ? '#0F172A' : '#64748B', boxShadow: portalTab === 'corporate' ? '0 1px 4px rgba(0,0,0,0.12)' : 'none' }}
           >
             <Building2 size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Corporate
+          </button>
+          <button
+            type="button"
+            onClick={() => switchTab('customer')}
+            style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, transition: 'all 0.15s', background: portalTab === 'customer' ? '#fff' : 'transparent', color: portalTab === 'customer' ? '#0F172A' : '#64748B', boxShadow: portalTab === 'customer' ? '0 1px 4px rgba(0,0,0,0.12)' : 'none' }}
+          >
+            <CircleUserRound size={13} style={{ marginRight: 5, verticalAlign: 'middle' }} />Individual
           </button>
         </div>
 
@@ -267,11 +287,40 @@ export default function CustomerHomePage() {
                   <Building2 size={16} color="#3B82F6" />
                   <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Corporate Sign In</span>
                 </div>
-                {corpError && (
+
+                {/* PENDING approval banner */}
+                {corpLoginStatus === 'pending_approval' && (
+                  <div role="alert" style={{ padding: '12px 14px', borderRadius: 10, background: '#FEF3C7', border: '1px solid #FCD34D', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 12, color: '#92400E' }}>
+                      <span style={{ fontSize: 15 }}>⏳</span> Application Pending Review
+                    </div>
+                    <p style={{ fontSize: 11, color: '#78350F', margin: 0, lineHeight: 1.6 }}>
+                      Your corporate account is awaiting admin approval. You will be able to sign in once the TORQQ team reviews your application (typically 1–2 business days).
+                    </p>
+                  </div>
+                )}
+
+                {/* REJECTED banner */}
+                {corpLoginStatus === 'rejected' && (
+                  <div role="alert" style={{ padding: '12px 14px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FCA5A5', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 12, color: '#991B1B' }}>
+                      <span style={{ fontSize: 15 }}>✗</span> Application Not Approved
+                    </div>
+                    <p style={{ fontSize: 11, color: '#7F1D1D', margin: 0, lineHeight: 1.6 }}>
+                      Your corporate account application was not approved. Please contact{' '}
+                      <a href="mailto:support@torqq.in" style={{ color: '#DC2626', fontWeight: 700 }}>TORQQ support</a>{' '}
+                      for more information or to re-apply.
+                    </p>
+                  </div>
+                )}
+
+                {/* Generic error */}
+                {corpLoginStatus === 'error' && corpError && (
                   <div role="alert" style={{ padding: '10px 12px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', fontSize: 12, lineHeight: 1.5 }}>
                     {corpError}
                   </div>
                 )}
+
                 <div>
                   <label htmlFor="corpPhone" style={labelStyle}>Phone Number</label>
                   <div style={{ position: 'relative' }}>
@@ -288,7 +337,7 @@ export default function CustomerHomePage() {
                 </button>
                 <p style={{ textAlign: 'center', fontSize: 12, color: '#64748B', marginTop: 4 }}>
                   New company?{' '}
-                  <button type="button" onClick={() => { setCorpStep('register'); setCorpError(''); }} style={{ background: 'none', border: 'none', color: '#3B82F6', fontWeight: 700, cursor: 'pointer', fontSize: 12, padding: 0 }}>
+                  <button type="button" onClick={() => { setCorpStep('register'); setCorpLoginStatus('idle'); setCorpError(''); }} style={{ background: 'none', border: 'none', color: '#3B82F6', fontWeight: 700, cursor: 'pointer', fontSize: 12, padding: 0 }}>
                     Register your company
                   </button>
                 </p>
@@ -383,7 +432,7 @@ export default function CustomerHomePage() {
                     <li>Once approved, sign in using the mobile number and password you registered with.</li>
                   </ul>
                 </div>
-                <button type="button" onClick={() => { setCorpStep('login'); setCorpPhone(regPhone); }} className="btn-primary modal-btn-full" style={{ marginTop: 4 }}>
+                <button type="button" onClick={() => { setCorpStep('login'); setCorpPhone(regPhone); setCorpLoginStatus('idle'); }} className="btn-primary modal-btn-full" style={{ marginTop: 4 }}>
                   Back to Sign In
                 </button>
               </div>
