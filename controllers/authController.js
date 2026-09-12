@@ -108,9 +108,9 @@ const driverRegister = asyncWrapper(async (req, res) => {
   const data = await authService.driverRegister(req.body);
 
   // Auto-login after registration
-  const accessToken = setAuthCookies(res, data.user);
+  const tokens = setAuthCookies(res, data.user);
 
-  res.status(201).json(formatResponse(data.message, { ...data, accessToken }));
+  res.status(201).json(formatResponse(data.message, { ...data, ...tokens }));
 });
 
 const corporateRegister = asyncWrapper(async (req, res) => {

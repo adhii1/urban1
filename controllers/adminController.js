@@ -173,6 +173,12 @@ const createDriver = asyncWrapper(async (req, res) => {
     vehicleModel,
     vehicleCapacity: vehicleCapacity || 6,
     licenseNumber,
+    // Same rationale as admin-created Corporate accounts: an admin creating
+    // the driver directly is itself the approval, unlike driver
+    // self-registration which starts PENDING_APPROVAL (the schema default)
+    // until admin review. Without this, admin-created drivers were silently
+    // stuck PENDING_APPROVAL and blocked from accepting rides.
+    status: 'ACTIVE',
     routeId,
     areaId: areaId || undefined,
     zoneId: zoneId || undefined,
@@ -1176,7 +1182,11 @@ const assignAreasToZone = asyncWrapper(async (req, res) => {
 // corporate contact then logs in through the corporate portal and manages
 // their own employee roster from there.
 const getCorporates = asyncWrapper(async (req, res) => {
-  const corporates = await Corporate.find().populate('userId', 'phone status').sort({ createdAt: -1 }).lean();
+  const corporates = await Corporate.find()
+    .populate('userId', 'phone status')
+    .populate('assignedDriverId', 'name vehicleNumber')
+    .sort({ createdAt: -1 })
+    .lean();
   const employeeCounts = await Customer.aggregate([
     { $match: { isDeleted: false, corporateId: { $ne: null } } },
     { $group: { _id: '$corporateId', count: { $sum: 1 } } },
@@ -1187,7 +1197,9 @@ const getCorporates = asyncWrapper(async (req, res) => {
 });
 
 const getCorporateById = asyncWrapper(async (req, res) => {
-  const corporate = await Corporate.findById(req.params.id).populate('userId', 'phone status');
+  const corporate = await Corporate.findById(req.params.id)
+    .populate('userId', 'phone status')
+    .populate('assignedDriverId', 'name vehicleNumber');
   if (!corporate) throw new NotFoundError('Corporate account');
   return res.status(200).json(formatResponse('Corporate account retrieved.', corporate));
 });

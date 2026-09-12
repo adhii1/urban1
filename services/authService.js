@@ -238,11 +238,30 @@ class AuthService {
       const payload = { id: user._id, role: user.role };
       const accessToken = generateAccessToken(payload);
       const refreshToken = generateRefreshToken(payload);
+
+      // Resolve the real display name from the role-specific profile, same
+      // as getMe() does. User has no `name` field of its own, so reading
+      // user.name here was always undefined.
+      let name = '';
+      if (user.role === 'Customer') {
+        const customer = await Customer.findOne({ userId: user._id });
+        name = customer ? customer.name : '';
+      } else if (user.role === 'Driver') {
+        const driver = await Driver.findOne({ userId: user._id });
+        name = driver ? driver.name : '';
+      } else if (user.role === 'Admin') {
+        const admin = await Admin.findOne({ userId: user._id });
+        name = admin ? admin.name : '';
+      } else if (user.role === 'Corporate') {
+        const corporate = await Corporate.findOne({ userId: user._id });
+        name = corporate ? corporate.companyName : '';
+      }
+
       return {
         success: true,
         accessToken,
         refreshToken,
-        user: { id: user._id, name: user.name, phone: user.phone, role: user.role, status: user.status },
+        user: { id: user._id, name, phone: user.phone, role: user.role, status: user.status },
       };
     } catch (error) {
       this._throwError('Invalid or expired refresh token.', 401);
