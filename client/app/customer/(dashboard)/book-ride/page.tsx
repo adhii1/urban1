@@ -5,7 +5,7 @@ import { useRideBooking } from '@/lib/hooks/useRideBooking';
 import { useToastStore } from '@/stores/toastStore';
 import LocationSelector from '../profile/LocationSelector';
 import DriverMap from '@/components/shared/DriverMap';
-import { Car, MapPin, Loader, Phone, Shield, Plus, Trash2, Navigation, Clock, Star, IndianRupee, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Car, MapPin, Loader, Phone, Shield, ShieldAlert, Plus, Trash2, Navigation, Clock, Star, IndianRupee, AlertTriangle, CheckCircle2 } from 'lucide-react';
 
 interface SelectedLocation {
   address: string;
@@ -74,6 +74,21 @@ export default function BookRidePage() {
   const [ratingHover, setRatingHover] = useState(0);
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
   const [lastCompletedRideId, setLastCompletedRideId] = useState<string | null>(null);
+
+  // Emergency mode state from URL params
+  const [isEmergencyMode, setIsEmergencyMode] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('mode') === 'emergency' || params.get('emergency') === 'true') {
+        setIsEmergencyMode(true);
+        setEmergencyReason(params.get('reason'));
+        setPickupIntent('IMMEDIATE');
+      }
+    }
+  }, []);
 
   // Reset rating state when ride changes
   useEffect(() => {
@@ -606,6 +621,39 @@ export default function BookRidePage() {
       {/* ============ Booking Form ============ */}
       {!hasActiveRide && (
         <div style={{ background: '#FFF', borderRadius: '14px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
+          {/* Emergency Priority Dispatch Banner */}
+          {isEmergencyMode && (
+            <div style={{
+              background: 'linear-gradient(135deg, #FEF2F2 0%, #FFF1F2 100%)',
+              border: '1.5px solid #FECDD3',
+              borderRadius: '12px',
+              padding: '14px',
+              marginBottom: '16px',
+              boxShadow: '0 2px 6px rgba(225, 29, 72, 0.08)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <ShieldAlert size={18} color="#DC2626" />
+                <strong style={{ fontSize: '13px', color: '#991B1B' }}>EMERGENCY PRIORITY DISPATCH ACTIVE</strong>
+                <span style={{
+                  fontSize: '9px',
+                  fontWeight: 800,
+                  background: '#FEE2E2',
+                  color: '#991B1B',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  textTransform: 'uppercase',
+                  marginLeft: 'auto',
+                }}>
+                  Urgent Only
+                </span>
+              </div>
+              <p style={{ fontSize: '11px', color: '#991B1B', lineHeight: '1.4', margin: 0 }}>
+                Authorized under corporate travel duty-of-care policy.
+                {emergencyReason ? ` Exigency: ${emergencyReason}.` : ''} Drivers in your vicinity will be prioritized for expedited arrival.
+              </p>
+            </div>
+          )}
+
           {/* Pickup */}
           <div onClick={() => setLocationPicker('pickup')} style={{
             display: 'flex', alignItems: 'center', gap: '10px', padding: '12px',
@@ -671,32 +719,54 @@ export default function BookRidePage() {
 
           {/* Flexy pickup timing */}
           <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, marginBottom: '8px' }}>WHEN SHOULD WE PICK YOU UP?</div>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: pickupIntent === 'SCHEDULED' ? '10px' : 0 }}>
-              {(['IMMEDIATE', 'SCHEDULED'] as const).map((intent) => (
-                <button
-                  key={intent}
-                  type="button"
-                  onClick={() => setPickupIntent(intent)}
-                  style={{
-                    flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
-                    border: `1.5px solid ${pickupIntent === intent ? '#16C15D' : '#E2E8F0'}`,
-                    background: pickupIntent === intent ? '#F0FDF4' : '#FFF',
-                    color: pickupIntent === intent ? '#15803D' : '#475569',
-                  }}
-                >
-                  {intent === 'IMMEDIATE' ? 'Now' : 'Schedule for later'}
-                </button>
-              ))}
+            <div style={{ fontSize: '10px', color: '#64748B', fontWeight: 600, marginBottom: '8px' }}>
+              {isEmergencyMode ? 'EMERGENCY DISPATCH TIMING' : 'WHEN SHOULD WE PICK YOU UP?'}
             </div>
-            {pickupIntent === 'SCHEDULED' && (
-              <input
-                type="datetime-local"
-                aria-label="Scheduled pickup time"
-                value={scheduledPickupAt}
-                onChange={(event) => setScheduledPickupAt(event.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #CBD5E1', borderRadius: '10px', fontSize: '12px', boxSizing: 'border-box' }}
-              />
+            {isEmergencyMode ? (
+              <div style={{
+                padding: '10px 14px',
+                borderRadius: '10px',
+                background: '#FEF2F2',
+                border: '1.5px solid #FCA5A5',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                color: '#991B1B',
+                fontSize: '12px',
+                fontWeight: 700,
+              }}>
+                <ShieldAlert size={16} color="#DC2626" />
+                Immediate Priority Dispatch (Now) — Scheduled timing is disabled for emergencies
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: pickupIntent === 'SCHEDULED' ? '10px' : 0 }}>
+                  {(['IMMEDIATE', 'SCHEDULED'] as const).map((intent) => (
+                    <button
+                      key={intent}
+                      type="button"
+                      onClick={() => setPickupIntent(intent)}
+                      style={{
+                        flex: 1, padding: '10px', borderRadius: '10px', cursor: 'pointer', fontSize: '12px', fontWeight: 700,
+                        border: `1.5px solid ${pickupIntent === intent ? '#16C15D' : '#E2E8F0'}`,
+                        background: pickupIntent === intent ? '#F0FDF4' : '#FFF',
+                        color: pickupIntent === intent ? '#15803D' : '#475569',
+                      }}
+                    >
+                      {intent === 'IMMEDIATE' ? 'Now' : 'Schedule for later'}
+                    </button>
+                  ))}
+                </div>
+                {pickupIntent === 'SCHEDULED' && (
+                  <input
+                    type="datetime-local"
+                    aria-label="Scheduled pickup time"
+                    value={scheduledPickupAt}
+                    onChange={(event) => setScheduledPickupAt(event.target.value)}
+                    style={{ width: '100%', padding: '10px', border: '1px solid #CBD5E1', borderRadius: '10px', fontSize: '12px', boxSizing: 'border-box' }}
+                  />
+                )}
+              </>
             )}
           </div>
 
@@ -743,11 +813,17 @@ export default function BookRidePage() {
           {/* Request button */}
           <button onClick={handleRequestRide} disabled={!pickup || !drop || (pickupIntent === 'SCHEDULED' && !scheduledPickupAt)} style={{
             width: '100%', padding: '14px', border: 'none', borderRadius: '12px',
-            background: pickup && drop && (pickupIntent === 'IMMEDIATE' || scheduledPickupAt) ? '#16C15D' : '#CBD5E1', color: '#FFF', fontSize: '14px', fontWeight: 700,
+            background: pickup && drop && (pickupIntent === 'IMMEDIATE' || scheduledPickupAt)
+              ? (isEmergencyMode ? '#DC2626' : '#16C15D')
+              : '#CBD5E1',
+            color: '#FFF', fontSize: '14px', fontWeight: 700,
             cursor: pickup && drop && (pickupIntent === 'IMMEDIATE' || scheduledPickupAt) ? 'pointer' : 'not-allowed',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+            boxShadow: isEmergencyMode && pickup && drop ? '0 4px 12px rgba(220, 38, 38, 0.35)' : 'none',
+            transition: 'all 0.2s ease',
           }}>
-            <Car size={16} /> Request Ride
+            {isEmergencyMode ? <ShieldAlert size={16} /> : <Car size={16} />}
+            {isEmergencyMode ? 'Request Emergency Ride' : 'Request Ride'}
             {previewEstimate && <span style={{ marginLeft: '4px', opacity: 0.9 }}>· ₹{previewEstimate.estimated}</span>}
           </button>
         </div>

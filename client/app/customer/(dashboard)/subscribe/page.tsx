@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users, Wallet, CreditCard, LocateFixed } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MapPin, Calendar, Clock, Check, Loader, ArrowRight, ArrowLeft, Bus, Briefcase, Users, Wallet, CreditCard, LocateFixed, ShieldAlert, AlertTriangle, X, Navigation, Car } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/stores/toastStore';
 import Link from 'next/link';
@@ -54,10 +55,16 @@ const MODEL_INFO: Record<BookingModel, { title: string; subtitle: string; icon: 
 };
 
 export default function SubscribePage() {
+  const router = useRouter();
   const { showToast } = useToast();
   const [step, setStep] = useState<BookingStep>('model');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+
+  // Emergency dialog state
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
+  const [emergencyAcknowledged, setEmergencyAcknowledged] = useState(false);
+  const [emergencyReason, setEmergencyReason] = useState('Medical / Urgent Health Contingency');
 
   // Form state
   const [model, setModel] = useState<BookingModel | ''>('');
@@ -233,14 +240,75 @@ export default function SubscribePage() {
                 </button>
               );
             })}
-          </div>
 
-          {/* Flexy note */}
-          <div className="glass-card" style={{ padding: '14px', marginTop: '16px', borderLeft: '3px solid #F59E0B' }}>
-            <p style={{ fontSize: '12px', color: '#0F172A', fontWeight: 600 }}>Looking for on-demand rides?</p>
-            <p style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
-              Flexy (single-person, like Ola/Uber) is available via <Link href="/customer/book-ride" style={{ color: '#F59E0B', fontWeight: 700, textDecoration: 'underline' }}>Book Ride</Link> — no subscription needed.
-            </p>
+            {/* Flexy Ride Option */}
+            <button
+              type="button"
+              onClick={() => router.push('/customer/book-ride')}
+              className="glass-card"
+              style={{
+                padding: '18px',
+                textAlign: 'left',
+                border: '1.5px solid #FDE68A',
+                cursor: 'pointer',
+                background: 'linear-gradient(135deg, #FFFBEB 0%, #FFFFFF 100%)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                <span style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Navigation size={18} color="#D97706" />
+                </span>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ fontSize: '14px', color: '#92400E' }}>Flexy Ride</strong>
+                    <span style={{ fontSize: '10px', fontWeight: 800, background: '#FEF3C7', color: '#B45309', padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      On-Demand
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#D97706' }}>Pay-per-ride</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '12px', color: '#78350F', paddingLeft: '48px', margin: 0, opacity: 0.9 }}>
+                Single-passenger on-demand ride (like Ola/Uber). Immediate pickup or advance scheduling — no monthly subscription needed.
+              </p>
+            </button>
+
+            {/* Emergency Ride Option */}
+            <button
+              type="button"
+              onClick={() => {
+                setEmergencyAcknowledged(false);
+                setShowEmergencyModal(true);
+              }}
+              className="glass-card"
+              style={{
+                padding: '18px',
+                textAlign: 'left',
+                border: '1.5px solid #FCA5A5',
+                cursor: 'pointer',
+                background: 'linear-gradient(135deg, #FEF2F2 0%, #FFFFFF 100%)',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
+                <span style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ShieldAlert size={18} color="#DC2626" />
+                </span>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ fontSize: '14px', color: '#991B1B' }}>Emergency Ride</strong>
+                    <span style={{ fontSize: '10px', fontWeight: 800, background: '#FEE2E2', color: '#B91C1C', padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                      Urgent Only
+                    </span>
+                  </div>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#DC2626' }}>Priority On-Demand</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '12px', color: '#7F1D1D', paddingLeft: '48px', margin: 0, opacity: 0.9 }}>
+                Immediate priority dispatch for critical contingencies & corporate emergencies. Follows on-demand Flexy logic with mandatory corporate protocol authorization.
+              </p>
+            </button>
           </div>
         </div>
       )}
@@ -534,6 +602,228 @@ export default function SubscribePage() {
           onLocationSelect={handleLocationSelect}
           onCancel={() => setLocationPicker(null)}
         />
+      )}
+
+      {/* Corporate Emergency Protocol Dialog */}
+      {showEmergencyModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '16px',
+        }}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '460px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 10px 10px -5px rgba(0, 0, 0, 0.05)',
+            border: '1.5px solid #FEE2E2',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #FEF2F2 0%, #FFF5F5 100%)',
+              padding: '18px 20px',
+              borderBottom: '1px solid #FEE2E2',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '12px',
+            }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  background: '#FEE2E2',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <ShieldAlert size={22} color="#DC2626" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#991B1B', margin: 0 }}>
+                    Emergency Ride Authorization
+                  </h3>
+                  <p style={{ fontSize: '11px', color: '#B91C1C', margin: '2px 0 0 0', fontWeight: 600 }}>
+                    Corporate Duty-of-Care & Travel Policy Protocol
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmergencyModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: '#94A3B8',
+                  padding: '4px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '20px' }}>
+              {/* Corporate Compliance Notice */}
+              <div style={{
+                background: '#FFFBEB',
+                border: '1px solid #FDE68A',
+                borderRadius: '10px',
+                padding: '12px',
+                marginBottom: '16px',
+                fontSize: '11px',
+                color: '#92400E',
+                lineHeight: '1.5',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px' }}>
+                  <AlertTriangle size={14} color="#D97706" />
+                  MANDATORY CORPORATE POLICY DISCLOSURE
+                </div>
+                Emergency Ride dispatch operates under on-demand Flexy dispatch architecture with priority queue allocation. Pursuant to corporate transit compliance, this service is <strong>strictly provisioned for urgent, time-critical exigencies</strong> where scheduled commute tiers are unviable.
+              </div>
+
+              {/* Exigency Category */}
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: '#475569',
+                  textTransform: 'uppercase',
+                  marginBottom: '6px',
+                  letterSpacing: '0.5px',
+                }}>
+                  Exigency Classification
+                </label>
+                <select
+                  value={emergencyReason}
+                  onChange={(e) => setEmergencyReason(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #CBD5E1',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    background: '#F8FAFC',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="Medical / Urgent Health Contingency">Medical / Urgent Health Contingency</option>
+                  <option value="Business-Critical Client Exigency">Business-Critical Client Exigency</option>
+                  <option value="Transit Breakdown / Unscheduled Stranded">Transit Breakdown / Unscheduled Stranded</option>
+                  <option value="Late Shift / Safety & Duty of Care">Late Shift / Safety & Duty of Care</option>
+                  <option value="Other Unforeseen Exigency">Other Urgent Unforeseen Exigency</option>
+                </select>
+              </div>
+
+              {/* Policy Terms */}
+              <div style={{
+                fontSize: '11px',
+                color: '#64748B',
+                lineHeight: '1.5',
+                marginBottom: '16px',
+                padding: '10px',
+                background: '#F8FAFC',
+                borderRadius: '8px',
+              }}>
+                <p style={{ margin: '0 0 6px 0' }}>• Dispatched as an immediate on-demand ride (single-passenger, Flexy fare model).</p>
+                <p style={{ margin: '0 0 6px 0' }}>• Requests are priority-routed and recorded in corporate travel compliance logs.</p>
+                <p style={{ margin: 0 }}>• Non-urgent transit should be scheduled through standard commute plans or regular Flexy.</p>
+              </div>
+
+              {/* Acknowledgment Checkbox */}
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                cursor: 'pointer',
+                marginBottom: '20px',
+                userSelect: 'none',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={emergencyAcknowledged}
+                  onChange={(e) => setEmergencyAcknowledged(e.target.checked)}
+                  style={{
+                    marginTop: '2px',
+                    accentColor: '#DC2626',
+                    cursor: 'pointer',
+                    width: '16px',
+                    height: '16px',
+                  }}
+                />
+                <span style={{ fontSize: '11.5px', color: '#1E293B', fontWeight: 600, lineHeight: '1.4' }}>
+                  I certify that this booking constitutes an urgent exigency under corporate travel guidelines and authorizes priority dispatch.
+                </span>
+              </label>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowEmergencyModal(false)}
+                  style={{
+                    flex: 1,
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: '1px solid #E2E8F0',
+                    background: '#FFFFFF',
+                    color: '#64748B',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!emergencyAcknowledged}
+                  onClick={() => {
+                    setShowEmergencyModal(false);
+                    router.push(`/customer/book-ride?mode=emergency&reason=${encodeURIComponent(emergencyReason)}`);
+                  }}
+                  style={{
+                    flex: 2,
+                    padding: '12px',
+                    borderRadius: '10px',
+                    border: 'none',
+                    background: emergencyAcknowledged ? '#DC2626' : '#FCA5A5',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: emergencyAcknowledged ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: emergencyAcknowledged ? '0 2px 8px rgba(220, 38, 38, 0.35)' : 'none',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <ShieldAlert size={15} />
+                  Authorize & Dispatch
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

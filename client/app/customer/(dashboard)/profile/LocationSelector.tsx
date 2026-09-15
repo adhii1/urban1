@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Search, LocateFixed, MapPin } from 'lucide-react';
+import { X, Search, LocateFixed, MapPin, Loader2 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 interface LocationSelectorProps {
@@ -112,32 +112,74 @@ export default function LocationSelector({ type, initialAddress, initialCoordina
         </div>
 
         {/* Search */}
-        <div style={{ padding: '12px 20px', position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px' }}>
+        <div style={{ padding: '12px 20px', position: 'relative', zIndex: 2000 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '10px 12px', background: '#fff' }}>
             <Search size={16} color="#64748B" />
             <input
               type="text"
               placeholder="Search for a place..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ flex: 1, border: 'none', outline: 'none', fontSize: '13px', color: '#0F172A' }}
+              style={{ flex: 1, border: 'none', outline: 'none', fontSize: '13px', color: '#0F172A', background: 'transparent' }}
             />
-            <button onClick={handleUseMyLocation} style={{ background: 'none', border: 'none', cursor: 'pointer', color: typeColor, padding: '2px' }} title="Use my location">
+            {searching && (
+              <Loader2 size={16} color="#64748B" style={{ animation: 'spin 1s linear infinite' }} />
+            )}
+            {searchQuery && !searching && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setSuggestions([]); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94A3B8', padding: '2px', display: 'flex', alignItems: 'center' }}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+            <button type="button" onClick={handleUseMyLocation} style={{ background: 'none', border: 'none', cursor: 'pointer', color: typeColor, padding: '2px', display: 'flex', alignItems: 'center' }} title="Use my location">
               <LocateFixed size={18} />
             </button>
           </div>
 
           {/* Suggestions dropdown */}
           {suggestions.length > 0 && (
-            <div style={{ position: 'absolute', left: '20px', right: '20px', top: '58px', background: '#fff', border: '1px solid #E2E8F0', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 10, maxHeight: '200px', overflowY: 'auto' }}>
+            <div style={{
+              position: 'absolute',
+              left: '20px',
+              right: '20px',
+              top: '58px',
+              background: '#ffffff',
+              border: '1.5px solid #CBD5E1',
+              borderRadius: '10px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+              zIndex: 9999,
+              maxHeight: '220px',
+              overflowY: 'auto',
+            }}>
               {suggestions.map((item, idx) => (
                 <button
+                  type="button"
                   key={idx}
                   onClick={() => selectSuggestion(item)}
-                  style={{ width: '100%', textAlign: 'left', padding: '10px 14px', border: 'none', background: 'none', cursor: 'pointer', fontSize: '12px', color: '#0F172A', borderBottom: idx < suggestions.length - 1 ? '1px solid #F1F5F9' : 'none' }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '11px 14px',
+                    border: 'none',
+                    background: '#ffffff',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    color: '#0F172A',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px',
+                    borderBottom: idx < suggestions.length - 1 ? '1px solid #F1F5F9' : 'none',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#F8FAFC')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#ffffff')}
                 >
-                  <MapPin size={12} style={{ display: 'inline', marginRight: '6px', color: typeColor }} />
-                  {item.display_name.slice(0, 80)}{item.display_name.length > 80 ? '...' : ''}
+                  <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px', color: typeColor }} />
+                  <span style={{ lineHeight: '1.4' }}>{item.display_name}</span>
                 </button>
               ))}
             </div>
@@ -145,7 +187,7 @@ export default function LocationSelector({ type, initialAddress, initialCoordina
         </div>
 
         {/* Map */}
-        <div style={{ flex: 1, minHeight: '280px', position: 'relative' }}>
+        <div style={{ flex: 1, minHeight: '280px', position: 'relative', zIndex: 1 }}>
           <LeafletMap lat={lat} lng={lng} onMapClick={handleMapClick} markerColor={typeColor} />
         </div>
 
