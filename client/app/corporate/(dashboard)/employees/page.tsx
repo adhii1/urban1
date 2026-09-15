@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, UserRound, X } from 'lucide-react';
+import { Check, Clock3, Plus, Trash2, UserRound, X, XCircle } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useToast } from '@/stores/toastStore';
 
@@ -13,12 +13,24 @@ interface Employee {
   subscriptionId?: { subscriptionType?: string; status?: string; pickupTime?: string } | null;
 }
 
+interface JoinRequest {
+  _id: string;
+  message?: string;
+  customerId?: { _id: string; name: string; userId?: { phone?: string } };
+  createdAt: string;
+}
+
 export default function CorporateEmployeesPage() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['corporate', 'employees'],
     queryFn: () => api.get<Employee[]>('/corporate/employees'),
+    select: (d) => d.data,
+  });
+  const { data: requestsData, isLoading: requestsLoading } = useQuery({
+    queryKey: ['corporate', 'join-requests'],
+    queryFn: () => api.get<JoinRequest[]>('/corporate/join-requests'),
     select: (d) => d.data,
   });
 
@@ -47,7 +59,19 @@ export default function CorporateEmployeesPage() {
     onError: (err: Error) => showToast(err.message || 'Failed to remove employee', 'error'),
   });
 
+  const reviewRequest = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: 'approve' | 'reject' }) => api.post(`/corporate/join-requests/${id}/${action}`, {}),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['corporate', 'join-requests'] });
+      queryClient.invalidateQueries({ queryKey: ['corporate', 'employees'] });
+      queryClient.invalidateQueries({ queryKey: ['corporate', 'dashboard'] });
+      showToast(variables.action === 'approve' ? 'Employee request accepted' : 'Employee request declined', 'success');
+    },
+    onError: (err: Error) => showToast(err.message || 'Unable to review request', 'error'),
+  });
+
   const employees = data || [];
+  const requests = requestsData || [];
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +82,12 @@ export default function CorporateEmployeesPage() {
 
   return (
     <div>
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}><Clock3 size={16} color="#D97706" /><h2 style={{ fontSize: 18, fontWeight: 800, color: '#0F172A' }}>Join requests {requests.length ? `(${requests.length})` : ''}</h2></div>
+        <div style={{ background: '#FFFDF5', border: '1px solid #FDE68A', borderRadius: 12, overflow: 'hidden' }}>
+          {requestsLoading ? <p style={{ padding: 18, color: '#64748B', fontSize: 13 }}>Loading requests…</p> : requests.length === 0 ? <p style={{ padding: 18, color: '#64748B', fontSize: 13 }}>No pending requests.</p> : requests.map((request) => <div key={request._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: 14, borderBottom: '1px solid #FDE68A' }}><div><strong style={{ color: '#0F172A', fontSize: 13 }}>{request.customerId?.name || 'Customer'}</strong><p style={{ marginTop: 3, color: '#64748B', fontSize: 11 }}>{request.customerId?.userId?.phone || ''}{request.message ? ` · ${request.message}` : ''}</p></div><div style={{ display: 'flex', gap: 7 }}><button onClick={() => reviewRequest.mutate({ id: request._id, action: 'approve' })} disabled={reviewRequest.isPending} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #86EFAC', borderRadius: 7, padding: '6px 9px', background: '#F0FDF4', color: '#15803D', fontWeight: 700, cursor: 'pointer' }}><Check size={13} />Accept</button><button onClick={() => reviewRequest.mutate({ id: request._id, action: 'reject' })} disabled={reviewRequest.isPending} style={{ display: 'flex', alignItems: 'center', gap: 4, border: '1px solid #FCA5A5', borderRadius: 7, padding: '6px 9px', background: '#FEF2F2', color: '#B91C1C', fontWeight: 700, cursor: 'pointer' }}><XCircle size={13} />Decline</button></div></div>)}
+        </div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#0F172A' }}>Employees</h2>

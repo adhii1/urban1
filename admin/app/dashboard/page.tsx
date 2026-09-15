@@ -12,7 +12,7 @@ const DATE_FILTERS = ['Today', 'Week', 'Month', 'Custom'] as const;
 export default function DashboardPage() {
   const [dateFilter, setDateFilter] = useState<string>('Today');
   const period = dateFilter === 'Week' ? 'week' : dateFilter === 'Month' ? 'month' : 'today';
-  const { data, isLoading } = useDashboardStats(period);
+  const { data, error, isLoading, refetch } = useDashboardStats(period);
   const { isConnected, onlineDrivers, onlineCustomers, activeRides, customerOperations } = useAdminSocket();
 
   // Real stats only — no mock/placeholder values
@@ -32,14 +32,15 @@ export default function DashboardPage() {
     activeSubscriptions: 0,
   };
 
-  const dataUnavailable = !data?.success || !data?.data;
+  const dataUnavailable = Boolean(error) || !data?.success || !data?.data;
 
   return (
     <DashboardLayout>
       <div className="fade-in">
         {dataUnavailable && !isLoading && (
           <div style={{ marginBottom: '16px', padding: '10px 16px', fontSize: '12px', color: '#F59E0B', background: 'rgba(245,158,11,0.1)', borderRadius: '8px', border: '1px solid rgba(245,158,11,0.2)' }}>
-            Dashboard data unavailable from API. Showing real-time counts only.
+            Dashboard data unavailable from API: {error instanceof Error ? error.message : 'empty response'}.
+            <button onClick={() => refetch()} style={{ marginLeft: 8, border: 'none', background: 'transparent', color: '#F59E0B', textDecoration: 'underline', cursor: 'pointer', fontWeight: 700 }}>Retry</button>
           </div>
         )}
         {/* Header Block */}

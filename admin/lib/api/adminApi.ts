@@ -191,6 +191,7 @@ export const adminApi = {
 
   // Corporate accounts
   getCorporates: () => apiFetch('/admin/corporates'),
+  getCorporateJoinRequests: (status = 'PENDING') => apiFetch(`/admin/corporate-join-requests?status=${encodeURIComponent(status)}`),
   getCorporate: (id: string) => apiFetch(`/admin/corporates/${id}`),
   createCorporate: (data: any) =>
     apiFetch('/admin/corporates', { method: 'POST', body: JSON.stringify(data) }),

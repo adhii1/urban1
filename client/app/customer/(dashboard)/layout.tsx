@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Bell, CircleUserRound, CreditCard, Home, MapPin, Plus, Settings, User } from 'lucide-react';
+import { Bell, Building2, CircleUserRound, CreditCard, Home, MapPin, Plus, Settings, User } from 'lucide-react';
 import { api, ApiError } from '@/lib/api/client';
 import { useCustomerTripSync } from '@/lib/hooks/useCustomerTripSync';
 import { useCustomerStore } from '@/stores/customerStore';
@@ -50,6 +50,7 @@ export default function CustomerDashboardLayout({ children }: { children: React.
     { href: '/customer/subscribe', icon: CreditCard, label: 'Subscribe' },
     { href: '/customer/book-ride', icon: Plus, label: 'Book', primary: true },
     { href: '/customer/my-trips', icon: MapPin, label: 'Trips' },
+    { href: '/customer/corporate', icon: Building2, label: 'Company' },
     { href: '/customer/settings', icon: Settings, label: 'Settings' },
   ];
 

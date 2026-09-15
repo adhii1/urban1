@@ -12,6 +12,7 @@ const OperationalException = require('../models/OperationalException');
 const Area = require('../models/Area');
 const Zone = require('../models/Zone');
 const Corporate = require('../models/Corporate');
+const CorporateJoinRequest = require('../models/CorporateJoinRequest');
 const {
   applyDriverChange,
   reconcileStopChange,
@@ -1204,6 +1205,18 @@ const getCorporateById = asyncWrapper(async (req, res) => {
   return res.status(200).json(formatResponse('Corporate account retrieved.', corporate));
 });
 
+const getCorporateJoinRequests = asyncWrapper(async (req, res) => {
+  const filter = {};
+  if (['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(req.query.status)) {
+    filter.status = req.query.status;
+  }
+  const requests = await CorporateJoinRequest.find(filter)
+    .populate('corporateId', 'companyName status')
+    .populate({ path: 'customerId', select: 'name userId corporateId', populate: { path: 'userId', select: 'phone' } })
+    .sort({ createdAt: -1 });
+  return res.status(200).json(formatResponse('Corporate join requests listed successfully.', requests));
+});
+
 const createCorporate = asyncWrapper(async (req, res) => {
   const { phone, password, companyName, contactPerson, billingEmail, gstNumber, address, employeeLimit } = req.body;
 
@@ -1396,6 +1409,7 @@ module.exports = {
   assignAreasToZone,
   getCorporates,
   getCorporateById,
+  getCorporateJoinRequests,
   createCorporate,
   updateCorporate,
   deleteCorporate,

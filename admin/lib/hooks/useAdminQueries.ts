@@ -3,12 +3,12 @@ import { adminApi } from '../api/adminApi';
 import { useAdminStore } from '../../stores/adminStore';
 
 function useAuthState() {
-  return useAdminStore((s) => s.adminUserId);
+  return useAdminStore((s) => !!s.adminUserId || !!s.accessToken);
 }
 
 // --- Dashboard ---
 export function useDashboardStats(period = 'today') {
-  const isAuthed = !!useAuthState();
+  const isAuthed = useAuthState();
   return useQuery({
     queryKey: ['dashboard', period],
     queryFn: () => adminApi.getDashboard(period),
@@ -427,6 +427,15 @@ export function useCorporates() {
   return useQuery({
     queryKey: ['corporates'],
     queryFn: () => adminApi.getCorporates(),
+    enabled: isAuthed,
+  });
+}
+
+export function useCorporateJoinRequests(status = 'PENDING') {
+  const isAuthed = useAuthState();
+  return useQuery({
+    queryKey: ['corporate-join-requests', status],
+    queryFn: () => adminApi.getCorporateJoinRequests(status),
     enabled: isAuthed,
   });
 }

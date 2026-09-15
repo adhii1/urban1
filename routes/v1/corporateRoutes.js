@@ -18,4 +18,8 @@ router.get('/employees', corporateController.getEmployees);
 router.post('/employees', validateRequest(corporateValidation.addEmployee), corporateController.addEmployee);
 router.delete('/employees/:id', corporateController.removeEmployee);
 
+const corporateRequestController = require('../../controllers/corporateRequestController');
+router.get('/join-requests', corporateRequestController.listCorporateRequests);
+router.post('/join-requests/:requestId/:action', corporateRequestController.reviewCorporateRequest);
+
 module.exports = router;

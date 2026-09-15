@@ -10,6 +10,7 @@ import {
   useApproveCorporate,
   useRejectCorporate,
   useAssignDriverToCorporate,
+  useCorporateJoinRequests,
 } from '../../lib/hooks/useAdminQueries';
 import { useDrivers } from '../../lib/hooks/useAdminQueries';
 import { useState, useEffect } from 'react';
@@ -53,6 +54,7 @@ export default function CorporatesPage() {
   useAuthGuard();
   const { data, isLoading } = useCorporates();
   const { data: driversData } = useDrivers();
+  const { data: joinRequestsData } = useCorporateJoinRequests();
   const createCorporate = useCreateCorporate();
   const updateCorporate = useUpdateCorporate();
   const deleteCorporate = useDeleteCorporate();
@@ -62,6 +64,7 @@ export default function CorporatesPage() {
 
   const corporates: any[] = data?.success ? (data.data || []) : [];
   const drivers: any[] = driversData?.success ? (driversData.data || []) : [];
+  const joinRequests: any[] = joinRequestsData?.success ? (joinRequestsData.data || []) : [];
   // Only ACTIVE drivers are sensible choices for assignment
   const activeDrivers = drivers.filter((d: any) => d.status === 'ACTIVE' || !d.status);
 
@@ -219,6 +222,31 @@ export default function CorporatesPage() {
             </button>
           </div>
         </div>
+
+        <section className="glass-card" style={{ padding: '18px', marginBottom: '20px' }} aria-labelledby="corporate-join-requests-heading">
+          <div className="flex-between" style={{ marginBottom: '12px' }}>
+            <div>
+              <h3 id="corporate-join-requests-heading" style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text-main)' }}>Customer Join Requests</h3>
+              <p style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '3px' }}>Requests submitted by customers to active corporate accounts.</p>
+            </div>
+            <span style={{ padding: '4px 9px', borderRadius: 12, fontSize: '10px', fontWeight: 700, background: '#FEF3C7', color: '#D97706' }}>{joinRequests.length} pending</span>
+          </div>
+          {joinRequests.length === 0 ? (
+            <p style={{ padding: '12px 0', fontSize: '12px', color: 'var(--text-light)' }}>No pending customer requests.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: '8px' }}>
+              {joinRequests.map((request: any) => (
+                <div key={request._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', padding: '10px 12px', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                  <div>
+                    <strong style={{ fontSize: '12px', color: 'var(--text-main)' }}>{request.customerId?.name || 'Customer'}</strong>
+                    <span style={{ marginLeft: '8px', fontSize: '11px', color: 'var(--text-light)' }}>{request.customerId?.userId?.phone || 'No phone'}</span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-light)' }}>{request.corporateId?.companyName || 'Corporate account'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Search + status filter bar */}
         <div className="glass-card" style={{ padding: '12px 16px', marginBottom: '20px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>

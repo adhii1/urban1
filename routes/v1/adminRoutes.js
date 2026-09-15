@@ -104,6 +104,7 @@ router.post('/zones/:id/assign-areas', adminController.assignAreasToZone);
 // Corporate accounts (admin provisions; corporate contact manages employees
 // via the corporate portal)
 router.get('/corporates', adminController.getCorporates);
+router.get('/corporate-join-requests', adminController.getCorporateJoinRequests);
 router.get('/corporates/:id', adminController.getCorporateById);
 router.post('/corporates', validateRequest(adminValidation.createCorporate), adminController.createCorporate);
 router.patch('/corporates/:id', validateRequest(adminValidation.updateCorporate), adminController.updateCorporate);

@@ -41,6 +41,12 @@ router.use('/payments', paymentRoutes);
 const authenticate = require('../../middleware/authMiddleware');
 const authorize = require('../../middleware/roleMiddleware');
 const featuresController = require('../../controllers/customerFeaturesController');
+const corporateRequestController = require('../../controllers/corporateRequestController');
+
+// Customer applications to active corporate accounts.
+router.get('/customer/corporates', authenticate, authorize('Customer'), corporateRequestController.listAvailableCorporates);
+router.get('/customer/corporate-requests', authenticate, authorize('Customer'), corporateRequestController.listCustomerRequests);
+router.post('/customer/corporates/:corporateId/apply', authenticate, authorize('Customer'), corporateRequestController.applyToCorporate);
 
 // Favourites
 router.get('/favourites', authenticate, featuresController.getFavourites);
